@@ -1,0 +1,7 @@
+{
+  "mcpServers": {
+    "pgquerynarrative": {
+      "command": "/FULL/PATH/TO/PgQueryNarrative/bin/mcp-server"
+    }
+  }
+}

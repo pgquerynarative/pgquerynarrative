@@ -1,0 +1,91 @@
+name: pgquerynarrative
+
+services:
+  postgres:
+    image: ${POSTGRES_IMAGE:-postgres:18-alpine}
+    container_name: pgquerynarrative-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-pgquerynarrative}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgquerynarrative_data:/var/lib/postgresql/data
+      - ./infra/postgres-init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: pgquerynarrative-app
+    develop:
+      watch:
+        - path: Dockerfile
+          action: rebuild
+        - path: cmd
+          action: sync+restart
+          target: /app/cmd
+        - path: app
+          action: sync+restart
+          target: /app/app
+    environment:
+      PGQUERYNARRATIVE_HOST: 0.0.0.0
+      PGQUERYNARRATIVE_PORT: 8080
+      DATABASE_HOST: ${DATABASE_HOST:-postgres}
+      DATABASE_PORT: ${DATABASE_PORT:-5432}
+      DATABASE_NAME: ${DATABASE_NAME:-pgquerynarrative}
+      DATABASE_USER: ${DATABASE_USER:-pgquerynarrative_app}
+      DATABASE_PASSWORD: ${DATABASE_PASSWORD:-pgquerynarrative_app}
+      DATABASE_READONLY_USER: ${DATABASE_READONLY_USER:-pgquerynarrative_readonly}
+      DATABASE_READONLY_PASSWORD: ${DATABASE_READONLY_PASSWORD:-pgquerynarrative_readonly}
+      DATABASE_SSL_MODE: disable
+      DATABASE_MAX_CONNECTIONS: 5
+      LLM_PROVIDER: ollama
+      LLM_MODEL: ${LLM_MODEL:-llama3.2}
+      LLM_BASE_URL: ${LLM_BASE_URL:-http://host.docker.internal:11434}
+      LOG_DEBUG: ${LOG_DEBUG:-}
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/api/v1/queries/saved"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+  cli:
+    build:
+      context: .
+      dockerfile: Dockerfile.cli
+    container_name: pgquerynarrative-cli
+    environment:
+      PGQUERYNARRATIVE_API_URL: http://app:8080
+      PGQUERYNARRATIVE_FORMAT: table
+    depends_on:
+      app:
+        condition: service_healthy
+    stdin_open: true
+    tty: true
+    command: ["/bin/sh"]
+    profiles:
+      - cli
+
+volumes:
+  pgquerynarrative_data:

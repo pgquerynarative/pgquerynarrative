@@ -1,0 +1,5 @@
+DROP SCHEMA IF EXISTS demo CASCADE;
+DROP SCHEMA IF EXISTS app CASCADE;
+
+DROP ROLE IF EXISTS pgquerynarrative_readonly;
+DROP ROLE IF EXISTS pgquerynarrative_app;

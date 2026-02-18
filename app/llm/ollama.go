@@ -1,0 +1,118 @@
+package llm
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"time"
+)
+
+type OllamaClient struct {
+	baseURL string
+	model   string
+	client  *http.Client
+}
+
+func NewOllamaClient(baseURL, model string) *OllamaClient {
+	if baseURL == "" {
+		baseURL = "http://localhost:11434"
+	}
+	if model == "" {
+		model = "llama3.2"
+	}
+
+	return &OllamaClient{
+		baseURL: baseURL,
+		model:   model,
+		client: &http.Client{
+			Timeout: 120 * time.Second,
+		},
+	}
+}
+
+func (c *OllamaClient) Name() string {
+	return "ollama"
+}
+
+func (c *OllamaClient) Generate(ctx context.Context, prompt string) (string, error) {
+	url := fmt.Sprintf("%s/api/generate", c.baseURL)
+
+	payload := map[string]interface{}{
+		"model":  c.model,
+		"prompt": prompt,
+		"stream": false,
+		"options": map[string]interface{}{
+			"temperature": 0.7,
+			"num_predict": 2048, // enough tokens for full narrative JSON
+		},
+	}
+
+	jsonData, err := json.Marshal(payload)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal request: %w", err)
+	}
+
+	maxRetries := 3
+	retryDelay := 1 * time.Second
+	var lastErr error
+
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(jsonData))
+		if err != nil {
+			return "", fmt.Errorf("failed to create request: %w", err)
+		}
+
+		req.Header.Set("Content-Type", "application/json")
+
+		resp, err := c.client.Do(req)
+		if err != nil {
+			lastErr = fmt.Errorf("failed to send request: %w", err)
+			if attempt < maxRetries-1 {
+				time.Sleep(retryDelay)
+				retryDelay *= 2
+				continue
+			}
+			return "", lastErr
+		}
+
+		if resp.StatusCode != http.StatusOK {
+			body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+			resp.Body.Close()
+			lastErr = fmt.Errorf("ollama API error: %d - %s", resp.StatusCode, string(body))
+			if resp.StatusCode >= 500 && attempt < maxRetries-1 {
+				time.Sleep(retryDelay)
+				retryDelay *= 2
+				continue
+			}
+			return "", lastErr
+		}
+
+		var result struct {
+			Response string `json:"response"`
+			Done     bool   `json:"done"`
+		}
+
+		if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+			resp.Body.Close()
+			return "", fmt.Errorf("failed to decode response: %w", err)
+		}
+		resp.Body.Close()
+
+		if result.Done && result.Response != "" {
+			return result.Response, nil
+		}
+
+		if result.Done && result.Response == "" && attempt < maxRetries-1 {
+			time.Sleep(retryDelay)
+			retryDelay *= 2
+			continue
+		}
+
+		return result.Response, nil
+	}
+
+	return "", lastErr
+}

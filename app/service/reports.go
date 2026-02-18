@@ -1,0 +1,353 @@
+package service
+
+import (
+	"context"
+	"database/sql"
+	"encoding/json"
+	"errors"
+	"strings"
+	"time"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/pgquerynarrative/pgquerynarrative/api/gen/reports"
+	"github.com/pgquerynarrative/pgquerynarrative/app/apilog"
+	"github.com/pgquerynarrative/pgquerynarrative/app/charts"
+	"github.com/pgquerynarrative/pgquerynarrative/app/debuglog"
+	"github.com/pgquerynarrative/pgquerynarrative/app/llm"
+	"github.com/pgquerynarrative/pgquerynarrative/app/metrics"
+	"github.com/pgquerynarrative/pgquerynarrative/app/queryrunner"
+	"github.com/pgquerynarrative/pgquerynarrative/app/story"
+)
+
+type ReportsService struct {
+	readOnlyPool   *pgxpool.Pool
+	appPool        *pgxpool.Pool
+	runner         *queryrunner.Runner
+	llmClient      llm.Client
+	generator      *story.Generator
+	trendThreshold float64 // Min absolute % change for up/down vs flat (0 = default 0.5)
+}
+
+func NewReportsService(readOnlyPool, appPool *pgxpool.Pool, runner *queryrunner.Runner, llmClient llm.Client, trendThresholdPercent float64) *ReportsService {
+	return &ReportsService{
+		readOnlyPool:   readOnlyPool,
+		appPool:        appPool,
+		runner:         runner,
+		llmClient:      llmClient,
+		generator:      story.NewGenerator(llmClient),
+		trendThreshold: trendThresholdPercent,
+	}
+}
+
+func (s *ReportsService) Generate(ctx context.Context, payload *reports.GenerateReportPayload) (*reports.Report, error) {
+	debuglog.Log("report generation started")
+	// Execute query
+	queryResult, err := s.runner.Run(ctx, payload.SQL, 1000)
+	if err != nil {
+		errMsg := err.Error()
+		if errors.Is(err, context.DeadlineExceeded) ||
+			strings.Contains(errMsg, "query execution timeout") ||
+			strings.Contains(errMsg, "context deadline exceeded") ||
+			strings.Contains(errMsg, "deadline exceeded") {
+			userMsg := "Query timed out. Try a simpler query or reduce the amount of data."
+			apilog.ValidationError("generate", "timeout_error", errMsg)
+			return nil, &reports.ValidationError{
+				Name:    "timeout_error",
+				Message: userMsg,
+				Code:    strPtr("TIMEOUT_ERROR"),
+			}
+		}
+		apilog.ValidationError("generate", "validation_error", errMsg)
+		return nil, &reports.ValidationError{
+			Name:    "validation_error",
+			Message: errMsg,
+			Code:    strPtr("VALIDATION_ERROR"),
+		}
+	}
+
+	// Extract column names and types
+	columnNames := make([]string, len(queryResult.Columns))
+	columnTypes := make([]string, len(queryResult.Columns))
+	for i, col := range queryResult.Columns {
+		columnNames[i] = col.Name
+		columnTypes[i] = col.Type
+	}
+
+	// Chart suggestions from result shape
+	chartSuggestions := suggestToReports(charts.Suggest(columnNames, columnTypes, queryResult.Rows))
+
+	// Profile columns
+	profiles := metrics.ProfileColumns(columnNames, queryResult.Rows)
+
+	// Calculate metrics
+	calcMetrics := metrics.CalculateMetrics(columnNames, queryResult.Rows, profiles, s.trendThreshold)
+
+	// Generate narrative
+	debuglog.Log("calling LLM for narrative generation")
+	narrative, err := s.generator.Generate(ctx, payload.SQL, columnNames, queryResult.Rows, calcMetrics)
+	if err != nil {
+		llmMsg := err.Error()
+		apilog.LLMError(llmMsg)
+		userMsg := "Narrative generation failed. Check your LLM configuration and try again."
+		return nil, &reports.LLMError{
+			Name:    "llm_error",
+			Message: userMsg,
+			Code:    strPtr("LLM_ERROR"),
+		}
+	}
+
+	// Convert metrics to API format
+	metricsData := convertMetrics(calcMetrics)
+
+	// Store report in database
+	debuglog.Log("storing report in database")
+	reportID, err := s.storeReport(ctx, payload, narrative, calcMetrics, queryResult)
+	if err != nil {
+		return nil, err
+	}
+	apilog.Request("generate", "report_id="+reportID)
+
+	// Convert narrative to API format
+	narrativeData := &reports.NarrativeContent{
+		Headline:        narrative.Headline,
+		Takeaways:       narrative.Takeaways,
+		Drivers:         narrative.Drivers,
+		Limitations:     narrative.Limitations,
+		Recommendations: narrative.Recommendations,
+	}
+
+	return &reports.Report{
+		ID:               reportID,
+		SavedQueryID:     payload.SavedQueryID,
+		SQL:              payload.SQL,
+		Narrative:        narrativeData,
+		Metrics:          metricsData,
+		ChartSuggestions: chartSuggestions,
+		CreatedAt:        time.Now().Format(time.RFC3339),
+		LlmModel:         s.llmClient.Name(),
+		LlmProvider:      s.llmClient.Name(),
+	}, nil
+}
+
+// suggestToReports converts charts.Suggestion slice to reports API type.
+func suggestToReports(in []charts.Suggestion) []*reports.ChartSuggestion {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]*reports.ChartSuggestion, len(in))
+	for i := range in {
+		out[i] = &reports.ChartSuggestion{
+			ChartType: in[i].ChartType,
+			Label:     in[i].Label,
+			Reason:    in[i].Reason,
+		}
+	}
+	return out
+}
+
+func (s *ReportsService) storeReport(ctx context.Context, payload *reports.GenerateReportPayload, narrative *story.NarrativeContent, calcMetrics *metrics.Metrics, queryResult *queryrunner.Result) (string, error) {
+	narrativeJSON, _ := json.Marshal(narrative)
+	metricsJSON, _ := json.Marshal(calcMetrics)
+	statsJSON, _ := json.Marshal(map[string]interface{}{
+		"execution_time_ms": queryResult.ExecutionTimeMs,
+		"row_count":         queryResult.RowCount,
+	})
+
+	var reportID string
+	err := s.appPool.QueryRow(ctx, `
+		INSERT INTO app.reports (
+			saved_query_id, sql, narrative_md, narrative_json, metrics, stats,
+			llm_model, llm_provider, success
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		RETURNING id
+	`, payload.SavedQueryID, payload.SQL, narrative.Headline, narrativeJSON, metricsJSON, statsJSON,
+		s.llmClient.Name(), s.llmClient.Name(), true).Scan(&reportID)
+
+	return reportID, err
+}
+
+func (s *ReportsService) Get(ctx context.Context, payload *reports.GetPayload) (*reports.Report, error) {
+	row := s.appPool.QueryRow(ctx, `
+		SELECT id, saved_query_id, sql, narrative_json, metrics, created_at, llm_model, llm_provider
+		FROM app.reports
+		WHERE id = $1
+	`, payload.ID)
+
+	var report reports.Report
+	var savedQueryID sql.NullString
+	var narrativeJSON []byte
+	var metricsJSON []byte
+	var createdAt time.Time
+
+	err := row.Scan(&report.ID, &savedQueryID, &report.SQL, &narrativeJSON, &metricsJSON, &createdAt, &report.LlmModel, &report.LlmProvider)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, &reports.NotFoundError{
+				Name:    "not_found",
+				Message: "report not found",
+				Code:    strPtr("NOT_FOUND"),
+			}
+		}
+		return nil, err
+	}
+
+	if savedQueryID.Valid {
+		report.SavedQueryID = &savedQueryID.String
+	}
+
+	var narrative story.NarrativeContent
+	if err := json.Unmarshal(narrativeJSON, &narrative); err == nil {
+		report.Narrative = &reports.NarrativeContent{
+			Headline:        narrative.Headline,
+			Takeaways:       narrative.Takeaways,
+			Drivers:         narrative.Drivers,
+			Limitations:     narrative.Limitations,
+			Recommendations: narrative.Recommendations,
+		}
+	}
+
+	var calcMetrics metrics.Metrics
+	if err := json.Unmarshal(metricsJSON, &calcMetrics); err == nil {
+		report.Metrics = convertMetrics(&calcMetrics)
+	}
+
+	report.CreatedAt = createdAt.Format(time.RFC3339)
+
+	return &report, nil
+}
+
+func (s *ReportsService) List(ctx context.Context, payload *reports.ListPayload) (*reports.ReportList, error) {
+	limit := int(payload.Limit)
+	offset := int(payload.Offset)
+
+	var rows pgx.Rows
+	var err error
+
+	if payload.SavedQueryID != nil && *payload.SavedQueryID != "" {
+		rows, err = s.appPool.Query(ctx, `
+			SELECT id, saved_query_id, sql, narrative_json, metrics, created_at, llm_model, llm_provider
+			FROM app.reports
+			WHERE saved_query_id = $1
+			ORDER BY created_at DESC
+			LIMIT $2 OFFSET $3
+		`, *payload.SavedQueryID, limit, offset)
+	} else {
+		rows, err = s.appPool.Query(ctx, `
+			SELECT id, saved_query_id, sql, narrative_json, metrics, created_at, llm_model, llm_provider
+			FROM app.reports
+			ORDER BY created_at DESC
+			LIMIT $1 OFFSET $2
+		`, limit, offset)
+	}
+
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	items := make([]*reports.Report, 0, limit)
+	for rows.Next() {
+		var report reports.Report
+		var savedQueryID sql.NullString
+		var narrativeJSON []byte
+		var metricsJSON []byte
+		var createdAt time.Time
+
+		if err := rows.Scan(&report.ID, &savedQueryID, &report.SQL, &narrativeJSON, &metricsJSON, &createdAt, &report.LlmModel, &report.LlmProvider); err != nil {
+			return nil, err
+		}
+
+		if savedQueryID.Valid {
+			report.SavedQueryID = &savedQueryID.String
+		}
+
+		var narrative story.NarrativeContent
+		if err := json.Unmarshal(narrativeJSON, &narrative); err == nil {
+			report.Narrative = &reports.NarrativeContent{
+				Headline:        narrative.Headline,
+				Takeaways:       narrative.Takeaways,
+				Drivers:         narrative.Drivers,
+				Limitations:     narrative.Limitations,
+				Recommendations: narrative.Recommendations,
+			}
+		}
+
+		var calcMetrics metrics.Metrics
+		if err := json.Unmarshal(metricsJSON, &calcMetrics); err == nil {
+			report.Metrics = convertMetrics(&calcMetrics)
+		}
+
+		report.CreatedAt = createdAt.Format(time.RFC3339)
+		items = append(items, &report)
+	}
+
+	if rows.Err() != nil {
+		return nil, rows.Err()
+	}
+
+	return &reports.ReportList{
+		Items:  items,
+		Limit:  payload.Limit,
+		Offset: payload.Offset,
+	}, nil
+}
+
+func convertMetrics(m *metrics.Metrics) *reports.MetricsData {
+	aggregates := make(map[string]*reports.AggregateData, len(m.Aggregates))
+	for col, agg := range m.Aggregates {
+		count := int32(agg.Count)
+		aggregates[col] = &reports.AggregateData{
+			Sum:   agg.Sum,
+			Avg:   agg.Avg,
+			Min:   agg.Min,
+			Max:   agg.Max,
+			Count: &count,
+		}
+	}
+
+	topCategories := make(map[string][]*reports.TopCategoryData, len(m.TopCategories))
+	for col, cats := range m.TopCategories {
+		categoryData := make([]*reports.TopCategoryData, len(cats))
+		for i, cat := range cats {
+			categoryData[i] = &reports.TopCategoryData{
+				Category:   cat.Category,
+				Value:      cat.Value,
+				Percentage: cat.Percentage,
+			}
+		}
+		topCategories[col] = categoryData
+	}
+
+	timeSeries := make(map[string]*reports.TimeSeriesData, len(m.TimeSeries))
+	for col, ts := range m.TimeSeries {
+		tsData := &reports.TimeSeriesData{
+			CurrentPeriod: ts.CurrentPeriod,
+			Trend:         ts.Trend,
+		}
+		if ts.PreviousPeriod != nil {
+			tsData.PreviousPeriod = ts.PreviousPeriod
+		}
+		if ts.Change != nil {
+			tsData.Change = ts.Change
+		}
+		if ts.ChangePercentage != nil {
+			tsData.ChangePercentage = ts.ChangePercentage
+		}
+		timeSeries[col] = tsData
+	}
+
+	out := &reports.MetricsData{
+		Aggregates:    aggregates,
+		TopCategories: topCategories,
+		TimeSeries:    timeSeries,
+	}
+	if m.CurrentPeriodLabel != "" {
+		out.PeriodCurrentLabel = &m.CurrentPeriodLabel
+	}
+	if m.PreviousPeriodLabel != "" {
+		out.PeriodPreviousLabel = &m.PreviousPeriodLabel
+	}
+	return out
+}

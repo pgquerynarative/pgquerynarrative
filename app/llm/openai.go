@@ -1,0 +1,115 @@
+package llm
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"time"
+)
+
+const openaiBaseURL = "https://api.openai.com/v1"
+
+// OpenAIClient calls the OpenAI Chat Completions API for text generation (GPT).
+type OpenAIClient struct {
+	apiKey string
+	model  string
+	client *http.Client
+}
+
+// NewOpenAIClient returns a client for the OpenAI API.
+// apiKey is the OpenAI API key (from LLM_API_KEY). model is the model name (e.g. gpt-4o, gpt-4o-mini, gpt-4-turbo).
+func NewOpenAIClient(apiKey, model string) *OpenAIClient {
+	if model == "" {
+		model = "gpt-4o-mini"
+	}
+	return &OpenAIClient{
+		apiKey: apiKey,
+		model:  model,
+		client: &http.Client{
+			Timeout: 120 * time.Second,
+		},
+	}
+}
+
+// Name returns the provider name.
+func (c *OpenAIClient) Name() string {
+	return "openai"
+}
+
+const openaiMaxRetries = 3
+const openaiRetryDelay = 6 * time.Second
+
+// Generate sends the prompt to OpenAI Chat Completions and returns the generated text.
+// On 429 (rate limit) it retries up to openaiMaxRetries with backoff.
+func (c *OpenAIClient) Generate(ctx context.Context, prompt string) (string, error) {
+	if c.apiKey == "" {
+		return "", fmt.Errorf("openai: LLM_API_KEY is required")
+	}
+
+	url := openaiBaseURL + "/chat/completions"
+
+	payload := map[string]interface{}{
+		"model":       c.model,
+		"messages":    []map[string]interface{}{{"role": "user", "content": prompt}},
+		"max_tokens":  2048,
+		"temperature": 0.7,
+	}
+
+	jsonData, err := json.Marshal(payload)
+	if err != nil {
+		return "", fmt.Errorf("openai: marshal request: %w", err)
+	}
+
+	var lastErr error
+	for attempt := 0; attempt < openaiMaxRetries; attempt++ {
+		req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(jsonData))
+		if err != nil {
+			return "", fmt.Errorf("openai: create request: %w", err)
+		}
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", "Bearer "+c.apiKey)
+
+		resp, err := c.client.Do(req)
+		if err != nil {
+			return "", fmt.Errorf("openai: request: %w", err)
+		}
+
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1024*1024))
+		resp.Body.Close()
+
+		if resp.StatusCode == http.StatusOK {
+			var result struct {
+				Choices []struct {
+					Message struct {
+						Content string `json:"content"`
+					} `json:"message"`
+				} `json:"choices"`
+			}
+			if err := json.Unmarshal(body, &result); err != nil {
+				return "", fmt.Errorf("openai: decode response: %w", err)
+			}
+			if len(result.Choices) == 0 || result.Choices[0].Message.Content == "" {
+				return "", fmt.Errorf("openai: empty response")
+			}
+			return result.Choices[0].Message.Content, nil
+		}
+
+		lastErr = fmt.Errorf("openai API error: %d - %s", resp.StatusCode, string(body))
+
+		if resp.StatusCode == 429 && attempt < openaiMaxRetries-1 {
+			select {
+			case <-ctx.Done():
+				return "", ctx.Err()
+			case <-time.After(openaiRetryDelay):
+				// retry
+			}
+			continue
+		}
+
+		return "", lastErr
+	}
+	return "", lastErr
+}

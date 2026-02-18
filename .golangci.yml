@@ -1,0 +1,20 @@
+run:
+  timeout: 5m
+  tests: true
+
+linters:
+  enable:
+    - errcheck
+    - gosimple
+    - govet
+    - ineffassign
+    - staticcheck
+    - typecheck
+    - unused
+    - gosec
+
+issues:
+  exclude-rules:
+    - path: _test\.go
+      linters:
+        - gosec

@@ -1,0 +1,54 @@
+# Binaries
+bin/
+/server
+/mcp-server
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# Generated code (root only; api/gen is committed so CI and local builds find it)
+/gen/
+goa*/
+internal/db/queries/
+vendor/
+go.work
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment & Secrets
+.env
+.env.local
+.env.*.local
+*.secret
+secrets/
+
+# Build artifacts
+coverage.out
+coverage.html
+*.log
+*.tmp
+
+# Cache
+.gomodcache/
+pgquerynarrative_data/
+
+# Documentation sites
+docs-site/
+site/
+
+# Project planning (internal use only)
+docs/project/PROJECT_PLAN.md
+docs/project/STATUS.md
