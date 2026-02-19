@@ -574,7 +574,6 @@ func ValidateChartSuggestionResponseBody(body *ChartSuggestionResponseBody) (err
 	return
 }
 
-
 // ValidateMetricsDataResponseBody runs the validations defined on MetricsDataResponseBody. Goa does not emit this for composite map types; no required fields.
 func ValidateMetricsDataResponseBody(body *MetricsDataResponseBody) (err error) {
 	return
