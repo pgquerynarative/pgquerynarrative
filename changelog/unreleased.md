@@ -14,6 +14,7 @@ All items below are **Release 1** scope. The next version (e.g. v1.0.0) will shi
 - Claude LLM provider: `LLM_PROVIDER=claude`, `LLM_MODEL`, `LLM_API_KEY` (Anthropic Messages API)
 - Gemini LLM provider: `LLM_PROVIDER=gemini`, `LLM_MODEL`, `LLM_API_KEY` for report generation
 - MCP server (`cmd/mcp-server`): tools for Claude desktop / Cursor (run query, generate report, list saved/reports); `config/mcp-example.json`, docs
+- **MCP schema, context, and query suggestions:** Schema API `GET /api/v1/schema` (queryable tables/columns from `information_schema`); suggestions API `GET /api/v1/suggestions/queries?intent=...&limit=...` (curated examples + saved-query match by intent); MCP tools `get_schema`, `get_context` (schema + saved queries merged), `suggest_queries`; `app/catalog`, `app/suggestions`; design and testing in `docs/development/mcp-schema-context-design.md`
 - Report UI: show LLM provider and model; improved report card layout and CSS
 - PostgreSQL extension for calling PgQueryNarrative from SQL
 - CLI tool for Docker-only usage

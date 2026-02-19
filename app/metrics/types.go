@@ -19,13 +19,14 @@ type ColumnProfile struct {
 	IsTimeSeries bool // True if this column contains date/time data
 }
 
-// Aggregates contains calculated aggregate metrics
+// Aggregates contains calculated aggregate metrics (including std dev for stats).
 type Aggregates struct {
-	Sum   *float64
-	Avg   *float64
-	Min   *float64
-	Max   *float64
-	Count int
+	Sum    *float64
+	Avg    *float64
+	Min    *float64
+	Max    *float64
+	Count  int
+	StdDev *float64 // Standard deviation (stats)
 }
 
 // TopCategory represents a top category with its value and contribution
@@ -73,14 +74,27 @@ type TimeSeriesMetric struct {
 	Anomalies []AnomalyPoint
 	// Trend over full series or last N periods
 	TrendSummary *TrendSummary
+	// NextPeriodForecast is a simple predictive value: last period + slope (optional).
+	NextPeriodForecast *float64
 }
 
-// Metrics contains all calculated metrics for query results
+// ColumnQuality holds data-quality metrics for a column (nulls, distinct ratio).
+type ColumnQuality struct {
+	NullCount     int     // Number of nulls
+	DistinctCount int     // Number of distinct non-null values
+	TotalRows     int     // Total rows
+	NullPct       float64 // Null percentage (0–100)
+}
+
+// Metrics contains all calculated metrics for query results.
+// PerfSuggestions is set by the service layer from query execution context (timing, row count).
 type Metrics struct {
 	Profiles            []ColumnProfile
 	Aggregates          map[string]Aggregates       // Keyed by column name
 	TopCategories       map[string][]TopCategory    // Keyed by measure column, contains top categories
 	TimeSeries          map[string]TimeSeriesMetric // Keyed by measure column
-	CurrentPeriodLabel  string                      // Label for current period when time series present (e.g. "2025-01-01")
+	CurrentPeriodLabel  string                      // Label for current period when time series present
 	PreviousPeriodLabel string                      // Label for previous period
+	DataQuality         map[string]ColumnQuality    // Per-column data quality (nulls, distinct)
+	PerfSuggestions     []string                    // Performance suggestions (set by service from execution time/row count)
 }

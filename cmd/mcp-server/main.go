@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"time"
 
@@ -111,6 +112,55 @@ func main() {
 		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: body}}}, nil, nil
 	})
 
+	// get_schema: return database schema (allowed schemas, tables, columns) for querying
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "get_schema",
+		Description: "Returns the database schema available for querying (allowed schemas, tables, columns). Use this to see what tables and columns you can use in run_query.",
+	}, func(ctx context.Context, req *mcp.CallToolRequest, input GetSchemaInput) (*mcp.CallToolResult, any, error) {
+		body, err := client.get(ctx, "/api/v1/schema")
+		if err != nil {
+			return toolError(err), nil, nil
+		}
+		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: body}}}, nil, nil
+	})
+
+	// get_context: combined schema + saved queries for full context
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "get_context",
+		Description: "Returns combined context: schema (tables, columns) plus a list of saved queries (name, sql, description). Use this to understand the data model and existing saved queries before suggesting or running SQL.",
+	}, func(ctx context.Context, req *mcp.CallToolRequest, input GetContextInput) (*mcp.CallToolResult, any, error) {
+		savedLimit, savedOffset := input.SavedLimit, input.SavedOffset
+		if savedLimit <= 0 {
+			savedLimit = 20
+		}
+		schemaBody, err1 := client.get(ctx, "/api/v1/schema")
+		savedPath := fmt.Sprintf("/api/v1/queries/saved?limit=%d&offset=%d", savedLimit, savedOffset)
+		savedBody, err2 := client.get(ctx, savedPath)
+		out := buildContextResult(schemaBody, savedBody, err1, err2)
+		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: out}}}, nil, nil
+	})
+
+	// suggest_queries: suggest SQL based on optional intent (curated + saved-query match)
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "suggest_queries",
+		Description: "Suggests SQL queries based on optional intent (e.g. 'sales by category'). Returns curated examples and saved queries that match. Use the suggested SQL with run_query or refine before running.",
+	}, func(ctx context.Context, req *mcp.CallToolRequest, input SuggestQueriesInput) (*mcp.CallToolResult, any, error) {
+		path := "/api/v1/suggestions/queries?"
+		if input.Intent != "" {
+			path += "intent=" + url.QueryEscape(input.Intent) + "&"
+		}
+		if input.Limit > 0 {
+			path += fmt.Sprintf("limit=%d", input.Limit)
+		} else {
+			path += "limit=5"
+		}
+		body, err := client.get(ctx, path)
+		if err != nil {
+			return toolError(err), nil, nil
+		}
+		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: body}}}, nil, nil
+	})
+
 	if err := server.Run(context.Background(), &mcp.StdioTransport{}); err != nil {
 		fmt.Fprintf(os.Stderr, "mcp-server: %v\n", err)
 		os.Exit(1)
@@ -138,6 +188,18 @@ type GetReportInput struct {
 type ListReportsInput struct {
 	Limit  int `json:"limit" jsonschema:"Max items to return"`
 	Offset int `json:"offset" jsonschema:"Offset for pagination"`
+}
+
+type GetSchemaInput struct{}
+
+type GetContextInput struct {
+	SavedLimit  int `json:"saved_limit" jsonschema:"Max saved queries to include (default 20)"`
+	SavedOffset int `json:"saved_offset" jsonschema:"Offset for saved queries (default 0)"`
+}
+
+type SuggestQueriesInput struct {
+	Intent string `json:"intent" jsonschema:"Optional natural-language intent to match saved queries (e.g. sales by region)"`
+	Limit  int    `json:"limit" jsonschema:"Max suggestions to return (default 5)"`
 }
 
 type apiClient struct {
@@ -187,4 +249,23 @@ func toolError(err error) *mcp.CallToolResult {
 		IsError: true,
 		Content: []mcp.Content{&mcp.TextContent{Text: err.Error()}},
 	}
+}
+
+// buildContextResult merges schema and saved-queries API responses into one text block.
+// On partial failure, includes what succeeded and notes the error.
+func buildContextResult(schemaBody, savedBody string, schemaErr, savedErr error) string {
+	var b bytes.Buffer
+	b.WriteString("=== Schema (queryable tables and columns) ===\n")
+	if schemaErr != nil {
+		b.WriteString("(schema unavailable: " + schemaErr.Error() + ")\n")
+	} else {
+		b.WriteString(schemaBody)
+	}
+	b.WriteString("\n\n=== Saved queries ===\n")
+	if savedErr != nil {
+		b.WriteString("(saved queries unavailable: " + savedErr.Error() + ")\n")
+	} else {
+		b.WriteString(savedBody)
+	}
+	return b.String()
 }

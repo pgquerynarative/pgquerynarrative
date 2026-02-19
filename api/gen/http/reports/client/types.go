@@ -99,6 +99,10 @@ type MetricsDataResponseBody struct {
 	PeriodCurrentLabel *string `form:"period_current_label,omitempty" json:"period_current_label,omitempty" xml:"period_current_label,omitempty"`
 	// Label for previous period
 	PeriodPreviousLabel *string `form:"period_previous_label,omitempty" json:"period_previous_label,omitempty" xml:"period_previous_label,omitempty"`
+	// Per-column data quality (nulls, distinct)
+	DataQuality map[string]*ColumnQualityDataResponseBody `form:"data_quality,omitempty" json:"data_quality,omitempty" xml:"data_quality,omitempty"`
+	// Performance suggestions from execution time/row count
+	PerfSuggestions []string `form:"perf_suggestions,omitempty" json:"perf_suggestions,omitempty" xml:"perf_suggestions,omitempty"`
 }
 
 // AggregateDataResponseBody is used to define fields on response body types.
@@ -108,6 +112,8 @@ type AggregateDataResponseBody struct {
 	Min   *float64 `form:"min,omitempty" json:"min,omitempty" xml:"min,omitempty"`
 	Max   *float64 `form:"max,omitempty" json:"max,omitempty" xml:"max,omitempty"`
 	Count *int32   `form:"count,omitempty" json:"count,omitempty" xml:"count,omitempty"`
+	// Standard deviation (stats)
+	StdDev *float64 `form:"std_dev,omitempty" json:"std_dev,omitempty" xml:"std_dev,omitempty"`
 }
 
 // TopCategoryDataResponseBody is used to define fields on response body types.
@@ -132,6 +138,8 @@ type TimeSeriesDataResponseBody struct {
 	Anomalies []*AnomalyPointDataResponseBody `form:"anomalies,omitempty" json:"anomalies,omitempty" xml:"anomalies,omitempty"`
 	// Trend over multiple periods (direction, slope, summary)
 	TrendSummary *TrendSummaryDataResponseBody `form:"trend_summary,omitempty" json:"trend_summary,omitempty" xml:"trend_summary,omitempty"`
+	// Simple predictive: last value + trend slope
+	NextPeriodForecast *float64 `form:"next_period_forecast,omitempty" json:"next_period_forecast,omitempty" xml:"next_period_forecast,omitempty"`
 }
 
 // PeriodPointDataResponseBody is used to define fields on response body types.
@@ -156,6 +164,16 @@ type TrendSummaryDataResponseBody struct {
 	PeriodsUsed *int32   `form:"periods_used,omitempty" json:"periods_used,omitempty" xml:"periods_used,omitempty"`
 	// Human-readable trend description
 	Summary *string `form:"summary,omitempty" json:"summary,omitempty" xml:"summary,omitempty"`
+}
+
+// ColumnQualityDataResponseBody is used to define fields on response body
+// types.
+type ColumnQualityDataResponseBody struct {
+	NullCount     *int32 `form:"null_count,omitempty" json:"null_count,omitempty" xml:"null_count,omitempty"`
+	DistinctCount *int32 `form:"distinct_count,omitempty" json:"distinct_count,omitempty" xml:"distinct_count,omitempty"`
+	TotalRows     *int32 `form:"total_rows,omitempty" json:"total_rows,omitempty" xml:"total_rows,omitempty"`
+	// Null percentage 0–100
+	NullPct *float64 `form:"null_pct,omitempty" json:"null_pct,omitempty" xml:"null_pct,omitempty"`
 }
 
 // ChartSuggestionResponseBody is used to define fields on response body types.
@@ -555,6 +573,24 @@ func ValidateTrendSummaryDataResponseBody(body *TrendSummaryDataResponseBody) (e
 	}
 	if body.Summary == nil {
 		err = goa.MergeErrors(err, goa.MissingFieldError("summary", "body"))
+	}
+	return
+}
+
+// ValidateColumnQualityDataResponseBody runs the validations defined on
+// ColumnQualityDataResponseBody
+func ValidateColumnQualityDataResponseBody(body *ColumnQualityDataResponseBody) (err error) {
+	if body.NullCount == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("null_count", "body"))
+	}
+	if body.DistinctCount == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("distinct_count", "body"))
+	}
+	if body.TotalRows == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("total_rows", "body"))
+	}
+	if body.NullPct == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("null_pct", "body"))
 	}
 	return
 }

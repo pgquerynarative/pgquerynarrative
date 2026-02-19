@@ -42,7 +42,7 @@ Use PgQueryNarrative as tools (run query, generate report, list saved/reports) f
 ## Troubleshooting
 
 - **Connection refused (Ollama):** Start Ollama (`ollama serve`). Docker: `LLM_BASE_URL=http://host.docker.internal:11434`. Ensure a model is pulled.
-- **Report fails / timeout:** Check provider and API key; for Ollama see above. [Troubleshooting](../troubleshooting.md).
+- **Report fails / timeout:** Check provider and API key; for Ollama see above. [Troubleshooting](../reference/troubleshooting.md).
 - **Slow (Ollama):** Smaller model (e.g. `mistral`), more RAM; first run per session is slower.
 
-**See also:** [Configuration](../configuration.md), [Quick start](quickstart.md), [Troubleshooting](../troubleshooting.md)
+**See also:** [Configuration](../configuration.md), [Quick start](quickstart.md), [Troubleshooting](../reference/troubleshooting.md)

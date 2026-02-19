@@ -39,6 +39,29 @@ curl -X POST http://localhost:8080/api/v1/reports/generate \
   }'
 ```
 
-Response includes `narrative`, `metrics` (aggregates, top_categories, time_series, and when applicable `period_current_label` / `period_previous_label`).
+Response includes `narrative`, `metrics` (aggregates, top_categories, time_series, data_quality, perf_suggestions, and when applicable `period_current_label` / `period_previous_label`).
+
+### Single-period query (no “previous period” in narrative)
+
+When the result has no time-series comparison (e.g. one aggregate over “last 30 days”), the narrative will not mention “previous period” or “same period last year”:
+
+```bash
+curl -s -X POST http://localhost:8080/api/v1/reports/generate \
+  -H "Content-Type: application/json" \
+  -d '{"sql": "SELECT SUM(total_amount) AS total_fares, COUNT(*) AS trips FROM demo.sales"}' \
+  | jq '.narrative'
+```
+
+### Get report by ID
+
+```bash
+curl -s http://localhost:8080/api/v1/reports/REPORT_UUID | jq .
+```
+
+### List reports
+
+```bash
+curl -s "http://localhost:8080/api/v1/reports?limit=5&offset=0" | jq '.items[] | {id, created_at}'
+```
 
 **See also:** [API reference](README.md), [Configuration](../configuration.md), [Period comparison](../features/period-comparison.md)

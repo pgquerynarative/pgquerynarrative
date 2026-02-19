@@ -435,6 +435,45 @@ body[data-page="reports"] .nav-link[href="/reports"] {
 	color: var(--color-text-muted);
 }
 
+.next-period-forecast {
+	margin: 6px 0 10px 0;
+	font-size: 0.9375rem;
+}
+
+.perf-suggestions {
+	margin-top: 16px;
+	padding: 16px 18px;
+	background: var(--color-bg-subtle);
+	border-radius: var(--radius-sm);
+	border: 1px solid var(--color-border);
+}
+
+.data-quality {
+	margin-top: 16px;
+	padding: 16px 18px;
+	background: var(--color-bg-subtle);
+	border-radius: var(--radius-sm);
+	border: 1px solid var(--color-border);
+}
+
+.data-quality-table {
+	width: 100%;
+	border-collapse: collapse;
+	font-size: 0.875rem;
+}
+
+.data-quality-table th,
+.data-quality-table td {
+	text-align: left;
+	padding: 6px 12px 6px 0;
+	border-bottom: 1px solid var(--color-border);
+}
+
+.data-quality-table th {
+	color: var(--color-text-muted);
+	font-weight: 600;
+}
+
 .anomalies-list {
 	margin: 8px 0;
 	font-size: 0.875rem;

@@ -47,4 +47,4 @@ App: `http://localhost:8080`. Verbose logging: `LOG_DEBUG=1 make run`.
 | `make test-e2e` | E2E tests |
 | `make build` | Build `bin/server` |
 
-**See also:** [Contributing](../../.github/CONTRIBUTING.md), [Troubleshooting](../troubleshooting.md)
+**See also:** [Contributing](../../.github/CONTRIBUTING.md), [Testing](testing.md), [Troubleshooting](../reference/troubleshooting.md)

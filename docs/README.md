@@ -1,46 +1,66 @@
-# Documentation
+# PgQueryNarrative documentation
 
-Documentation for PgQueryNarrative: running queries, generating reports, configuration, and development.
+PgQueryNarrative turns SQL query results into business narratives with AI. This documentation covers installation, configuration, the API, and development.
+
+---
 
 ## Getting started
 
 | Document | Description |
 |----------|-------------|
-| [Installation](getting-started/installation.md) | Prerequisites, database setup, running the app |
+| [Installation](getting-started/installation.md) | Prerequisites, database setup, and running the application |
 | [Quick start](getting-started/quickstart.md) | Minimal steps to run with Docker or local PostgreSQL |
-| [LLM setup](getting-started/llm-setup.md) | Configure LLM for report generation and MCP |
+| [LLM setup](getting-started/llm-setup.md) | Configure an LLM provider for report generation (Ollama, OpenAI, Claude, Gemini, Groq) and MCP |
 
-## Usage
+---
+
+## User guides
 
 | Document | Description |
 |----------|-------------|
 | [Configuration](configuration.md) | Environment variables (server, database, LLM, metrics) |
-| [API reference](api/README.md) | REST endpoints, payloads, errors |
-| [API examples](api/examples.md) | cURL examples for run, save, report |
-| [CLI usage](usage/cli-usage.md) | Command-line interface (`make cli`, `cli-shell`) |
+| [CLI usage](usage/cli-usage.md) | Command-line interface for queries, saved queries, and reports |
+
+---
+
+## API
+
+| Document | Description |
+|----------|-------------|
+| [API reference](api/README.md) | REST endpoints, request/response formats, error codes |
+| [API examples](api/examples.md) | cURL examples for running queries, saving queries, and generating reports |
+
+---
 
 ## Features
 
 | Document | Description |
 |----------|-------------|
-| [Period comparison](features/period-comparison.md) | Automatic period-over-period (vs previous period), % change, trend, configuration |
+| [Period comparison](features/period-comparison.md) | Automatic period-over-period comparison, trend, and configuration |
+
+---
 
 ## Reference
 
 | Document | Description |
 |----------|-------------|
-| [Troubleshooting](troubleshooting.md) | Common issues and fixes |
-| [Docker resources](docker-resources.md) | Containers and Compose |
-| [PostgreSQL extension](postgres-extension.md) | Running queries and reports from SQL |
+| [Troubleshooting](reference/troubleshooting.md) | Common issues and solutions |
+| [Docker resources](reference/docker-resources.md) | Containers, storage, and resource usage |
+| [PostgreSQL extension](reference/postgres-extension.md) | Run queries and generate reports from SQL |
+
+---
 
 ## Development
 
 | Document | Description |
 |----------|-------------|
-| [Development setup](development/setup.md) | Build, test, code generation |
-| [Contributing](../.github/CONTRIBUTING.md) | How to contribute |
-| [Security](../.github/SECURITY.md) | Security policy |
+| [Development setup](development/setup.md) | Build, test, code generation, and workflow |
+| [Testing](development/testing.md) | Running unit and integration tests, QA checklist |
+
+For contributing and security, see the [.github](https://github.com/pgquerynarrative/pgquerynarrative/tree/main/.github) directory (CONTRIBUTING.md, SECURITY.md).
+
+---
 
 ## Changelog
 
-[Changelog](../changelog/README.md) — release history and unreleased changes.
+Release history and unreleased changes: [changelog](../changelog/README.md).

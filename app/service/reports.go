@@ -83,6 +83,7 @@ func (s *ReportsService) Generate(ctx context.Context, payload *reports.Generate
 
 	// Calculate metrics
 	calcMetrics := metrics.CalculateMetrics(columnNames, queryResult.Rows, profiles, s.trendThreshold)
+	calcMetrics.PerfSuggestions = BuildPerfSuggestions(queryResult)
 
 	// Generate narrative
 	debuglog.Log("calling LLM for narrative generation")
@@ -99,7 +100,7 @@ func (s *ReportsService) Generate(ctx context.Context, payload *reports.Generate
 	}
 
 	// Convert metrics to API format
-	metricsData := convertMetrics(calcMetrics)
+	metricsData := ConvertMetrics(calcMetrics)
 
 	// Store report in database
 	debuglog.Log("storing report in database")
@@ -210,7 +211,7 @@ func (s *ReportsService) Get(ctx context.Context, payload *reports.GetPayload) (
 
 	var calcMetrics metrics.Metrics
 	if err := json.Unmarshal(metricsJSON, &calcMetrics); err == nil {
-		report.Metrics = convertMetrics(&calcMetrics)
+		report.Metrics = ConvertMetrics(&calcMetrics)
 	}
 
 	report.CreatedAt = createdAt.Format(time.RFC3339)
@@ -276,7 +277,7 @@ func (s *ReportsService) List(ctx context.Context, payload *reports.ListPayload)
 
 		var calcMetrics metrics.Metrics
 		if err := json.Unmarshal(metricsJSON, &calcMetrics); err == nil {
-			report.Metrics = convertMetrics(&calcMetrics)
+			report.Metrics = ConvertMetrics(&calcMetrics)
 		}
 
 		report.CreatedAt = createdAt.Format(time.RFC3339)
@@ -294,17 +295,34 @@ func (s *ReportsService) List(ctx context.Context, payload *reports.ListPayload)
 	}, nil
 }
 
-func convertMetrics(m *metrics.Metrics) *reports.MetricsData {
+// BuildPerfSuggestions returns performance suggestions from query result. Exported for testing.
+func BuildPerfSuggestions(r *queryrunner.Result) []string {
+	var suggestions []string
+	if r.ExecutionTimeMs > 2000 {
+		suggestions = append(suggestions, "Query took over 2s; consider adding filters or indexes.")
+	}
+	if r.RowCount >= 1000 {
+		suggestions = append(suggestions, "Result set is large (limit applied); consider narrowing date range or dimensions.")
+	}
+	return suggestions
+}
+
+// ConvertMetrics converts app metrics to API type. Exported for testing.
+func ConvertMetrics(m *metrics.Metrics) *reports.MetricsData {
 	aggregates := make(map[string]*reports.AggregateData, len(m.Aggregates))
 	for col, agg := range m.Aggregates {
 		count := int32(agg.Count)
-		aggregates[col] = &reports.AggregateData{
+		ad := &reports.AggregateData{
 			Sum:   agg.Sum,
 			Avg:   agg.Avg,
 			Min:   agg.Min,
 			Max:   agg.Max,
 			Count: &count,
 		}
+		if agg.StdDev != nil {
+			ad.StdDev = agg.StdDev
+		}
+		aggregates[col] = ad
 	}
 
 	topCategories := make(map[string][]*reports.TopCategoryData, len(m.TopCategories))
@@ -366,13 +384,28 @@ func convertMetrics(m *metrics.Metrics) *reports.MetricsData {
 				PeriodsUsed: &pu,
 			}
 		}
+		if ts.NextPeriodForecast != nil {
+			tsData.NextPeriodForecast = ts.NextPeriodForecast
+		}
 		timeSeries[col] = tsData
 	}
 
+	dataQuality := make(map[string]*reports.ColumnQualityData, len(m.DataQuality))
+	for col, q := range m.DataQuality {
+		dataQuality[col] = &reports.ColumnQualityData{
+			NullCount:     int32(q.NullCount),
+			DistinctCount: int32(q.DistinctCount),
+			TotalRows:     int32(q.TotalRows),
+			NullPct:       q.NullPct,
+		}
+	}
+
 	out := &reports.MetricsData{
-		Aggregates:    aggregates,
-		TopCategories: topCategories,
-		TimeSeries:    timeSeries,
+		Aggregates:      aggregates,
+		TopCategories:   topCategories,
+		TimeSeries:      timeSeries,
+		DataQuality:     dataQuality,
+		PerfSuggestions: m.PerfSuggestions,
 	}
 	if m.CurrentPeriodLabel != "" {
 		out.PeriodCurrentLabel = &m.CurrentPeriodLabel

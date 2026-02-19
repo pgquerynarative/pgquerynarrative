@@ -15,6 +15,8 @@ import (
 
 	queriesc "github.com/pgquerynarrative/pgquerynarrative/api/gen/http/queries/client"
 	reportsc "github.com/pgquerynarrative/pgquerynarrative/api/gen/http/reports/client"
+	schemac "github.com/pgquerynarrative/pgquerynarrative/api/gen/http/schema/client"
+	suggestionsc "github.com/pgquerynarrative/pgquerynarrative/api/gen/http/suggestions/client"
 	goahttp "goa.design/goa/v3/http"
 	goa "goa.design/goa/v3/pkg"
 )
@@ -24,6 +26,8 @@ import (
 //	command (subcommand1|subcommand2|...)
 func UsageCommands() []string {
 	return []string{
+		"suggestions queries",
+		"schema get",
 		"reports (generate|get|list)",
 		"queries (run|list-saved|save|get-saved|delete-saved)",
 	}
@@ -31,8 +35,10 @@ func UsageCommands() []string {
 
 // UsageExamples produces an example of a valid invocation of the CLI tool.
 func UsageExamples() string {
-	return os.Args[0] + " " + "reports generate --body '{\n      \"saved_query_id\": \"ee18c6f5-9ae0-4107-a02a-e4e5771ac473\",\n      \"sql\": \"2x9\"\n   }'" + "\n" +
-		os.Args[0] + " " + "queries run --body '{\n      \"limit\": 342,\n      \"sql\": \"25\"\n   }'" + "\n" +
+	return os.Args[0] + " " + "suggestions queries --intent \"Ut quia nulla assumenda.\" --limit 11" + "\n" +
+		os.Args[0] + " " + "schema get" + "\n" +
+		os.Args[0] + " " + "reports generate --body '{\n      \"saved_query_id\": \"9c2156dd-38a8-460e-a662-56ee647b5884\",\n      \"sql\": \"za\"\n   }'" + "\n" +
+		os.Args[0] + " " + "queries run --body '{\n      \"limit\": 296,\n      \"sql\": \"952\"\n   }'" + "\n" +
 		""
 }
 
@@ -46,6 +52,16 @@ func ParseEndpoint(
 	restore bool,
 ) (goa.Endpoint, any, error) {
 	var (
+		suggestionsFlags = flag.NewFlagSet("suggestions", flag.ContinueOnError)
+
+		suggestionsQueriesFlags      = flag.NewFlagSet("queries", flag.ExitOnError)
+		suggestionsQueriesIntentFlag = suggestionsQueriesFlags.String("intent", "", "")
+		suggestionsQueriesLimitFlag  = suggestionsQueriesFlags.String("limit", "5", "")
+
+		schemaFlags = flag.NewFlagSet("schema", flag.ContinueOnError)
+
+		schemaGetFlags = flag.NewFlagSet("get", flag.ExitOnError)
+
 		reportsFlags = flag.NewFlagSet("reports", flag.ContinueOnError)
 
 		reportsGenerateFlags    = flag.NewFlagSet("generate", flag.ExitOnError)
@@ -78,6 +94,12 @@ func ParseEndpoint(
 		queriesDeleteSavedFlags  = flag.NewFlagSet("delete-saved", flag.ExitOnError)
 		queriesDeleteSavedIDFlag = queriesDeleteSavedFlags.String("id", "REQUIRED", "")
 	)
+	suggestionsFlags.Usage = suggestionsUsage
+	suggestionsQueriesFlags.Usage = suggestionsQueriesUsage
+
+	schemaFlags.Usage = schemaUsage
+	schemaGetFlags.Usage = schemaGetUsage
+
 	reportsFlags.Usage = reportsUsage
 	reportsGenerateFlags.Usage = reportsGenerateUsage
 	reportsGetFlags.Usage = reportsGetUsage
@@ -105,6 +127,10 @@ func ParseEndpoint(
 	{
 		svcn = flag.Arg(0)
 		switch svcn {
+		case "suggestions":
+			svcf = suggestionsFlags
+		case "schema":
+			svcf = schemaFlags
 		case "reports":
 			svcf = reportsFlags
 		case "queries":
@@ -124,6 +150,20 @@ func ParseEndpoint(
 	{
 		epn = svcf.Arg(0)
 		switch svcn {
+		case "suggestions":
+			switch epn {
+			case "queries":
+				epf = suggestionsQueriesFlags
+
+			}
+
+		case "schema":
+			switch epn {
+			case "get":
+				epf = schemaGetFlags
+
+			}
+
 		case "reports":
 			switch epn {
 			case "generate":
@@ -176,6 +216,19 @@ func ParseEndpoint(
 	)
 	{
 		switch svcn {
+		case "suggestions":
+			c := suggestionsc.NewClient(scheme, host, doer, enc, dec, restore)
+			switch epn {
+			case "queries":
+				endpoint = c.Queries()
+				data, err = suggestionsc.BuildQueriesPayload(*suggestionsQueriesIntentFlag, *suggestionsQueriesLimitFlag)
+			}
+		case "schema":
+			c := schemac.NewClient(scheme, host, doer, enc, dec, restore)
+			switch epn {
+			case "get":
+				endpoint = c.Get()
+			}
 		case "reports":
 			c := reportsc.NewClient(scheme, host, doer, enc, dec, restore)
 			switch epn {
@@ -217,6 +270,63 @@ func ParseEndpoint(
 	return endpoint, data, nil
 }
 
+// suggestionsUsage displays the usage of the suggestions command and its
+// subcommands.
+func suggestionsUsage() {
+	fmt.Fprintln(os.Stderr, `Query suggestions for MCP and other clients (curated examples and saved-query match by intent)`)
+	fmt.Fprintf(os.Stderr, "Usage:\n    %s [globalflags] suggestions COMMAND [flags]\n\n", os.Args[0])
+	fmt.Fprintln(os.Stderr, "COMMAND:")
+	fmt.Fprintln(os.Stderr, `    queries: Return suggested SQL queries: curated examples plus saved queries matching optional intent.`)
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, "Additional help:")
+	fmt.Fprintf(os.Stderr, "    %s suggestions COMMAND --help\n", os.Args[0])
+}
+func suggestionsQueriesUsage() {
+	// Header with flags
+	fmt.Fprintf(os.Stderr, "%s [flags] suggestions queries", os.Args[0])
+	fmt.Fprint(os.Stderr, " -intent STRING")
+	fmt.Fprint(os.Stderr, " -limit INT32")
+	fmt.Fprintln(os.Stderr)
+
+	// Description
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, `Return suggested SQL queries: curated examples plus saved queries matching optional intent.`)
+
+	// Flags list
+	fmt.Fprintln(os.Stderr, `    -intent STRING: `)
+	fmt.Fprintln(os.Stderr, `    -limit INT32: `)
+
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, "Example:")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "suggestions queries --intent \"Ut quia nulla assumenda.\" --limit 11")
+}
+
+// schemaUsage displays the usage of the schema command and its subcommands.
+func schemaUsage() {
+	fmt.Fprintln(os.Stderr, `Database schema and catalog for allowed queryable objects`)
+	fmt.Fprintf(os.Stderr, "Usage:\n    %s [globalflags] schema COMMAND [flags]\n\n", os.Args[0])
+	fmt.Fprintln(os.Stderr, "COMMAND:")
+	fmt.Fprintln(os.Stderr, `    get: Return the list of allowed schemas with their tables and columns (from information_schema, read-only).`)
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, "Additional help:")
+	fmt.Fprintf(os.Stderr, "    %s schema COMMAND --help\n", os.Args[0])
+}
+func schemaGetUsage() {
+	// Header with flags
+	fmt.Fprintf(os.Stderr, "%s [flags] schema get", os.Args[0])
+	fmt.Fprintln(os.Stderr)
+
+	// Description
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, `Return the list of allowed schemas with their tables and columns (from information_schema, read-only).`)
+
+	// Flags list
+
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, "Example:")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "schema get")
+}
+
 // reportsUsage displays the usage of the reports command and its subcommands.
 func reportsUsage() {
 	fmt.Fprintln(os.Stderr, `Report generation and management`)
@@ -244,7 +354,7 @@ func reportsGenerateUsage() {
 
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, "Example:")
-	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "reports generate --body '{\n      \"saved_query_id\": \"ee18c6f5-9ae0-4107-a02a-e4e5771ac473\",\n      \"sql\": \"2x9\"\n   }'")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "reports generate --body '{\n      \"saved_query_id\": \"9c2156dd-38a8-460e-a662-56ee647b5884\",\n      \"sql\": \"za\"\n   }'")
 }
 
 func reportsGetUsage() {
@@ -262,7 +372,7 @@ func reportsGetUsage() {
 
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, "Example:")
-	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "reports get --id \"004af309-bb1b-4ad3-8448-15a8ec051a89\"")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "reports get --id \"410a52b4-7305-44af-ae9f-a191743c1d39\"")
 }
 
 func reportsListUsage() {
@@ -284,7 +394,7 @@ func reportsListUsage() {
 
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, "Example:")
-	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "reports list --saved-query-id \"90e30201-52ad-4892-a4d4-9df83364dd45\" --limit 15 --offset 490531137")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "reports list --saved-query-id \"c6be6ff1-630c-4bbd-ae8e-42353682d75a\" --limit 82 --offset 73021554")
 }
 
 // queriesUsage displays the usage of the queries command and its subcommands.
@@ -316,7 +426,7 @@ func queriesRunUsage() {
 
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, "Example:")
-	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "queries run --body '{\n      \"limit\": 342,\n      \"sql\": \"25\"\n   }'")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "queries run --body '{\n      \"limit\": 296,\n      \"sql\": \"952\"\n   }'")
 }
 
 func queriesListSavedUsage() {
@@ -338,7 +448,7 @@ func queriesListSavedUsage() {
 
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, "Example:")
-	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "queries list-saved --tags '[\n      \"Accusamus doloribus nihil minima vitae animi dolorem.\",\n      \"Consequuntur non sint recusandae saepe soluta.\",\n      \"Velit facilis iusto.\"\n   ]' --limit 90 --offset 428797046")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "queries list-saved --tags '[\n      \"Vel et et facere.\",\n      \"Ipsa cupiditate.\",\n      \"Odit voluptatem laborum illum alias.\",\n      \"Ab quisquam accusantium qui.\"\n   ]' --limit 39 --offset 542444690")
 }
 
 func queriesSaveUsage() {
@@ -356,7 +466,7 @@ func queriesSaveUsage() {
 
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, "Example:")
-	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "queries save --body '{\n      \"description\": \"t2y\",\n      \"name\": \"t\",\n      \"sql\": \"8a\",\n      \"tags\": [\n         \"Laborum molestiae natus mollitia.\",\n         \"Facere rerum dolorem modi dolor.\",\n         \"Quibusdam minima.\",\n         \"Suscipit aut enim.\"\n      ]\n   }'")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "queries save --body '{\n      \"description\": \"xd6\",\n      \"name\": \"pal\",\n      \"sql\": \"qgr\",\n      \"tags\": [\n         \"Eum voluptatem doloribus cumque et aliquid.\",\n         \"Voluptatem quis vel doloremque est atque.\"\n      ]\n   }'")
 }
 
 func queriesGetSavedUsage() {
@@ -374,7 +484,7 @@ func queriesGetSavedUsage() {
 
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, "Example:")
-	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "queries get-saved --id \"86226cf3-1795-4322-9010-0c2dc49dddd2\"")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "queries get-saved --id \"cf0d9196-d86b-4578-9c86-d5bdc2e848d4\"")
 }
 
 func queriesDeleteSavedUsage() {
@@ -392,5 +502,5 @@ func queriesDeleteSavedUsage() {
 
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, "Example:")
-	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "queries delete-saved --id \"eefc9fa5-bfb7-4c68-9618-d5bb2af039d0\"")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "queries delete-saved --id \"75530481-7ad1-4be0-b9d4-433bcd37b9c9\"")
 }

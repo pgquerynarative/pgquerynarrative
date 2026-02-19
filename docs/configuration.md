@@ -174,6 +174,6 @@ WantedBy=multi-user.target
 
 - Change default passwords; use SSL for DB (`DATABASE_SSL_MODE=require`); use secrets management. Recommended: `QUERY_TIMEOUT=60s`, `DATABASE_MAX_CONNECTIONS=50`, `SECURITY_AUTH_ENABLED=true` when available.
 
-Config is validated on startup; invalid values cause clear startup errors. If config does not apply: check `env | grep PGQUERYNARRATIVE`, `.env` format, or Compose `environment`. For other issues see [Troubleshooting](troubleshooting.md).
+Config is validated on startup; invalid values cause clear startup errors. If config does not apply: check `env | grep PGQUERYNARRATIVE`, `.env` format, or Compose `environment`. For other issues see [Troubleshooting](reference/troubleshooting.md).
 
-**See also:** [Installation](getting-started/installation.md), [Troubleshooting](troubleshooting.md), [Period comparison](features/period-comparison.md)
+**See also:** [Installation](getting-started/installation.md), [Troubleshooting](reference/troubleshooting.md), [Period comparison](features/period-comparison.md)

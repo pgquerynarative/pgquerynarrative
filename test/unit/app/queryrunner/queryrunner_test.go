@@ -1,14 +1,15 @@
-package queryrunner
+package queryrunner_test
 
 import (
 	"strings"
 	"testing"
 
 	"github.com/pgquerynarrative/pgquerynarrative/app/errors"
+	"github.com/pgquerynarrative/pgquerynarrative/app/queryrunner"
 )
 
 func TestValidator(t *testing.T) {
-	validator := NewValidator([]string{"demo"}, 10000)
+	validator := queryrunner.NewValidator([]string{"demo"}, 10000)
 
 	tests := []struct {
 		name    string
@@ -31,14 +32,14 @@ LEFT JOIN LATERAL (SELECT sales_rep, rep_revenue FROM sales_rep_perf WHERE sales
 WHERE rr.cat_rank_in_region <= 3`, nil},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			err := validator.Validate(test.sql)
-			if test.wantErr == nil && err != nil {
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validator.Validate(tt.sql)
+			if tt.wantErr == nil && err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
-			if test.wantErr != nil && err == nil {
-				t.Fatalf("expected error %v", test.wantErr)
+			if tt.wantErr != nil && err == nil {
+				t.Fatalf("expected error %v", tt.wantErr)
 			}
 		})
 	}

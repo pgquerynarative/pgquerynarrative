@@ -29,8 +29,17 @@ func (g *Generator) Generate(ctx context.Context, sql string, columns []string, 
 		return nil, fmt.Errorf("failed to marshal metrics: %w", err)
 	}
 
+	// Only allow "vs previous period" narrative when we actually have that in metrics
+	hasPeriodComparison := false
+	for _, ts := range calcMetrics.TimeSeries {
+		if ts.PreviousPeriod != nil {
+			hasPeriodComparison = true
+			break
+		}
+	}
+
 	// Build prompt
-	prompt := llm.BuildNarrativePrompt(sql, columns, rows, string(metricsJSON))
+	prompt := llm.BuildNarrativePrompt(sql, columns, rows, string(metricsJSON), hasPeriodComparison)
 
 	// Generate narrative using LLM
 	response, err := g.llmClient.Generate(ctx, prompt)
@@ -42,6 +51,10 @@ func (g *Generator) Generate(ctx context.Context, sql string, columns []string, 
 	narrative, err := ParseNarrative(response)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse narrative: %w", err)
+	}
+
+	if !hasPeriodComparison {
+		RemoveFabricatedPeriodComparison(narrative)
 	}
 
 	return narrative, nil

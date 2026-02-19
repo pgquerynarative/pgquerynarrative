@@ -168,7 +168,16 @@ test: test-unit test-integration
 
 test-unit:
 	@echo "🧪 Running unit tests..."
-	$(GO) test ./app/... ./cmd/... -v
+	$(GO) test ./test/unit/... ./cmd/server/... -v
+
+# No-op target so "make test-unit # comment" does not fail when shell passes # as a target.
+\#:
+	@true
+
+# Run feature tests only (no integration). Use -run <TestName> to run a single test.
+test-features:
+	@echo "🧪 Running feature tests..."
+	$(GO) test ./test/unit/... -v
 
 test-integration:
 	@echo "🧪 Running integration tests..."

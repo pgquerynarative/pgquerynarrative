@@ -1,17 +1,18 @@
-// Package charts tests chart-type suggestion logic.
-package charts
+package charts_test
 
 import (
 	"testing"
 	"time"
+
+	"github.com/pgquerynarrative/pgquerynarrative/app/charts"
 )
 
 func TestSuggest_EmptyColumns(t *testing.T) {
-	got := Suggest(nil, nil, nil)
+	got := charts.Suggest(nil, nil, nil)
 	if got != nil {
 		t.Errorf("Suggest(nil, nil, nil) = %v, want nil", got)
 	}
-	got = Suggest([]string{}, []string{}, [][]interface{}{})
+	got = charts.Suggest([]string{}, []string{}, [][]interface{}{})
 	if got != nil {
 		t.Errorf("Suggest(empty) = %v, want nil", got)
 	}
@@ -24,12 +25,11 @@ func TestSuggest_TimeSeries(t *testing.T) {
 		{time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC), 100.0},
 		{time.Date(2025, 2, 1, 0, 0, 0, 0, time.UTC), 150.0},
 	}
-	got := Suggest(cols, types, rows)
+	got := charts.Suggest(cols, types, rows)
 	chartTypes := make([]string, len(got))
 	for i, s := range got {
 		chartTypes[i] = s.ChartType
 	}
-	// Expect: line, area, table (time series + table)
 	hasLine := false
 	hasArea := false
 	hasTable := false
@@ -62,7 +62,7 @@ func TestSuggest_CategoryWithFewValues(t *testing.T) {
 		{"B", 20.0},
 		{"C", 30.0},
 	}
-	got := Suggest(cols, types, rows)
+	got := charts.Suggest(cols, types, rows)
 	chartTypes := make([]string, len(got))
 	for i, s := range got {
 		chartTypes[i] = s.ChartType
@@ -92,7 +92,7 @@ func TestSuggest_CategoryWithManyValues_NoPie(t *testing.T) {
 	for i := range rows {
 		rows[i] = []interface{}{string(rune('A' + i)), float64(i * 10)}
 	}
-	got := Suggest(cols, types, rows)
+	got := charts.Suggest(cols, types, rows)
 	for _, s := range got {
 		if s.ChartType == "pie" {
 			t.Errorf("many categories (>12) should not suggest pie, got chart types including pie")
@@ -105,7 +105,7 @@ func TestSuggest_TableAlwaysLast(t *testing.T) {
 	cols := []string{"x", "y"}
 	types := []string{"text", "float8"}
 	rows := [][]interface{}{{"a", 1.0}}
-	got := Suggest(cols, types, rows)
+	got := charts.Suggest(cols, types, rows)
 	if len(got) == 0 {
 		t.Fatal("expected at least one suggestion")
 	}

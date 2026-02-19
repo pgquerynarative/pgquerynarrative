@@ -848,6 +848,11 @@ func FormatReportHTML(report *reports.Report) string {
 				}
 				sb.WriteString("</p>")
 			}
+			if ts.NextPeriodForecast != nil {
+				sb.WriteString("<p class=\"next-period-forecast\"><strong>Next period forecast:</strong> ")
+				sb.WriteString(formatFloatWithCommas(*ts.NextPeriodForecast))
+				sb.WriteString("</p>")
+			}
 
 			if len(ts.Anomalies) > 0 {
 				sb.WriteString("<div class=\"anomalies-list\"><strong>Anomalies:</strong> <ul class=\"anomaly-list\">")
@@ -891,6 +896,43 @@ func FormatReportHTML(report *reports.Report) string {
 			sb.WriteString("</div>")
 		}
 		sb.WriteString("</div>")
+	}
+
+	if report.Metrics != nil && len(report.Metrics.PerfSuggestions) > 0 {
+		sb.WriteString("<div class=\"perf-suggestions\"><h4 class=\"report-section-title\">Performance suggestions</h4><ul class=\"report-list\">")
+		for _, s := range report.Metrics.PerfSuggestions {
+			sb.WriteString("<li>")
+			sb.WriteString(template.HTMLEscapeString(s))
+			sb.WriteString("</li>")
+		}
+		sb.WriteString("</ul></div>")
+	}
+
+	if report.Metrics != nil && len(report.Metrics.DataQuality) > 0 {
+		sb.WriteString("<div class=\"data-quality\"><h4 class=\"report-section-title\">Data quality</h4><table class=\"data-quality-table\"><thead><tr><th>Column</th><th>Nulls</th><th>Null %</th><th>Distinct</th><th>Rows</th></tr></thead><tbody>")
+		dqCols := make([]string, 0, len(report.Metrics.DataQuality))
+		for c := range report.Metrics.DataQuality {
+			dqCols = append(dqCols, c)
+		}
+		sort.Strings(dqCols)
+		for _, col := range dqCols {
+			q := report.Metrics.DataQuality[col]
+			if q == nil {
+				continue
+			}
+			sb.WriteString("<tr><td>")
+			sb.WriteString(template.HTMLEscapeString(col))
+			sb.WriteString("</td><td>")
+			sb.WriteString(strconv.Itoa(int(q.NullCount)))
+			sb.WriteString("</td><td>")
+			sb.WriteString(fmt.Sprintf("%.1f", q.NullPct))
+			sb.WriteString("%</td><td>")
+			sb.WriteString(strconv.Itoa(int(q.DistinctCount)))
+			sb.WriteString("</td><td>")
+			sb.WriteString(strconv.Itoa(int(q.TotalRows)))
+			sb.WriteString("</td></tr>")
+		}
+		sb.WriteString("</tbody></table></div>")
 	}
 
 	if report.Narrative != nil {

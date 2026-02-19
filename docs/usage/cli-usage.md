@@ -33,4 +33,4 @@ JSON output: `docker compose run --rm -e PGQUERYNARRATIVE_FORMAT=json cli pgquer
 
 **Quoting:** Quote SQL in the outer command: `make cli CMD='query "SELECT * FROM demo.sales"'`. For SQL with single quotes escape: `'\''`.
 
-**See also:** [API examples](../api/examples.md), [API reference](../api/README.md), [Troubleshooting](../troubleshooting.md)
+**See also:** [API examples](../api/examples.md), [API reference](../api/README.md), [Troubleshooting](../reference/troubleshooting.md)

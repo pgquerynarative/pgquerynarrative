@@ -43,6 +43,8 @@ type AggregateData struct {
 	Min   *float64
 	Max   *float64
 	Count *int32
+	// Standard deviation (stats)
+	StdDev *float64
 }
 
 type AnomalyPointData struct {
@@ -58,6 +60,14 @@ type ChartSuggestion struct {
 	Label string
 	// Why this chart fits the data
 	Reason string
+}
+
+type ColumnQualityData struct {
+	NullCount     int32
+	DistinctCount int32
+	TotalRows     int32
+	// Null percentage 0–100
+	NullPct float64
 }
 
 // GenerateReportPayload is the payload type of the reports service generate
@@ -93,6 +103,10 @@ type MetricsData struct {
 	PeriodCurrentLabel *string
 	// Label for previous period
 	PeriodPreviousLabel *string
+	// Per-column data quality (nulls, distinct)
+	DataQuality map[string]*ColumnQualityData
+	// Performance suggestions from execution time/row count
+	PerfSuggestions []string
 }
 
 type NarrativeContent struct {
@@ -149,6 +163,8 @@ type TimeSeriesData struct {
 	Anomalies []*AnomalyPointData
 	// Trend over multiple periods (direction, slope, summary)
 	TrendSummary *TrendSummaryData
+	// Simple predictive: last value + trend slope
+	NextPeriodForecast *float64
 }
 
 type TopCategoryData struct {

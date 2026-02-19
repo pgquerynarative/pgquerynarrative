@@ -101,6 +101,10 @@ type MetricsDataResponseBody struct {
 	PeriodCurrentLabel *string `form:"period_current_label,omitempty" json:"period_current_label,omitempty" xml:"period_current_label,omitempty"`
 	// Label for previous period
 	PeriodPreviousLabel *string `form:"period_previous_label,omitempty" json:"period_previous_label,omitempty" xml:"period_previous_label,omitempty"`
+	// Per-column data quality (nulls, distinct)
+	DataQuality map[string]*ColumnQualityDataResponseBody `form:"data_quality,omitempty" json:"data_quality,omitempty" xml:"data_quality,omitempty"`
+	// Performance suggestions from execution time/row count
+	PerfSuggestions []string `form:"perf_suggestions,omitempty" json:"perf_suggestions,omitempty" xml:"perf_suggestions,omitempty"`
 }
 
 // AggregateDataResponseBody is used to define fields on response body types.
@@ -110,6 +114,8 @@ type AggregateDataResponseBody struct {
 	Min   *float64 `form:"min,omitempty" json:"min,omitempty" xml:"min,omitempty"`
 	Max   *float64 `form:"max,omitempty" json:"max,omitempty" xml:"max,omitempty"`
 	Count *int32   `form:"count,omitempty" json:"count,omitempty" xml:"count,omitempty"`
+	// Standard deviation (stats)
+	StdDev *float64 `form:"std_dev,omitempty" json:"std_dev,omitempty" xml:"std_dev,omitempty"`
 }
 
 // TopCategoryDataResponseBody is used to define fields on response body types.
@@ -134,6 +140,8 @@ type TimeSeriesDataResponseBody struct {
 	Anomalies []*AnomalyPointDataResponseBody `form:"anomalies,omitempty" json:"anomalies,omitempty" xml:"anomalies,omitempty"`
 	// Trend over multiple periods (direction, slope, summary)
 	TrendSummary *TrendSummaryDataResponseBody `form:"trend_summary,omitempty" json:"trend_summary,omitempty" xml:"trend_summary,omitempty"`
+	// Simple predictive: last value + trend slope
+	NextPeriodForecast *float64 `form:"next_period_forecast,omitempty" json:"next_period_forecast,omitempty" xml:"next_period_forecast,omitempty"`
 }
 
 // PeriodPointDataResponseBody is used to define fields on response body types.
@@ -158,6 +166,16 @@ type TrendSummaryDataResponseBody struct {
 	PeriodsUsed *int32   `form:"periods_used,omitempty" json:"periods_used,omitempty" xml:"periods_used,omitempty"`
 	// Human-readable trend description
 	Summary string `form:"summary" json:"summary" xml:"summary"`
+}
+
+// ColumnQualityDataResponseBody is used to define fields on response body
+// types.
+type ColumnQualityDataResponseBody struct {
+	NullCount     int32 `form:"null_count" json:"null_count" xml:"null_count"`
+	DistinctCount int32 `form:"distinct_count" json:"distinct_count" xml:"distinct_count"`
+	TotalRows     int32 `form:"total_rows" json:"total_rows" xml:"total_rows"`
+	// Null percentage 0–100
+	NullPct float64 `form:"null_pct" json:"null_pct" xml:"null_pct"`
 }
 
 // ChartSuggestionResponseBody is used to define fields on response body types.

@@ -355,6 +355,23 @@ func unmarshalMetricsDataResponseBodyToReportsMetricsData(v *MetricsDataResponse
 			res.TimeSeries[tk] = unmarshalTimeSeriesDataResponseBodyToReportsTimeSeriesData(val)
 		}
 	}
+	if v.DataQuality != nil {
+		res.DataQuality = make(map[string]*reports.ColumnQualityData, len(v.DataQuality))
+		for key, val := range v.DataQuality {
+			tk := key
+			if val == nil {
+				res.DataQuality[tk] = nil
+				continue
+			}
+			res.DataQuality[tk] = unmarshalColumnQualityDataResponseBodyToReportsColumnQualityData(val)
+		}
+	}
+	if v.PerfSuggestions != nil {
+		res.PerfSuggestions = make([]string, len(v.PerfSuggestions))
+		for i, val := range v.PerfSuggestions {
+			res.PerfSuggestions[i] = val
+		}
+	}
 
 	return res
 }
@@ -366,11 +383,12 @@ func unmarshalAggregateDataResponseBodyToReportsAggregateData(v *AggregateDataRe
 		return nil
 	}
 	res := &reports.AggregateData{
-		Sum:   v.Sum,
-		Avg:   v.Avg,
-		Min:   v.Min,
-		Max:   v.Max,
-		Count: v.Count,
+		Sum:    v.Sum,
+		Avg:    v.Avg,
+		Min:    v.Min,
+		Max:    v.Max,
+		Count:  v.Count,
+		StdDev: v.StdDev,
 	}
 
 	return res
@@ -400,12 +418,13 @@ func unmarshalTimeSeriesDataResponseBodyToReportsTimeSeriesData(v *TimeSeriesDat
 		return nil
 	}
 	res := &reports.TimeSeriesData{
-		CurrentPeriod:    *v.CurrentPeriod,
-		PreviousPeriod:   v.PreviousPeriod,
-		Change:           v.Change,
-		ChangePercentage: v.ChangePercentage,
-		Trend:            *v.Trend,
-		MovingAverage:    v.MovingAverage,
+		CurrentPeriod:      *v.CurrentPeriod,
+		PreviousPeriod:     v.PreviousPeriod,
+		Change:             v.Change,
+		ChangePercentage:   v.ChangePercentage,
+		Trend:              *v.Trend,
+		MovingAverage:      v.MovingAverage,
+		NextPeriodForecast: v.NextPeriodForecast,
 	}
 	if v.Periods != nil {
 		res.Periods = make([]*reports.PeriodPointData, len(v.Periods))
@@ -477,6 +496,23 @@ func unmarshalTrendSummaryDataResponseBodyToReportsTrendSummaryData(v *TrendSumm
 		Slope:       v.Slope,
 		PeriodsUsed: v.PeriodsUsed,
 		Summary:     *v.Summary,
+	}
+
+	return res
+}
+
+// unmarshalColumnQualityDataResponseBodyToReportsColumnQualityData builds a
+// value of type *reports.ColumnQualityData from a value of type
+// *ColumnQualityDataResponseBody.
+func unmarshalColumnQualityDataResponseBodyToReportsColumnQualityData(v *ColumnQualityDataResponseBody) *reports.ColumnQualityData {
+	if v == nil {
+		return nil
+	}
+	res := &reports.ColumnQualityData{
+		NullCount:     *v.NullCount,
+		DistinctCount: *v.DistinctCount,
+		TotalRows:     *v.TotalRows,
+		NullPct:       *v.NullPct,
 	}
 
 	return res

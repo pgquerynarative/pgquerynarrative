@@ -112,6 +112,8 @@ var MetricsData = Type("MetricsData", func() {
 	Attribute("time_series", MapOf(String, TimeSeriesData))
 	Attribute("period_current_label", String, "Label for current period when time_series is present")
 	Attribute("period_previous_label", String, "Label for previous period")
+	Attribute("data_quality", MapOf(String, ColumnQualityData), "Per-column data quality (nulls, distinct)")
+	Attribute("perf_suggestions", ArrayOf(String), "Performance suggestions from execution time/row count")
 })
 
 var AggregateData = Type("AggregateData", func() {
@@ -120,6 +122,15 @@ var AggregateData = Type("AggregateData", func() {
 	Attribute("min", Float64)
 	Attribute("max", Float64)
 	Attribute("count", Int32)
+	Attribute("std_dev", Float64, "Standard deviation (stats)")
+})
+
+var ColumnQualityData = Type("ColumnQualityData", func() {
+	Attribute("null_count", Int32)
+	Attribute("distinct_count", Int32)
+	Attribute("total_rows", Int32)
+	Attribute("null_pct", Float64, "Null percentage 0–100")
+	Required("null_count", "distinct_count", "total_rows", "null_pct")
 })
 
 var TopCategoryData = Type("TopCategoryData", func() {
@@ -139,6 +150,7 @@ var TimeSeriesData = Type("TimeSeriesData", func() {
 	Attribute("moving_average", Float64, "Simple moving average for latest period (e.g. 3-period SMA)")
 	Attribute("anomalies", ArrayOf(AnomalyPointData), "Periods flagged as statistical anomalies (e.g. z-score)")
 	Attribute("trend_summary", TrendSummaryData, "Trend over multiple periods (direction, slope, summary)")
+	Attribute("next_period_forecast", Float64, "Simple predictive: last value + trend slope")
 	Required("current_period", "trend")
 })
 

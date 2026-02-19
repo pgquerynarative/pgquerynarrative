@@ -17,7 +17,7 @@ REST API base: `http://localhost:8080/api/v1`. No authentication in current vers
 | Method | Path | Description |
 |--------|------|-------------|
 | POST | `/reports/generate` | Body: `{"sql":"...", "saved_query_id": "uuid"}`. Generate report (requires LLM). |
-| GET | `/reports/{id}` | Get report. Metrics include `time_series` (with optional `periods`, `moving_average`, `anomalies`, `trend_summary`), `period_current_label`, `period_previous_label`. |
+| GET | `/reports/{id}` | Get report. Metrics include `time_series` (with optional `periods`, `moving_average`, `anomalies`, `trend_summary`, `next_period_forecast`), `data_quality`, `perf_suggestions`, `period_current_label`, `period_previous_label`. |
 | GET | `/reports` | Query: `limit`, `offset`, `saved_query_id`. List reports. |
 
 ## Errors

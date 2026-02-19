@@ -18,13 +18,19 @@ import (
 
 	"github.com/pgquerynarrative/pgquerynarrative/api/gen/http/queries/server"
 	reportsServer "github.com/pgquerynarrative/pgquerynarrative/api/gen/http/reports/server"
+	schemaServer "github.com/pgquerynarrative/pgquerynarrative/api/gen/http/schema/server"
+	suggestionsServer "github.com/pgquerynarrative/pgquerynarrative/api/gen/http/suggestions/server"
 	"github.com/pgquerynarrative/pgquerynarrative/api/gen/queries"
 	"github.com/pgquerynarrative/pgquerynarrative/api/gen/reports"
+	"github.com/pgquerynarrative/pgquerynarrative/app/catalog"
 	"github.com/pgquerynarrative/pgquerynarrative/app/config"
 	"github.com/pgquerynarrative/pgquerynarrative/app/db"
 	"github.com/pgquerynarrative/pgquerynarrative/app/llm"
 	"github.com/pgquerynarrative/pgquerynarrative/app/queryrunner"
 	"github.com/pgquerynarrative/pgquerynarrative/app/service"
+	pkgsuggestions "github.com/pgquerynarrative/pgquerynarrative/app/suggestions"
+	schema "github.com/pgquerynarrative/pgquerynarrative/gen/schema"
+	suggestions "github.com/pgquerynarrative/pgquerynarrative/gen/suggestions"
 	"github.com/pgquerynarrative/pgquerynarrative/web"
 	goahttp "goa.design/goa/v3/http"
 )
@@ -73,6 +79,9 @@ func main() {
 	// ReportsService: handles report generation with narrative
 	queriesService := service.NewQueriesService(pools.ReadOnly, pools.App, runner, cfg.Metrics.TrendThresholdPercent)
 	reportsService := service.NewReportsService(pools.ReadOnly, pools.App, runner, llmClient, cfg.Metrics.TrendThresholdPercent)
+	catalogLoader := catalog.NewLoader(pools.ReadOnly, []string{"demo"})
+	schemaService := service.NewSchemaService(catalogLoader)
+	suggester := pkgsuggestions.NewSuggester(pools.App)
 
 	// Set up logging
 	logger := log.New(os.Stdout, "[pgquerynarrative] ", log.LstdFlags)
@@ -80,9 +89,11 @@ func main() {
 	// Create Goa endpoints from services
 	queriesEndpoints := queries.NewEndpoints(queriesService)
 	reportsEndpoints := reports.NewEndpoints(reportsService)
+	schemaEndpoints := schema.NewEndpoints(schemaService)
+	suggestionsEndpoints := suggestions.NewEndpoints(suggester)
 
 	// Configure HTTP server
-	httpServer := setupHTTPServer(cfg, queriesEndpoints, reportsEndpoints, logger)
+	httpServer := setupHTTPServer(cfg, queriesEndpoints, reportsEndpoints, schemaEndpoints, suggestionsEndpoints, logger)
 
 	// Start server in a goroutine
 	go func() {
@@ -134,6 +145,8 @@ func setupHTTPServer(
 	cfg config.Config,
 	queriesEndpoints *queries.Endpoints,
 	reportsEndpoints *reports.Endpoints,
+	schemaEndpoints *schema.Endpoints,
+	suggestionsEndpoints *suggestions.Endpoints,
 	logger *log.Logger,
 ) *http.Server {
 	// Create Goa HTTP muxer for API routes
@@ -151,6 +164,14 @@ func setupHTTPServer(
 	// Mount reports API endpoints
 	reportsHTTP := reportsServer.New(reportsEndpoints, mux, dec, enc, errHandler, nil)
 	reportsServer.Mount(mux, reportsHTTP)
+
+	// Mount schema API endpoints
+	schemaHTTP := schemaServer.New(schemaEndpoints, mux, dec, enc, errHandler, nil)
+	schemaServer.Mount(mux, schemaHTTP)
+
+	// Mount suggestions API endpoints
+	suggestionsHTTP := suggestionsServer.New(suggestionsEndpoints, mux, dec, enc, errHandler, nil)
+	suggestionsServer.Mount(mux, suggestionsHTTP)
 
 	// Create web UI handlers
 	webHandlers := web.NewHandlers(queriesEndpoints, reportsEndpoints)

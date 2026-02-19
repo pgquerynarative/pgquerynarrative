@@ -29,4 +29,4 @@ make start-local
 - **CLI:** `make cli CMD='query "SELECT * FROM demo.sales LIMIT 5"'` ([CLI usage](../usage/cli-usage.md))
 - **API:** [API examples](../api/examples.md)
 
-**See also:** [Installation](installation.md), [LLM setup](llm-setup.md) (reports, MCP), [Troubleshooting](../troubleshooting.md), [Documentation index](../README.md)
+**See also:** [Installation](installation.md), [LLM setup](llm-setup.md) (reports, MCP), [Troubleshooting](../reference/troubleshooting.md), [Documentation index](../README.md)

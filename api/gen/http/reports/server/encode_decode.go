@@ -315,6 +315,23 @@ func marshalReportsMetricsDataToMetricsDataResponseBody(v *reports.MetricsData) 
 			res.TimeSeries[tk] = marshalReportsTimeSeriesDataToTimeSeriesDataResponseBody(val)
 		}
 	}
+	if v.DataQuality != nil {
+		res.DataQuality = make(map[string]*ColumnQualityDataResponseBody, len(v.DataQuality))
+		for key, val := range v.DataQuality {
+			tk := key
+			if val == nil {
+				res.DataQuality[tk] = nil
+				continue
+			}
+			res.DataQuality[tk] = marshalReportsColumnQualityDataToColumnQualityDataResponseBody(val)
+		}
+	}
+	if v.PerfSuggestions != nil {
+		res.PerfSuggestions = make([]string, len(v.PerfSuggestions))
+		for i, val := range v.PerfSuggestions {
+			res.PerfSuggestions[i] = val
+		}
+	}
 
 	return res
 }
@@ -326,11 +343,12 @@ func marshalReportsAggregateDataToAggregateDataResponseBody(v *reports.Aggregate
 		return nil
 	}
 	res := &AggregateDataResponseBody{
-		Sum:   v.Sum,
-		Avg:   v.Avg,
-		Min:   v.Min,
-		Max:   v.Max,
-		Count: v.Count,
+		Sum:    v.Sum,
+		Avg:    v.Avg,
+		Min:    v.Min,
+		Max:    v.Max,
+		Count:  v.Count,
+		StdDev: v.StdDev,
 	}
 
 	return res
@@ -360,12 +378,13 @@ func marshalReportsTimeSeriesDataToTimeSeriesDataResponseBody(v *reports.TimeSer
 		return nil
 	}
 	res := &TimeSeriesDataResponseBody{
-		CurrentPeriod:    v.CurrentPeriod,
-		PreviousPeriod:   v.PreviousPeriod,
-		Change:           v.Change,
-		ChangePercentage: v.ChangePercentage,
-		Trend:            v.Trend,
-		MovingAverage:    v.MovingAverage,
+		CurrentPeriod:      v.CurrentPeriod,
+		PreviousPeriod:     v.PreviousPeriod,
+		Change:             v.Change,
+		ChangePercentage:   v.ChangePercentage,
+		Trend:              v.Trend,
+		MovingAverage:      v.MovingAverage,
+		NextPeriodForecast: v.NextPeriodForecast,
 	}
 	if v.Periods != nil {
 		res.Periods = make([]*PeriodPointDataResponseBody, len(v.Periods))
@@ -437,6 +456,23 @@ func marshalReportsTrendSummaryDataToTrendSummaryDataResponseBody(v *reports.Tre
 		Slope:       v.Slope,
 		PeriodsUsed: v.PeriodsUsed,
 		Summary:     v.Summary,
+	}
+
+	return res
+}
+
+// marshalReportsColumnQualityDataToColumnQualityDataResponseBody builds a
+// value of type *ColumnQualityDataResponseBody from a value of type
+// *reports.ColumnQualityData.
+func marshalReportsColumnQualityDataToColumnQualityDataResponseBody(v *reports.ColumnQualityData) *ColumnQualityDataResponseBody {
+	if v == nil {
+		return nil
+	}
+	res := &ColumnQualityDataResponseBody{
+		NullCount:     v.NullCount,
+		DistinctCount: v.DistinctCount,
+		TotalRows:     v.TotalRows,
+		NullPct:       v.NullPct,
 	}
 
 	return res

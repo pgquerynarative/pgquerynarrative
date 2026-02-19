@@ -1,6 +1,7 @@
 package metrics
 
 import (
+	"fmt"
 	"math"
 	"sort"
 	"strconv"
@@ -15,13 +16,17 @@ func CalculateMetrics(columns []string, rows [][]interface{}, profiles []ColumnP
 		Aggregates:    make(map[string]Aggregates),
 		TopCategories: make(map[string][]TopCategory),
 		TimeSeries:    make(map[string]TimeSeriesMetric),
+		DataQuality:   make(map[string]ColumnQuality),
 	}
 
 	if len(rows) == 0 {
 		return metrics
 	}
 
-	// Calculate aggregates for numeric/measure columns
+	// Data quality (nulls, distinct) for all columns
+	metrics.calculateDataQuality(columns, rows)
+
+	// Calculate aggregates for numeric/measure columns (includes std dev)
 	for i, profile := range profiles {
 		if profile.IsMeasure && profile.Type == ColumnTypeNumeric {
 			agg := calculateAggregates(rows, i)
@@ -32,7 +37,7 @@ func CalculateMetrics(columns []string, rows [][]interface{}, profiles []ColumnP
 	// Calculate top categories for grouped data
 	metrics.calculateTopCategories(columns, rows, profiles)
 
-	// Calculate time-series metrics
+	// Calculate time-series metrics (includes predictive next-period forecast)
 	if trendThresholdPercent <= 0 {
 		trendThresholdPercent = 0.5
 	}
@@ -47,6 +52,7 @@ func calculateAggregates(rows [][]interface{}, colIndex int) Aggregates {
 	var count int
 	var min, max *float64
 
+	vals := make([]float64, 0, len(rows))
 	for _, row := range rows {
 		if colIndex >= len(row) {
 			continue
@@ -59,6 +65,7 @@ func calculateAggregates(rows [][]interface{}, colIndex int) Aggregates {
 
 		sum += val
 		count++
+		vals = append(vals, val)
 
 		if min == nil || val < *min {
 			min = &val
@@ -78,6 +85,10 @@ func calculateAggregates(rows [][]interface{}, colIndex int) Aggregates {
 	if count > 0 {
 		avg := sum / float64(count)
 		agg.Avg = &avg
+		_, std := MeanAndStd(vals)
+		if std > 0 {
+			agg.StdDev = &std
+		}
 	}
 
 	return agg
@@ -343,7 +354,7 @@ func (m *Metrics) calculateTimeSeries(columns []string, rows [][]interface{}, pr
 
 		// Anomaly detection: z-score; flag points beyond anomalySigma std devs
 		if len(values) >= 3 {
-			mean, std := meanAndStd(values)
+			mean, std := MeanAndStd(values)
 			if std > 0 {
 				for i, v := range values {
 					z := (v - mean) / std
@@ -373,8 +384,8 @@ func (m *Metrics) calculateTimeSeries(columns []string, rows [][]interface{}, pr
 				trendStart = 0
 				nTrend = len(values)
 			}
-			slope, _ := linearRegression(values[trendStart:])
-			avgVal, _ := meanAndStd(values[trendStart:])
+			slope, _ := LinearRegression(values[trendStart:])
+			avgVal, _ := MeanAndStd(values[trendStart:])
 			direction := "stable"
 			if avgVal != 0 && math.Abs(slope) > 1e-10 {
 				pctSlope := (slope / math.Abs(avgVal)) * 100
@@ -391,13 +402,53 @@ func (m *Metrics) calculateTimeSeries(columns []string, rows [][]interface{}, pr
 				PeriodsUsed: nTrend,
 				Summary:     summary,
 			}
+			// Simple predictive: next period ≈ last value + slope
+			if len(values) > 0 {
+				forecast := values[len(values)-1] + slope
+				ts.NextPeriodForecast = &forecast
+			}
 		}
 
 		m.TimeSeries[measureName] = ts
 	}
 }
 
-func meanAndStd(values []float64) (mean, std float64) {
+// calculateDataQuality fills DataQuality for each column (nulls, distinct count).
+func (m *Metrics) calculateDataQuality(columns []string, rows [][]interface{}) {
+	if len(rows) == 0 {
+		return
+	}
+	total := len(rows)
+	for colIdx, colName := range columns {
+		nullCount := 0
+		seen := make(map[string]struct{})
+		for _, row := range rows {
+			if colIdx >= len(row) {
+				continue
+			}
+			v := row[colIdx]
+			if v == nil {
+				nullCount++
+				continue
+			}
+			key := fmt.Sprintf("%v", v)
+			seen[key] = struct{}{}
+		}
+		nullPct := 0.0
+		if total > 0 {
+			nullPct = float64(nullCount) / float64(total) * 100
+		}
+		m.DataQuality[colName] = ColumnQuality{
+			NullCount:     nullCount,
+			DistinctCount: len(seen),
+			TotalRows:     total,
+			NullPct:       nullPct,
+		}
+	}
+}
+
+// MeanAndStd returns mean and population standard deviation. Exported for testing.
+func MeanAndStd(values []float64) (mean, std float64) {
 	if len(values) == 0 {
 		return 0, 0
 	}
@@ -430,8 +481,8 @@ func formatOneDecimal(x float64) string {
 	return strconv.FormatFloat(x, 'f', 1, 64)
 }
 
-// linearRegression returns slope and intercept for y = slope*x + intercept (x = 0,1,2,...).
-func linearRegression(y []float64) (slope, intercept float64) {
+// LinearRegression returns slope and intercept for y = slope*x + intercept (x = 0,1,2,...). Exported for testing.
+func LinearRegression(y []float64) (slope, intercept float64) {
 	n := float64(len(y))
 	if n < 2 {
 		return 0, 0
