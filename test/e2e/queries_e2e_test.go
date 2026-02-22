@@ -33,6 +33,24 @@ func TestQueriesE2E(t *testing.T) {
 		t.Fatalf("failed to get connection string: %v", err)
 	}
 
+	// Wait for Postgres to accept connections (container "ready" can be before DB is listening).
+	waitCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+	for attempt := 0; ; attempt++ {
+		pool, pingErr := pgxpool.New(waitCtx, connStr)
+		if pingErr == nil {
+			pingErr = pool.Ping(waitCtx)
+			pool.Close()
+			if pingErr == nil {
+				break
+			}
+		}
+		if waitCtx.Err() != nil {
+			t.Fatalf("postgres not ready after 15s: last error %v", pingErr)
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+
 	migrationsPath, err := filepath.Abs("../../app/db/migrations")
 	if err != nil {
 		t.Fatalf("failed to resolve migrations path: %v", err)
