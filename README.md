@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/assets/logo.png" alt="pgQueryNarrative" width="320" />
+</p>
+
 # PgQueryNarrative
 
 Turn SQL query results into business narratives with AI. Run read-only SQL against PostgreSQL, get metrics and chart suggestions, and generate narrative reports using your choice of LLM (Ollama, OpenAI, Claude, Gemini, Groq).
