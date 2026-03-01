@@ -3,6 +3,9 @@
 GO ?= go
 GOLANGCI_LINT ?= golangci-lint
 GOA ?= goa
+# Use a user-writable module cache to avoid permission issues with system GOMODCACHE (e.g. root-owned ~/go/pkg/mod).
+GOMODCACHE ?= $(HOME)/.gomodcache
+export GOMODCACHE
 
 DB_URL ?= postgres://pgquerynarrative_app:pgquerynarrative_app@localhost:5432/pgquerynarrative?sslmode=disable
 
@@ -79,8 +82,8 @@ docker-start:
 	@echo "Step 6: Starting application..."
 	@echo "✅ PgQueryNarrative is starting!"
 	@echo ""
-	@echo "🌐 API will be available at: http://localhost:8080"
-	@echo "📊 Try: curl http://localhost:8080/api/v1/queries/saved"
+	@echo "🌐 Open http://localhost:8080 (React UI + API)"
+	@echo "📊 API: curl http://localhost:8080/api/v1/queries/saved"
 	@echo ""
 	@echo "Press Ctrl+C to stop"
 	@echo ""
@@ -115,8 +118,8 @@ local-start:
 	@echo "Step 6: Starting application..."
 	@echo "✅ PgQueryNarrative is starting!"
 	@echo ""
-	@echo "🌐 API will be available at: http://localhost:8080"
-	@echo "📊 Try: curl http://localhost:8080/api/v1/queries/saved"
+	@echo "🌐 Open http://localhost:8080 (React UI + API)"
+	@echo "📊 API: curl http://localhost:8080/api/v1/queries/saved"
 	@echo ""
 	@echo "Press Ctrl+C to stop"
 	@echo ""
@@ -133,6 +136,7 @@ setup:
 	@echo "✅ Dependencies installed"
 
 tidy:
+	@mkdir -p "$(GOMODCACHE)"
 	$(GO) mod tidy
 
 # Generate: goa -> gen/ (ephemeral), then patch and sync to api/gen/ (committed). App imports only api/gen/.
@@ -148,8 +152,14 @@ generate:
 	@sh ./tools/copy-gen-to-api-gen.sh 2>/dev/null || true
 	@echo "✅ Code generated"
 
+build-frontend:
+	@echo "🔨 Building frontend..."
+	@cd frontend && npm install --silent && npm run build
+	@echo "✅ Frontend built: frontend/dist/"
+
 build:
 	@echo "🔨 Building application..."
+	@$(MAKE) build-frontend
 	$(GO) build -o bin/server ./cmd/server
 	@echo "✅ Build complete: bin/server"
 
@@ -184,7 +194,7 @@ test-integration:
 
 test-e2e:
 	@echo "🧪 Running E2E tests..."
-	$(GO) test ./test/e2e/... -v
+	DOCKER_API_VERSION=1.44 $(GO) test ./test/e2e/... -v
 
 # ============================================================================
 # Code quality

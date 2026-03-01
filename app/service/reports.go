@@ -64,25 +64,13 @@ func (s *ReportsService) Generate(ctx context.Context, payload *reports.Generate
 	// Execute query
 	queryResult, err := s.runner.Run(ctx, payload.SQL, 1000)
 	if err != nil {
-		errMsg := err.Error()
-		if errors.Is(err, context.DeadlineExceeded) ||
-			strings.Contains(errMsg, "query execution timeout") ||
-			strings.Contains(errMsg, "context deadline exceeded") ||
-			strings.Contains(errMsg, "deadline exceeded") {
-			userMsg := "Query timed out. Try a simpler query or reduce the amount of data."
-			apilog.ValidationError("generate", "timeout_error", errMsg)
-			return nil, &reports.ValidationError{
-				Name:    "timeout_error",
-				Message: userMsg,
-				Code:    strPtr("TIMEOUT_ERROR"),
-			}
+		kind, userMsg := ClassifyRunError(err)
+		if kind == RunErrorTimeout {
+			apilog.ValidationError("generate", "timeout_error", err.Error())
+			return nil, &reports.ValidationError{Name: "timeout_error", Message: userMsg, Code: strPtr("TIMEOUT_ERROR")}
 		}
-		apilog.ValidationError("generate", "validation_error", errMsg)
-		return nil, &reports.ValidationError{
-			Name:    "validation_error",
-			Message: errMsg,
-			Code:    strPtr("VALIDATION_ERROR"),
-		}
+		apilog.ValidationError("generate", "validation_error", err.Error())
+		return nil, &reports.ValidationError{Name: "validation_error", Message: userMsg, Code: strPtr("VALIDATION_ERROR")}
 	}
 
 	// Extract column names and types

@@ -2,21 +2,22 @@ package main
 
 import (
 	"bytes"
-	"log"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/pgquerynarrative/pgquerynarrative/app/logger"
 )
 
 func TestRequestLoggingMiddleware_errorResponseLogsBody(t *testing.T) {
 	logBuf := new(bytes.Buffer)
-	logger := log.New(logBuf, "", 0)
+	appLogger := logger.New(logBuf)
 
 	handler := requestLoggingMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		_, _ = w.Write([]byte(`{"name":"validation_error","message":"only SELECT allowed"}`))
-	}), logger)
+	}), appLogger, nil)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/queries/run", nil)
 	req.RemoteAddr = "192.168.1.1:12345"
@@ -37,12 +38,12 @@ func TestRequestLoggingMiddleware_errorResponseLogsBody(t *testing.T) {
 
 func TestRequestLoggingMiddleware_successDoesNotLogErrorLine(t *testing.T) {
 	logBuf := new(bytes.Buffer)
-	logger := log.New(logBuf, "", 0)
+	appLogger := logger.New(logBuf)
 
 	handler := requestLoggingMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"columns":[]}`))
-	}), logger)
+	}), appLogger, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/queries/run", nil)
 	req.RemoteAddr = "127.0.0.1:8080"

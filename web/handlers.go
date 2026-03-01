@@ -1,7 +1,6 @@
 package web
 
 import (
-	"encoding/json"
 	"fmt"
 	"html/template"
 	"io"
@@ -10,725 +9,193 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/pgquerynarrative/pgquerynarrative/api/gen/queries"
 	"github.com/pgquerynarrative/pgquerynarrative/api/gen/reports"
+	"github.com/pgquerynarrative/pgquerynarrative/app/format"
 )
 
 type Handlers struct {
-	queriesEndpoints *queries.Endpoints
 	reportsEndpoints *reports.Endpoints
 }
 
 func NewHandlers(queriesEndpoints *queries.Endpoints, reportsEndpoints *reports.Endpoints) *Handlers {
-	return &Handlers{
-		queriesEndpoints: queriesEndpoints,
-		reportsEndpoints: reportsEndpoints,
-	}
+	return &Handlers{reportsEndpoints: reportsEndpoints}
 }
 
-func (h *Handlers) Home(w http.ResponseWriter, r *http.Request) {
-	// Check API health
-	apiStatus := "operational"
-	apiStatusClass := "status-ok"
-	apiMessage := "All systems operational"
+var formatFloatWithCommas = format.FloatWithCommas
 
-	// Try to check if API is responding
-	ctx := r.Context()
-	_, err := h.queriesEndpoints.ListSaved(ctx, &queries.ListSavedPayload{Limit: 1, Offset: 0})
-	if err != nil {
-		apiStatus = "degraded"
-		apiStatusClass = "status-warning"
-		apiMessage = "API may be experiencing issues"
-	}
-
-	html := fmt.Sprintf(`<!DOCTYPE html>
-<html>
-<head>
-	<title>PgQueryNarrative</title>
-	<meta charset="UTF-8">
-	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<script src="https://unpkg.com/htmx.org@1.9.10"></script>
-	<script src="/static/js/htmx-config.js"></script>
-	<link rel="stylesheet" href="/static/css/style.css">
-</head>
-<body data-page="home">
-	<nav class="navbar">
-		<div class="container navbar-inner">
-			<a href="/" class="navbar-brand">
-				<span class="navbar-logo">PgQueryNarrative</span>
-				<span class="navbar-tagline">Turn SQL into narratives</span>
-			</a>
-			<div class="navbar-links">
-				<a href="/" class="nav-link">Home</a>
-				<a href="/query" class="nav-link">Run Query</a>
-				<a href="/saved" class="nav-link">Saved</a>
-				<a href="/reports" class="nav-link">Reports</a>
-			</div>
-		</div>
-	</nav>
-	<main class="container">
-		<div class="status-badge %s">
-			<span class="status-indicator"></span>
-			<span><strong>System Status:</strong> %s - %s</span>
-		</div>
-		
-		<div class="hero">
-			<h2>Welcome to PgQueryNarrative</h2>
-			<p>Execute SQL queries and generate AI-powered business narratives from your PostgreSQL data</p>
-		</div>
-		
-		<div class="quick-stats">
-			<div class="stat-card">
-				<div class="stat-value">✓</div>
-				<div class="stat-label">Server Running</div>
-			</div>
-			<div class="stat-card">
-				<div class="stat-value">API</div>
-				<div class="stat-label">RESTful API Active</div>
-			</div>
-			<div class="stat-card">
-				<div class="stat-value">AI</div>
-				<div class="stat-label">Narrative Generation Ready</div>
-			</div>
-		</div>
-		
-		<div class="features">
-			<div class="feature-card">
-				<div class="feature-icon">🔍</div>
-				<h3>Run Queries</h3>
-				<p>Execute SQL safely with read-only access and validation. View results as a table or chart.</p>
-				<a href="/query" class="btn btn-primary">Run Query</a>
-			</div>
-			<div class="feature-card">
-				<div class="feature-icon">💾</div>
-				<h3>Saved Queries</h3>
-				<p>Store and reuse your frequently used queries across sessions.</p>
-				<a href="/saved" class="btn btn-secondary">View Saved</a>
-			</div>
-			<div class="feature-card">
-				<div class="feature-icon">📊</div>
-				<h3>Reports</h3>
-				<p>Generate AI-powered business narratives and chart suggestions from query results.</p>
-				<a href="/reports" class="btn btn-secondary">Create Report</a>
-			</div>
-		</div>
-		
-		<div class="actions">
-			<a href="/query" class="btn btn-primary">Get Started</a>
-		</div>
-	</main>
-	<footer>
-		<div class="container">
-			<p>&copy; 2026 PgQueryNarrative &middot; <a href="/api/v1/queries/saved">API</a></p>
-		</div>
-	</footer>
-</body>
-</html>`, apiStatusClass, apiStatus, apiMessage)
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_, _ = io.WriteString(w, html)
-}
-
-func (h *Handlers) QueryPage(w http.ResponseWriter, r *http.Request) {
-	html := `<!DOCTYPE html>
-<html>
-<head>
-	<title>Run Query - PgQueryNarrative</title>
-	<script src="https://unpkg.com/htmx.org@1.9.10"></script>
-	<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-	<script src="/static/js/htmx-config.js"></script>
-	<script src="/static/js/charts.js"></script>
-	<link rel="stylesheet" href="/static/css/style.css">
-</head>
-<body data-page="query">
-	<nav class="navbar">
-		<div class="container navbar-inner">
-			<a href="/" class="navbar-brand">
-				<span class="navbar-logo">PgQueryNarrative</span>
-				<span class="navbar-tagline">Turn SQL into narratives</span>
-			</a>
-			<div class="navbar-links">
-				<a href="/" class="nav-link">Home</a>
-				<a href="/query" class="nav-link">Run Query</a>
-				<a href="/saved" class="nav-link">Saved</a>
-				<a href="/reports" class="nav-link">Reports</a>
-			</div>
-		</div>
-	</nav>
-	<main class="container">
-		<div class="query-page">
-			<h2 class="page-title">Run SQL Query</h2>
-			<p class="page-subtitle">Execute read-only SQL against the demo schema. Results can be charted.</p>
-			<form hx-post="/web/query/run" hx-target="#results" hx-swap="innerHTML" hx-indicator="#loading" class="query-form">
-				<div class="form-group">
-					<label for="sql">SQL Query</label>
-					<textarea id="sql" name="sql" rows="10" required placeholder="SELECT product_category, SUM(total_amount) AS total FROM demo.sales GROUP BY product_category"></textarea>
-				</div>
-				<div class="form-group">
-					<label for="limit">Result Limit</label>
-					<input type="number" id="limit" name="limit" value="100" min="1" max="1000"/>
-				</div>
-				<button type="submit" class="btn btn-primary">Execute Query</button>
-			</form>
-			<div id="loading" class="loading" style="display:none;">Loading...</div>
-			<div id="results" class="results"></div>
-		</div>
-	</main>
-	<footer>
-		<div class="container">
-			<p>&copy; 2026 PgQueryNarrative</p>
-		</div>
-	</footer>
-</body>
-</html>`
-	w.Header().Set("Content-Type", "text/html")
-	_, _ = io.WriteString(w, html)
-}
-
-func (h *Handlers) SavedQueries(w http.ResponseWriter, r *http.Request) {
-	html := `<!DOCTYPE html>
-<html>
-<head>
-	<title>Saved Queries - PgQueryNarrative</title>
-	<script src="https://unpkg.com/htmx.org@1.9.10"></script>
-	<script src="/static/js/htmx-config.js"></script>
-	<link rel="stylesheet" href="/static/css/style.css">
-</head>
-<body data-page="saved">
-	<nav class="navbar">
-		<div class="container navbar-inner">
-			<a href="/" class="navbar-brand">
-				<span class="navbar-logo">PgQueryNarrative</span>
-				<span class="navbar-tagline">Turn SQL into narratives</span>
-			</a>
-			<div class="navbar-links">
-				<a href="/" class="nav-link">Home</a>
-				<a href="/query" class="nav-link">Run Query</a>
-				<a href="/saved" class="nav-link">Saved</a>
-				<a href="/reports" class="nav-link">Reports</a>
-			</div>
-		</div>
-	</nav>
-	<main class="container">
-		<div class="saved-queries">
-			<h2 class="page-title">Saved Queries</h2>
-			<p class="page-subtitle">Reuse and manage your saved queries.</p>
-			<div hx-get="/api/v1/queries/saved" hx-trigger="load" hx-swap="innerHTML" id="queries-list">
-				<p>Loading...</p>
-			</div>
-		</div>
-	</main>
-	<footer>
-		<div class="container">
-			<p>&copy; 2026 PgQueryNarrative</p>
-		</div>
-	</footer>
-</body>
-</html>`
-	w.Header().Set("Content-Type", "text/html")
-	_, _ = io.WriteString(w, html)
-}
-
-func (h *Handlers) Reports(w http.ResponseWriter, r *http.Request) {
-	html := `<!DOCTYPE html>
-<html>
-<head>
-	<title>Reports - PgQueryNarrative</title>
-	<script src="https://unpkg.com/htmx.org@1.9.10"></script>
-	<script src="/static/js/htmx-config.js"></script>
-	<link rel="stylesheet" href="/static/css/style.css">
-</head>
-<body data-page="reports">
-	<nav class="navbar">
-		<div class="container navbar-inner">
-			<a href="/" class="navbar-brand">
-				<span class="navbar-logo">PgQueryNarrative</span>
-				<span class="navbar-tagline">Turn SQL into narratives</span>
-			</a>
-			<div class="navbar-links">
-				<a href="/" class="nav-link">Home</a>
-				<a href="/query" class="nav-link">Run Query</a>
-				<a href="/saved" class="nav-link">Saved</a>
-				<a href="/reports" class="nav-link">Reports</a>
-			</div>
-		</div>
-	</nav>
-	<main class="container">
-		<div class="reports-page">
-			<h2 class="page-title">Generate Report</h2>
-			<p class="page-subtitle">Run a query and generate an AI narrative with suggested charts.</p>
-			<form hx-post="/web/reports/generate" hx-target="#report-result" hx-swap="innerHTML" class="query-form">
-				<div class="form-group">
-					<label for="sql">SQL Query</label>
-					<textarea id="sql" name="sql" rows="10" required placeholder="SELECT product_category, SUM(total_amount) AS total FROM demo.sales GROUP BY product_category"></textarea>
-				</div>
-				<button type="submit" class="btn btn-primary">Generate Narrative Report</button>
-			</form>
-			<div id="report-result" class="results"></div>
-		</div>
-	</main>
-	<footer>
-		<div class="container">
-			<p>&copy; 2026 PgQueryNarrative</p>
-		</div>
-	</footer>
-</body>
-</html>`
-	w.Header().Set("Content-Type", "text/html")
-	_, _ = io.WriteString(w, html)
-}
-
-func FormatQueryResultsHTML(result *queries.RunQueryResult) string {
-	rows := len(result.Rows)
-	cols := len(result.Columns)
-	estSize := 512 + rows*cols*32
-	if estSize < 4096 {
-		estSize = 4096
-	}
-	var sb strings.Builder
-	sb.Grow(estSize)
-	sb.WriteString("<div class='query-results'>")
-	sb.WriteString("<h3>Query Results</h3>")
-	sb.WriteString("<div class='result-info'>")
-	sb.WriteString("<p><strong>Rows:</strong> ")
-	sb.WriteString(strconv.Itoa(int(result.RowCount)))
-	sb.WriteString("</p>")
-	if result.ExecutionTimeMs > 0 {
-		execTime := float64(result.ExecutionTimeMs) / 1000.0
-		if execTime < 1.0 {
-			sb.WriteString("<p><strong>Execution Time:</strong> ")
-			sb.WriteString(strconv.Itoa(int(result.ExecutionTimeMs)))
-			sb.WriteString("ms</p>")
-		} else {
-			sb.WriteString("<p><strong>Execution Time:</strong> ")
-			sb.WriteString(fmt.Sprintf("%.2f", execTime))
-			sb.WriteString("s</p>")
-		}
-	}
-	if result.Limit > 0 {
-		sb.WriteString("<p><strong>Limit:</strong> ")
-		sb.WriteString(strconv.Itoa(int(result.Limit)))
-		sb.WriteString(" rows</p>")
-	}
-	sb.WriteString("</div>")
-
-	if len(result.PeriodComparison) > 0 {
-		titleAttr := "Compares the latest period in your result to the period before it."
-		sb.WriteString("<div class='period-comparison' title='")
-		sb.WriteString(template.HTMLEscapeString(titleAttr))
-		sb.WriteString("'><h4>Vs previous period")
-		if result.PeriodCurrentLabel != nil && result.PeriodPreviousLabel != nil && *result.PeriodCurrentLabel != "" && *result.PeriodPreviousLabel != "" {
-			sb.WriteString(" <span class='period-labels'>(")
-			sb.WriteString(template.HTMLEscapeString(*result.PeriodCurrentLabel))
-			sb.WriteString(" vs ")
-			sb.WriteString(template.HTMLEscapeString(*result.PeriodPreviousLabel))
-			sb.WriteString(")</span>")
-		}
-		sb.WriteString("</h4><p class='period-comparison-hint'>Latest period in result vs the one before it.</p><ul class='period-comparison-list'>")
-		for _, p := range result.PeriodComparison {
-			if p == nil {
-				continue
-			}
-			sb.WriteString("<li class='period-item'><strong>")
-			sb.WriteString(template.HTMLEscapeString(p.Measure))
-			sb.WriteString("</strong>: ")
-			sb.WriteString(formatFloatWithCommas(p.Current))
-			if p.Previous != nil {
-				sb.WriteString(" (prev: ")
-				sb.WriteString(formatFloatWithCommas(*p.Previous))
-				sb.WriteString(")")
-			}
-			if p.ChangePercentage != nil {
-				sb.WriteString(" <span class='period-change trend-")
-				sb.WriteString(template.HTMLEscapeString(p.Trend))
-				sb.WriteString("'>")
-				if *p.ChangePercentage >= 0 {
-					sb.WriteString("+")
-				}
-				sb.WriteString(fmt.Sprintf("%.1f%%", *p.ChangePercentage))
-				sb.WriteString("</span>")
-			}
-			sb.WriteString("</li>")
-		}
-		sb.WriteString("</ul></div>")
-	}
-
-	if len(result.ChartSuggestions) > 0 {
-		sb.WriteString("<div class='chart-suggestions'><h4>Suggested charts</h4><ul class='suggestion-list' id='chart-suggestions-list'>")
-		for _, s := range result.ChartSuggestions {
-			if s == nil {
-				continue
-			}
-			sb.WriteString("<li><button type='button' class='chart-type-btn' data-chart-type='")
-			sb.WriteString(template.HTMLEscapeString(s.ChartType))
-			sb.WriteString("' title='")
-			sb.WriteString(template.HTMLEscapeString(s.Reason))
-			sb.WriteString("'>")
-			sb.WriteString(template.HTMLEscapeString(s.Label))
-			sb.WriteString("</button></li>")
-		}
-		sb.WriteString("</ul></div>")
-	}
-
-	chartData := chartDataFromResult(result)
-	if chartData != nil {
-		jsonBytes, _ := json.Marshal(chartData)
-		chartSelectOptions := buildChartSelectOptions(result.ChartSuggestions)
-		sb.WriteString("<div class='chart-area' data-chart-data='")
-		sb.WriteString(template.HTMLEscapeString(string(jsonBytes)))
-		sb.WriteString("'><div class='chart-toolbar'><span class='chart-label'>Chart:</span> <select id='chart-type-select' class='chart-select'><option value=''>—</option>")
-		sb.WriteString(chartSelectOptions)
-		sb.WriteString("</select></div><div class='chart-canvas-wrap'><canvas id='result-chart' width='400' height='250'></canvas></div></div>")
-	}
-
-	if rows == 0 {
-		sb.WriteString("<div class='no-results'><p>No results returned.</p><p class='hint'>Try adjusting your query or check if the data exists.</p></div>")
-		sb.WriteString("</div>")
-		return sb.String()
-	}
-
-	sb.WriteString("<div class='table-container'>")
-	sb.WriteString("<table class='results-table'><thead><tr>")
-	for _, col := range result.Columns {
-		sb.WriteString("<th>")
-		sb.WriteString(template.HTMLEscapeString(col.Name))
-		if col.Type != "" {
-			sb.WriteString(" <span class='col-type'>(")
-			sb.WriteString(template.HTMLEscapeString(col.Type))
-			sb.WriteString(")</span>")
-		}
-		sb.WriteString("</th>")
-	}
-	sb.WriteString("</tr></thead><tbody>")
-	for _, row := range result.Rows {
-		sb.WriteString("<tr>")
-		for _, val := range row {
-			sb.WriteString("<td>")
-			sb.WriteString(template.HTMLEscapeString(formatValue(val)))
-			sb.WriteString("</td>")
-		}
-		sb.WriteString("</tr>")
-	}
-	sb.WriteString("</tbody></table>")
-	sb.WriteString("</div>")
-	sb.WriteString("</div>")
-	return sb.String()
-}
-
-// buildChartSelectOptions returns <option> HTML for the chart-type dropdown,
-// built from API suggestions (excluding table). Uses defaults (bar, line, pie) if none.
-func buildChartSelectOptions(suggestions []*queries.ChartSuggestion) string {
-	defaults := []struct{ value, label string }{
-		{"bar", "Bar"},
-		{"line", "Line"},
-		{"pie", "Pie"},
-	}
-	seen := make(map[string]bool)
-	var opts []struct{ value, label string }
-	for _, s := range suggestions {
-		if s == nil || s.ChartType == "table" {
-			continue
-		}
-		if seen[s.ChartType] {
-			continue
-		}
-		seen[s.ChartType] = true
-		label := s.Label
-		if label == "" {
-			label = s.ChartType
-		}
-		opts = append(opts, struct{ value, label string }{s.ChartType, label})
-	}
-	if len(opts) == 0 {
-		opts = defaults
-	}
-	var sb strings.Builder
-	sb.Grow(len(opts) * 64)
-	for _, o := range opts {
-		sb.WriteString("<option value='")
-		sb.WriteString(template.HTMLEscapeString(o.value))
-		sb.WriteString("'>")
-		sb.WriteString(template.HTMLEscapeString(o.label))
-		sb.WriteString("</option>")
-	}
-	return sb.String()
-}
-
-// chartDataForJS is the struct serialized to data-chart-data for the chart UI.
-type chartDataForJS struct {
-	Columns []string        `json:"columns"`
-	Rows    [][]interface{} `json:"rows"`
-}
-
-// chartDataFromResult builds JSON-serializable chart data from a query result (max 200 rows).
-func chartDataFromResult(result *queries.RunQueryResult) *chartDataForJS {
-	if result == nil || len(result.Columns) == 0 || len(result.Rows) == 0 {
-		return nil
-	}
-	maxRows := 200
-	if len(result.Rows) < maxRows {
-		maxRows = len(result.Rows)
-	}
-	cols := make([]string, len(result.Columns))
-	for i, c := range result.Columns {
-		cols[i] = c.Name
-	}
-	rows := make([][]interface{}, maxRows)
-	for i := 0; i < maxRows; i++ {
-		row := make([]interface{}, len(result.Rows[i]))
-		for j, val := range result.Rows[i] {
-			row[j] = rowValueToScalar(val)
-		}
-		rows[i] = row
-	}
-	return &chartDataForJS{Columns: cols, Rows: rows}
-}
-
-func rowValueToScalar(val interface{}) interface{} {
-	if val == nil {
-		return nil
-	}
-	if n, ok := val.(pgtype.Numeric); ok {
-		if !n.Valid || n.Int == nil {
-			return nil
-		}
-		f, _ := n.Int.Float64()
-		exp := int(n.Exp)
-		for exp < 0 {
-			f /= 10
-			exp++
-		}
-		for exp > 0 {
-			f *= 10
-			exp--
-		}
-		return f
-	}
-	switch v := val.(type) {
-	case float64, int, int32, int64:
-		return v
-	case float32:
-		return float64(v)
-	case string:
-		return v
-	default:
-		return fmt.Sprint(val)
-	}
-}
-
-// formatFloatWithCommas formats a float64 with thousands separators (e.g. 45793291.51 -> "45,793,291.51").
-func formatFloatWithCommas(v float64) string {
-	s := fmt.Sprintf("%.2f", v)
-	idx := strings.Index(s, ".")
-	if idx == -1 {
-		idx = len(s)
-	}
-	integerPart := s[:idx]
-	var b strings.Builder
-	for i, c := range integerPart {
-		if i > 0 && (len(integerPart)-i)%3 == 0 {
-			b.WriteString(",")
-		}
-		b.WriteRune(c)
-	}
-	if idx < len(s) {
-		b.WriteString(s[idx:])
-	}
-	return b.String()
-}
-
-func formatValue(val interface{}) string {
-	if val == nil {
-		return "NULL"
-	}
-
-	// Handle PostgreSQL numeric types
-	if numeric, ok := val.(pgtype.Numeric); ok {
-		if !numeric.Valid {
-			return "NULL"
-		}
-		// Convert pgtype.Numeric to string representation
-		if numeric.Int != nil {
-			// For decimal numerics, convert using Exp
-			if numeric.Exp != 0 {
-				// Convert big.Int to float64 and apply exponent
-				valFloat, _ := numeric.Int.Float64()
-				exp := int(numeric.Exp)
-				for exp < 0 {
-					valFloat = valFloat / 10.0
-					exp++
-				}
-				for exp > 0 {
-					valFloat = valFloat * 10.0
-					exp--
-				}
-				return fmt.Sprintf("%.2f", valFloat)
-			}
-			// For integer-like numerics
-			return numeric.Int.String()
-		}
-		return "0"
-	}
-
-	switch v := val.(type) {
-	case string:
-		return template.HTMLEscapeString(v)
-	case int:
-		return strconv.FormatInt(int64(v), 10)
-	case int32:
-		return strconv.FormatInt(int64(v), 10)
-	case int64:
-		return strconv.FormatInt(v, 10)
-	case float32:
-		return fmt.Sprintf("%.2f", v)
-	case float64:
-		return fmt.Sprintf("%.2f", v)
-	case bool:
-		if v {
-			return "true"
-		}
-		return "false"
-	default:
-		// For complex types, try to convert via fmt.Sprintf
-		return template.HTMLEscapeString(fmt.Sprintf("%v", v))
-	}
-}
-
-func (h *Handlers) RunQuery(w http.ResponseWriter, r *http.Request) {
-	defer func() {
-		if rec := recover(); rec != nil {
-			errorHTML := "<div class='error-message'><strong>Error:</strong> An unexpected error occurred. Please try again.</div>"
-			w.Header().Set("Content-Type", "text/html")
-			w.WriteHeader(http.StatusInternalServerError)
-			_, _ = io.WriteString(w, errorHTML)
-		}
-	}()
-
-	if r.Method != http.MethodPost {
+// ExportReport serves a self-contained HTML file for the report (download/export).
+// Query param: id (report UUID). Response is attachment with filename report-<id>.html.
+func (h *Handlers) ExportReport(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-
-	if err := r.ParseForm(); err != nil {
-		errorHTML := "<div class='error-message'><strong>Error:</strong> Failed to parse form data. Please try again.</div>"
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		w.WriteHeader(http.StatusBadRequest)
-		_, _ = io.WriteString(w, errorHTML)
+	reportID := r.URL.Query().Get("id")
+	if reportID == "" {
+		http.Error(w, "missing report id", http.StatusBadRequest)
 		return
-	}
-
-	sql := strings.TrimSpace(r.FormValue("sql"))
-	if sql == "" {
-		errorHTML := "<div class='error-message'><strong>Error:</strong> SQL query cannot be empty.</div>"
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		w.WriteHeader(http.StatusBadRequest)
-		_, _ = io.WriteString(w, errorHTML)
-		return
-	}
-
-	limitStr := r.FormValue("limit")
-	if limitStr == "" {
-		limitStr = "100"
-	}
-	limit, err := strconv.ParseInt(limitStr, 10, 32)
-	if err != nil || limit <= 0 {
-		limit = 100
-	}
-	if limit > 1000 {
-		limit = 1000
 	}
 
 	ctx := r.Context()
-	payload := &queries.RunQueryPayload{
-		SQL:   sql,
-		Limit: int32(limit),
-	}
-
-	result, err := h.queriesEndpoints.Run(ctx, payload)
+	payload := &reports.GetPayload{ID: reportID}
+	got, err := h.reportsEndpoints.Get(ctx, payload)
 	if err != nil {
-		errorHTML := "<div class='error-message'>"
-		errorHTML += "<strong>Error:</strong> "
-		if validationErr, ok := err.(*queries.ValidationError); ok {
-			errorHTML += template.HTMLEscapeString(validationErr.Message)
-			if validationErr.Code != nil {
-				errorHTML += " <span class='error-code'>(" + template.HTMLEscapeString(*validationErr.Code) + ")</span>"
-			}
-		} else {
-			errorHTML += template.HTMLEscapeString(err.Error())
+		if _, ok := err.(*reports.NotFoundError); ok {
+			http.Error(w, "report not found", http.StatusNotFound)
+			return
 		}
-		errorHTML += "</div>"
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		w.WriteHeader(http.StatusBadRequest)
-		_, _ = io.WriteString(w, errorHTML)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-
-	queryResult, ok := result.(*queries.RunQueryResult)
+	report, ok := got.(*reports.Report)
 	if !ok {
-		errorHTML := "<div class='error-message'><strong>Error:</strong> Invalid response type. Please try again.</div>"
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		w.WriteHeader(http.StatusInternalServerError)
-		_, _ = io.WriteString(w, errorHTML)
+		http.Error(w, "invalid report", http.StatusInternalServerError)
 		return
 	}
 
-	html := FormatQueryResultsHTML(queryResult)
+	// Build full HTML document with inline CSS so the file is self-contained and print-friendly
+	bodyHTML := FormatReportHTML(report)
+	// Short id for filename (first 8 chars of UUID)
+	filenameID := reportID
+	if len(filenameID) > 8 {
+		filenameID = filenameID[:8]
+	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.WriteHeader(http.StatusOK)
-	_, _ = io.WriteString(w, html)
+	w.Header().Set("Content-Disposition", "attachment; filename=\"report-"+filenameID+".html\"")
+	_, _ = io.WriteString(w, buildExportHTML(report.SQL, report.CreatedAt, bodyHTML))
 }
 
-// GenerateReport handles form submission from web UI and converts to API call
-func (h *Handlers) GenerateReport(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
+// ExportReportPDF serves the report as a PDF file (download).
+// Query param: id (report UUID). Response is attachment with filename report-<id>.pdf.
+func (h *Handlers) ExportReportPDF(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-
-	// Parse form data
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "Invalid form data", http.StatusBadRequest)
+	reportID := r.URL.Query().Get("id")
+	if reportID == "" {
+		http.Error(w, "missing report id", http.StatusBadRequest)
 		return
 	}
 
-	sql := r.FormValue("sql")
-
-	// Call the reports service
 	ctx := r.Context()
-	payload := &reports.GenerateReportPayload{
-		SQL: sql,
-	}
-
-	report, err := h.reportsEndpoints.Generate(ctx, payload)
+	payload := &reports.GetPayload{ID: reportID}
+	got, err := h.reportsEndpoints.Get(ctx, payload)
 	if err != nil {
-		// Format error for HTML display
-		errorHTML := "<div class='error-message'><strong>Error:</strong> "
-		if validationErr, ok := err.(*reports.ValidationError); ok {
-			errorHTML += template.HTMLEscapeString(validationErr.Message)
-		} else if llmErr, ok := err.(*reports.LLMError); ok {
-			errorHTML += template.HTMLEscapeString(llmErr.Message)
-		} else {
-			errorHTML += template.HTMLEscapeString(err.Error())
+		if _, ok := err.(*reports.NotFoundError); ok {
+			http.Error(w, "report not found", http.StatusNotFound)
+			return
 		}
-		errorHTML += "</div>"
-		w.Header().Set("Content-Type", "text/html")
-		_, _ = io.WriteString(w, errorHTML)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-
-	// Type assert the report
-	reportResult, ok := report.(*reports.Report)
+	report, ok := got.(*reports.Report)
 	if !ok {
-		errorHTML := "<div class='error-message'><strong>Error:</strong> Invalid response type</div>"
-		w.Header().Set("Content-Type", "text/html")
-		_, _ = io.WriteString(w, errorHTML)
+		http.Error(w, "invalid report", http.StatusInternalServerError)
 		return
 	}
 
-	// Format report as HTML
-	html := FormatReportHTML(reportResult)
-	w.Header().Set("Content-Type", "text/html")
-	_, _ = io.WriteString(w, html)
+	filenameID := reportID
+	if len(filenameID) > 8 {
+		filenameID = filenameID[:8]
+	}
+	w.Header().Set("Content-Type", "application/pdf")
+	w.Header().Set("Content-Disposition", "attachment; filename=\"report-"+filenameID+".pdf\"")
+
+	if err := BuildReportPDF(w, report); err != nil {
+		http.Error(w, "failed to generate PDF", http.StatusInternalServerError)
+		return
+	}
+}
+
+// buildExportHTML returns a complete HTML document with embedded styles for the report body.
+func buildExportHTML(sql, createdAt, bodyHTML string) string {
+	created := createdAt
+	if created == "" {
+		created = "—"
+	}
+	sqlEscaped := template.HTMLEscapeString(sql)
+	if len(sqlEscaped) > 500 {
+		sqlEscaped = sqlEscaped[:500] + "…"
+	}
+	return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Report — PgQueryNarrative</title>
+<style>
+` + reportExportStyles() + `
+</style>
+</head>
+<body class="export-body">
+<header class="export-header">
+  <h1>PgQueryNarrative Report</h1>
+  <p class="export-meta">Generated: ` + template.HTMLEscapeString(created) + `</p>
+  <details class="export-sql"><summary>Query</summary><pre>` + sqlEscaped + `</pre></details>
+</header>
+<main class="export-main">
+` + bodyHTML + `
+</main>
+<footer class="export-footer">Exported from PgQueryNarrative. Open in a browser or print to PDF.</footer>
+</body>
+</html>`
+}
+
+// reportExportStyles returns inline CSS for the exported report (self-contained, print-friendly).
+func reportExportStyles() string {
+	return `
+body.export-body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #0f172a; background: #f8fafc; margin: 0; padding: 24px; font-size: 15px; }
+.export-header { margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid #e2e8f0; }
+.export-header h1 { font-size: 1.5rem; margin: 0 0 8px 0; font-weight: 600; }
+.export-meta { color: #64748b; font-size: 0.875rem; margin: 0; }
+.export-sql { margin-top: 12px; font-size: 0.8125rem; }
+.export-sql summary { cursor: pointer; color: #0ea5e9; font-weight: 500; }
+.export-sql pre { background: #f1f5f9; padding: 12px; border-radius: 6px; overflow-x: auto; margin: 8px 0 0 0; white-space: pre-wrap; word-break: break-word; }
+.export-main { max-width: 800px; }
+.export-footer { margin-top: 32px; padding-top: 16px; border-top: 1px solid #e2e8f0; color: #94a3b8; font-size: 0.8125rem; }
+.report-results { margin: 0; background: #fff; border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); border: 1px solid #e2e8f0; overflow: hidden; }
+.report-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; padding: 14px 20px; background: #f1f5f9; border-bottom: 1px solid #e2e8f0; font-size: 0.8125rem; color: #64748b; }
+.report-id { font-family: ui-monospace, monospace; color: #0f172a; }
+.report-model { display: inline-block; padding: 4px 10px; background: #e0e7ff; color: #3730a3; border-radius: 6px; font-weight: 500; font-size: 0.8125rem; }
+.report-narrative { margin: 0; padding: 24px; background: #fff; }
+.report-headline { color: #0f172a; font-size: 1.25rem; line-height: 1.4; margin: 0 0 16px 0; font-weight: 600; }
+.report-section-title { color: #64748b; font-size: 0.8125rem; font-weight: 600; margin: 20px 0 8px 0; text-transform: uppercase; letter-spacing: 0.04em; }
+.report-section-title:first-of-type { margin-top: 0; }
+.report-takeaways, .report-list { margin: 6px 0 0 0; padding-left: 20px; }
+.report-takeaways li, .report-list li { margin: 8px 0; line-height: 1.55; color: #0f172a; }
+.chart-suggestions, .period-comparison, .perf-suggestions, .data-quality { margin-top: 16px; padding: 16px 18px; background: #f1f5f9; border-radius: 6px; border: 1px solid #e2e8f0; }
+.period-comparison-hint { font-size: 0.8125rem; color: #64748b; margin: 0 0 8px 0; }
+.period-labels { font-weight: normal; }
+.period-comparison-list { margin: 8px 0 0 0; padding-left: 20px; }
+.period-item { margin: 6px 0; }
+.trend-increasing { color: #059669; }
+.trend-decreasing { color: #dc2626; }
+.trend-stable { color: #64748b; }
+.trend-badge.trend-increasing { background: #d1fae5; color: #059669; }
+.trend-badge.trend-decreasing { background: #fee2e2; color: #dc2626; }
+.trend-badge.trend-stable { background: #f1f5f9; color: #64748b; }
+.advanced-metrics { margin-top: 16px; }
+.advanced-metric-measure { margin-bottom: 16px; }
+.report-measure-title { font-size: 0.9375rem; font-weight: 600; color: #0f172a; margin-bottom: 8px; }
+.trend-summary { margin: 0 0 10px 0; font-size: 0.9375rem; line-height: 1.5; }
+.next-period-forecast { margin: 6px 0 10px 0; font-size: 0.9375rem; }
+.anomalies-list { margin: 8px 0; font-size: 0.875rem; }
+.anomaly-list { margin: 4px 0 0 16px; padding-left: 0; list-style: disc; }
+.anomaly-period { font-weight: 500; color: #0f172a; }
+.period-history-details { margin-top: 8px; font-size: 0.875rem; }
+.period-history-details summary { cursor: pointer; font-weight: 500; color: #0ea5e9; }
+.period-history-table { width: 100%; margin-top: 8px; border-collapse: collapse; font-size: 0.8125rem; }
+.period-history-table th, .period-history-table td { padding: 6px 10px; text-align: left; border-bottom: 1px solid #e2e8f0; }
+.period-history-table th { font-weight: 600; color: #64748b; }
+.data-quality-table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+.data-quality-table th, .data-quality-table td { text-align: left; padding: 6px 12px 6px 0; border-bottom: 1px solid #e2e8f0; }
+.data-quality-table th { color: #64748b; font-weight: 600; }
+.suggestion-list { list-style: none; padding-left: 0; }
+.suggestion-list li { margin: 0; }
+@media print { .export-body { background: #fff; padding: 0; } .export-header, .export-footer { border-color: #e2e8f0; } }
+`
 }
 
 // FormatReportHTML formats report results as HTML with model badge and improved layout.

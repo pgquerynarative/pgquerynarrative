@@ -1,8 +1,10 @@
 # Deployment
 
-Build and deploy PgQueryNarrative with Docker, Kubernetes, or Helm. For first-time run: [Quick start](../getting-started/quickstart.md) or [Installation](../getting-started/installation.md).
+Build and deploy PgQueryNarrative with Docker, Kubernetes, or Helm. For first-time run see [Quick start](../getting-started/quickstart.md) or [Installation](../getting-started/installation.md).
 
-**Note:** `make start-docker` uses the root `docker-compose.yml` and `Dockerfile` for development. Below describes the **production** image (`deploy/docker/Dockerfile`) and production compose/Kubernetes/Helm.
+**Development vs production:** `make start-docker` uses root [docker-compose.yml](../../docker-compose.yml) and [Dockerfile](../../Dockerfile) (includes React frontend build). Below: **production** image (`deploy/docker/Dockerfile`) and Compose/Kubernetes/Helm.
+
+---
 
 ## Docker
 
@@ -14,7 +16,7 @@ From repo root:
 docker build -f deploy/docker/Dockerfile -t pgquerynarrative:latest .
 ```
 
-Multi-stage build: app + migrate binary, then minimal Alpine image (server, migrations, entrypoint).
+Multi-stage build: Go app + migrate binary, then minimal Alpine image (server binary, migrations, entrypoint). Production image does not bundle the React SPA; for full UI use the root Dockerfile or serve static assets separately.
 
 ### Run with Docker Compose
 
@@ -24,7 +26,7 @@ docker compose -f deploy/docker/docker-compose.yml up -d
 
 Or build and run: `docker compose -f deploy/docker/docker-compose.yml up -d --build`.
 
-Set env or use `.env`. Important: `DATABASE_*`, `LLM_*`. Optional: `PGQUERYNARRATIVE_SEED=true` for demo seed. App waits for Postgres, runs migrations, then starts. API: http://localhost:8080.
+Set env or use `.env`. Required: `DATABASE_*`, `LLM_*` (see [Configuration](../configuration.md)). Optional: `PGQUERYNARRATIVE_SEED=true` for demo seed. App waits for Postgres, runs migrations, then starts. API and [health endpoints](operations.md#health-checks): http://localhost:8080.
 
 ### Pre-built image
 
@@ -45,7 +47,7 @@ Manifests: `deploy/kubernetes/`. PostgreSQL is external; app connects via `DATAB
 ### Prerequisites
 
 - Cluster and `kubectl` configured.
-- PostgreSQL reachable from the cluster. Create DB and roles, run migrations once if DB is empty.
+- PostgreSQL reachable from the cluster. Create DB and roles, run migrations once if DB is empty (see [Installation](../getting-started/installation.md)).
 
 ### Apply order
 
@@ -64,7 +66,7 @@ kubectl apply -f deploy/kubernetes/service.yaml
 kubectl apply -f deploy/kubernetes/ingress.yaml   # optional
 ```
 
-Set `image` in `deployment.yaml` to your image. Ensure ConfigMap has correct `DATABASE_HOST`.
+Set `image` in `deployment.yaml` to your image. Ensure ConfigMap has correct `DATABASE_HOST`. Probes: [Operations – Health checks](operations.md#health-checks) (GET /health, GET /ready).
 
 ### Access
 
@@ -108,10 +110,4 @@ See `deploy/helm/pgquerynarrative/values.yaml`. Key keys: **image**, **database*
 
 ## See also
 
-- [Configuration](../configuration.md) — Environment variables
-- [Operations](operations.md) — Monitoring, health checks, runbooks
-- [Quick start](../getting-started/quickstart.md) — Minimal run
-- [Installation](../getting-started/installation.md) — Prerequisites
-- [API reference](../api/README.md) — REST endpoints
-- [Troubleshooting](troubleshooting.md) — Common issues
-- [Documentation index](../README.md)
+- [Configuration](../configuration.md) · [Operations](operations.md) · [Installation](../getting-started/installation.md) · [Documentation index](../README.md)

@@ -69,6 +69,12 @@ var (
 	ErrNarrativeGenerationFailed = errors.New("narrative generation failed")
 )
 
+// Input validation errors
+var (
+	// ErrEmptyQuery is returned when a query is called with empty or whitespace-only SQL.
+	ErrEmptyQuery = errors.New("query SQL cannot be empty")
+)
+
 // Service layer errors
 var (
 	// ErrSavedQueryNotFound indicates the requested saved query does not exist.

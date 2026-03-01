@@ -5,6 +5,7 @@ package config
 import (
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -37,6 +38,7 @@ type ServerConfig struct {
 	Port         int           // Server port (default: 8080)
 	ReadTimeout  time.Duration // Request read timeout
 	WriteTimeout time.Duration // Response write timeout
+	CORSOrigins  []string      // Allowed CORS origins (empty = same-origin only)
 }
 
 // DatabaseConfig contains PostgreSQL connection settings.
@@ -55,7 +57,10 @@ type DatabaseConfig struct {
 
 // SecurityConfig contains security-related settings.
 type SecurityConfig struct {
-	AuthEnabled bool // Whether authentication is enabled (future feature)
+	AuthEnabled    bool   // When true, API and web export require Bearer token (SECURITY_API_KEY).
+	APIKey         string // Bearer token for API auth; required when AuthEnabled is true.
+	RateLimitRPM   int    // Max requests per minute per client (0 = disabled). Applied when > 0.
+	RateLimitBurst int    // Burst size for rate limiter (allow short spikes). Default 2 * RateLimitRPM when 0.
 }
 
 // LLMConfig contains settings for the LLM provider used for narrative generation.
@@ -75,6 +80,7 @@ func Load() Config {
 			Port:         getEnvInt("PGQUERYNARRATIVE_PORT", 8080),
 			ReadTimeout:  getEnvDuration("PGQUERYNARRATIVE_READ_TIMEOUT", 15*time.Second),
 			WriteTimeout: getEnvDuration("PGQUERYNARRATIVE_WRITE_TIMEOUT", 60*time.Second),
+			CORSOrigins:  getEnvSlice("CORS_ORIGINS", ","),
 		},
 		Database: DatabaseConfig{
 			Host:             getEnv("DATABASE_HOST", "localhost"),
@@ -89,7 +95,10 @@ func Load() Config {
 			QueryTimeout:     getEnvDuration("QUERY_TIMEOUT", 30*time.Second),
 		},
 		Security: SecurityConfig{
-			AuthEnabled: getEnvBool("SECURITY_AUTH_ENABLED", false),
+			AuthEnabled:    getEnvBool("SECURITY_AUTH_ENABLED", false),
+			APIKey:         getEnv("SECURITY_API_KEY", ""),
+			RateLimitRPM:   getEnvInt("SECURITY_RATE_LIMIT_RPM", 0),
+			RateLimitBurst: getEnvInt("SECURITY_RATE_LIMIT_BURST", 0),
 		},
 		LLM: LLMConfig{
 			Provider: getEnv("LLM_PROVIDER", "ollama"),
@@ -160,4 +169,21 @@ func getEnvDuration(key string, fallback time.Duration) time.Duration {
 		}
 	}
 	return fallback
+}
+
+// getEnvSlice retrieves an environment variable, splits by sep, trims each part, and returns non-empty elements.
+func getEnvSlice(key, sep string) []string {
+	value := os.Getenv(key)
+	if value == "" {
+		return nil
+	}
+	parts := strings.Split(value, sep)
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
 }

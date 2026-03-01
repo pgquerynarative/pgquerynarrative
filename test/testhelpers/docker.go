@@ -22,7 +22,8 @@ func RunPostgresContainer(t *testing.T, ctx context.Context) *postgres.PostgresC
 		}
 	}()
 
-	container, err := postgres.Run(ctx, "postgres:18",
+	// Use pgvector image so migration 000007_pgvector_embeddings can run.
+	container, err := postgres.Run(ctx, "pgvector/pgvector:pg18",
 		postgres.WithDatabase("pgquerynarrative"),
 		postgres.WithUsername("postgres"),
 		postgres.WithPassword("postgres"),

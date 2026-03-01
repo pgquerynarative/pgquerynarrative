@@ -24,7 +24,11 @@ import (
 	"github.com/pgquerynarrative/pgquerynarrative/api/gen/reports"
 	schema "github.com/pgquerynarrative/pgquerynarrative/api/gen/schema"
 	suggestions "github.com/pgquerynarrative/pgquerynarrative/api/gen/suggestions"
+	"github.com/pgquerynarrative/pgquerynarrative/app/audit"
+	"github.com/pgquerynarrative/pgquerynarrative/app/auth"
 	"github.com/pgquerynarrative/pgquerynarrative/app/config"
+	"github.com/pgquerynarrative/pgquerynarrative/app/logger"
+	"github.com/pgquerynarrative/pgquerynarrative/app/ratelimit"
 	"github.com/pgquerynarrative/pgquerynarrative/pkg/narrative"
 	"github.com/pgquerynarrative/pgquerynarrative/web"
 	goahttp "goa.design/goa/v3/http"
@@ -46,7 +50,7 @@ func main() {
 	}
 	defer client.Close()
 
-	logger := log.New(os.Stdout, "[pgquerynarrative] ", log.LstdFlags)
+	appLogger := logger.Default()
 
 	queriesEndpoints := queries.NewEndpoints(client.QueriesService())
 	reportsEndpoints := reports.NewEndpoints(client.ReportsService())
@@ -54,43 +58,44 @@ func main() {
 	suggestionsEndpoints := suggestions.NewEndpoints(client.SuggestionsService())
 
 	// Configure HTTP server
-	httpServer := setupHTTPServer(cfg, queriesEndpoints, reportsEndpoints, schemaEndpoints, suggestionsEndpoints, logger)
+	httpServer := setupHTTPServer(cfg, client, queriesEndpoints, reportsEndpoints, schemaEndpoints, suggestionsEndpoints, appLogger)
 
 	// Start server in a goroutine
 	go func() {
-		logger.Printf("🚀 Server listening on %s", httpServer.Addr)
+		appLogger.Info("starting http server", "component", "api_server", "host_port", httpServer.Addr)
 		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			logger.Fatalf("server error: %v", err)
+			appLogger.Err("server error", "error", err.Error())
+			os.Exit(1)
 		}
 	}()
 
 	// Wait for shutdown signal
 	<-ctx.Done()
-	logger.Println("🛑 Shutting down server...")
+	appLogger.Info("shutting down server")
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), gracefulTimeout)
 	defer cancel()
 
 	if err := httpServer.Shutdown(shutdownCtx); err != nil {
-		logger.Printf("shutdown error: %v", err)
+		appLogger.Err("shutdown error", "error", err.Error())
 	} else {
-		logger.Println("✅ Server stopped gracefully")
+		appLogger.Info("server stopped gracefully")
 	}
 }
 
 // setupHTTPServer configures and returns an HTTP server with:
-// - API routes (via Goa framework) at /api/v1/*
-// - Web UI routes at /, /query, /saved, /reports
-// - Static file serving at /static/*
+// - Health: GET /health (liveness), GET /ready (readiness with DB)
+// - API routes (via Goa) at /api/v1/*
+// - Web export and React SPA
 func setupHTTPServer(
 	cfg config.Config,
+	client *narrative.Client,
 	queriesEndpoints *queries.Endpoints,
 	reportsEndpoints *reports.Endpoints,
 	schemaEndpoints *schema.Endpoints,
 	suggestionsEndpoints *suggestions.Endpoints,
-	logger *log.Logger,
+	appLogger *logger.Logger,
 ) *http.Server {
-	// Create Goa HTTP muxer for API routes
 	mux := goahttp.NewMuxer()
 	dec := goahttp.RequestDecoder
 	enc := goahttp.ResponseEncoder
@@ -98,65 +103,159 @@ func setupHTTPServer(
 		_ = goahttp.ErrorEncoder(enc, nil)(ctx, w, err)
 	}
 
-	// Mount queries API endpoints
 	queriesHTTP := server.New(queriesEndpoints, mux, dec, enc, errHandler, nil)
 	server.Mount(mux, queriesHTTP)
-
-	// Mount reports API endpoints
 	reportsHTTP := reportsServer.New(reportsEndpoints, mux, dec, enc, errHandler, nil)
 	reportsServer.Mount(mux, reportsHTTP)
-
-	// Mount schema API endpoints
 	schemaHTTP := schemaServer.New(schemaEndpoints, mux, dec, enc, errHandler, nil)
 	schemaServer.Mount(mux, schemaHTTP)
-
-	// Mount suggestions API endpoints
 	suggestionsHTTP := suggestionsServer.New(suggestionsEndpoints, mux, dec, enc, errHandler, nil)
 	suggestionsServer.Mount(mux, suggestionsHTTP)
 
-	// Create web UI handlers
 	webHandlers := web.NewHandlers(queriesEndpoints, reportsEndpoints)
 
-	// Create standard HTTP mux for web routes
-	// (Goa mux doesn't support HandleFunc, so we use standard mux for web UI)
-	webMux := http.NewServeMux()
-
-	// Serve static files (CSS, JS)
-	fs := http.FileServer(http.Dir("./web/static"))
-	webMux.Handle("/static/", http.StripPrefix("/static/", fs))
-
-	// Web UI routes
-	webMux.HandleFunc("/", webHandlers.Home)
-	webMux.HandleFunc("/query", webHandlers.QueryPage)
-	webMux.HandleFunc("/saved", webHandlers.SavedQueries)
-	webMux.HandleFunc("/reports", webHandlers.Reports)
-
-	// Web API endpoints (form handlers that call Goa endpoints)
-	webMux.HandleFunc("/web/query/run", webHandlers.RunQuery)
-	webMux.HandleFunc("/web/reports/generate", webHandlers.GenerateReport)
-
-	// Combine API and web routes
-	// API routes (/api/*) handled by Goa muxer
-	// Web routes (everything else) handled by standard mux
 	combinedMux := http.NewServeMux()
+	combinedMux.HandleFunc("/health", healthHandler)
+	combinedMux.HandleFunc("/ready", readyHandler(client))
 	combinedMux.Handle("/api/", mux)
-	combinedMux.Handle("/", webMux)
+	combinedMux.HandleFunc("/web/reports/export", webHandlers.ExportReport)
+	combinedMux.HandleFunc("/web/reports/export/pdf", webHandlers.ExportReportPDF)
+	combinedMux.Handle("/", spaHandler("frontend/dist"))
 
-	// Wrap with request logging middleware
-	loggedHandler := requestLoggingMiddleware(combinedMux, logger)
+	var auditStore *audit.Store
+	if pool := client.AppPool(); pool != nil {
+		auditStore = audit.NewStore(pool)
+	}
+	rl := ratelimit.NewLimiter(cfg.Security.RateLimitRPM, cfg.Security.RateLimitBurst)
 
-	// Create and configure HTTP server
+	handler := requestLoggingMiddleware(combinedMux, appLogger, auditStore)
+	handler = authMiddleware(handler, cfg.Security.AuthEnabled, cfg.Security.APIKey, auditStore)
+	handler = rateLimitMiddleware(handler, rl, auditStore)
+	handler = securityHeadersMiddleware(handler)
+	if len(cfg.Server.CORSOrigins) > 0 {
+		handler = corsMiddleware(handler, cfg.Server.CORSOrigins)
+	}
+
 	return &http.Server{
 		Addr:         cfg.Server.Host + ":" + strconv.Itoa(cfg.Server.Port),
-		Handler:      loggedHandler,
+		Handler:      handler,
 		ReadTimeout:  cfg.Server.ReadTimeout,
 		WriteTimeout: cfg.Server.WriteTimeout,
 	}
 }
 
-// requestLoggingMiddleware logs each HTTP request: method, path, client IP, status, duration.
-// For 4xx/5xx responses it also logs the response body (error message) so the console shows why the request failed.
-func requestLoggingMiddleware(next http.Handler, logger *log.Logger) http.Handler {
+func healthHandler(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "text/plain")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte("OK"))
+}
+
+func readyHandler(client *narrative.Client) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if err := client.Ready(r.Context()); err != nil {
+			appLogger := logger.DefaultLogger()
+			appLogger.Err("ready check failed", "error", err.Error())
+			http.Error(w, "not ready", http.StatusServiceUnavailable)
+			return
+		}
+		w.Header().Set("Content-Type", "text/plain")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("OK"))
+	}
+}
+
+// authMiddleware requires Bearer token for /api/* and /web/reports/export* when enabled.
+// Sets auth identity in context for audit. Health and ready are never protected.
+func authMiddleware(next http.Handler, enabled bool, apiKey string, auditStore *audit.Store) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := r.URL.Path
+		if path == "" {
+			path = "/"
+		}
+		needAuth := strings.HasPrefix(path, "/api/") || path == "/web/reports/export" || path == "/web/reports/export/pdf"
+		if !enabled || !needAuth || apiKey == "" {
+			next.ServeHTTP(w, r)
+			return
+		}
+		identity, ok := auth.ValidateRequest(r, apiKey)
+		if !ok {
+			clientIP := clientIPFromRequest(r)
+			if auditStore != nil {
+				auditStore.Record(r.Context(), audit.Entry{
+					EventType: audit.EventAuthFailure,
+					Details:   map[string]interface{}{"path": path},
+					IP:        clientIP,
+					UserAgent: r.UserAgent(),
+				})
+			}
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusUnauthorized)
+			_, _ = w.Write([]byte(`{"name":"unauthorized","message":"missing or invalid Authorization","code":"UNAUTHORIZED"}`))
+			return
+		}
+		ctx := context.WithValue(r.Context(), auth.IdentityContextKey, identity)
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
+// rateLimitMiddleware limits requests per client IP when limiter is non-nil. Returns 429 when exceeded.
+func rateLimitMiddleware(next http.Handler, limiter *ratelimit.Limiter, auditStore *audit.Store) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if limiter == nil {
+			next.ServeHTTP(w, r)
+			return
+		}
+		key := clientIPFromRequest(r)
+		if !limiter.Allow(key) {
+			if auditStore != nil {
+				auditStore.Record(r.Context(), audit.Entry{
+					EventType: audit.EventRateLimitExceeded,
+					Details:   map[string]interface{}{"path": r.URL.Path, "client": key},
+					IP:        key,
+					UserAgent: r.UserAgent(),
+				})
+			}
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusTooManyRequests)
+			_, _ = w.Write([]byte(`{"name":"rate_limit_exceeded","message":"too many requests","code":"RATE_LIMIT_EXCEEDED"}`))
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+func securityHeadersMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("X-Frame-Options", "SAMEORIGIN")
+		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
+		next.ServeHTTP(w, r)
+	})
+}
+
+func corsMiddleware(next http.Handler, origins []string) http.Handler {
+	originSet := make(map[string]bool, len(origins))
+	for _, o := range origins {
+		originSet[strings.TrimSpace(o)] = true
+	}
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		origin := r.Header.Get("Origin")
+		if origin != "" && originSet[origin] {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+		}
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		w.Header().Set("Access-Control-Max-Age", "86400")
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+// requestLoggingMiddleware logs each HTTP request and records API_REQUEST in the audit log when auditStore is set.
+func requestLoggingMiddleware(next http.Handler, appLogger *logger.Logger, auditStore *audit.Store) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 		clientIP := clientIPFromRequest(r)
@@ -166,12 +265,29 @@ func requestLoggingMiddleware(next http.Handler, logger *log.Logger) http.Handle
 		}
 		method := r.Method
 
-		wrapped := &responseWriter{ResponseWriter: w, statusCode: http.StatusOK, logger: logger, method: method, path: path}
+		wrapped := &responseWriter{ResponseWriter: w, statusCode: http.StatusOK, logger: appLogger, method: method, path: path}
 		next.ServeHTTP(wrapped, r)
 
-		duration := time.Since(start)
-		logger.Printf("%s %s %s %d %s", clientIP, method, path, wrapped.statusCode, duration.Round(time.Millisecond))
+		duration := time.Since(start).Round(time.Millisecond)
+		appLogger.Info("request",
+			"component", "http",
+			"client_ip", clientIP,
+			"method", method,
+			"path", path,
+			"status", wrapped.statusCode,
+			"duration_ms", duration.Milliseconds())
 		wrapped.logErrorIfAny()
+
+		if auditStore != nil && (strings.HasPrefix(path, "/api/") || path == "/web/reports/export" || path == "/web/reports/export/pdf") {
+			identity, _ := r.Context().Value(auth.IdentityContextKey).(string)
+			auditStore.Record(r.Context(), audit.Entry{
+				EventType: audit.EventAPIRequest,
+				Details:   map[string]interface{}{"method": method, "path": path, "status_code": wrapped.statusCode},
+				UserID:    identity,
+				IP:        clientIP,
+				UserAgent: r.UserAgent(),
+			})
+		}
 	})
 }
 
@@ -180,7 +296,7 @@ type responseWriter struct {
 	statusCode int
 	body       bytes.Buffer
 	capture    bool
-	logger     *log.Logger
+	logger     *logger.Logger
 	method     string
 	path       string
 }
@@ -205,16 +321,42 @@ func (rw *responseWriter) logErrorIfAny() {
 		return
 	}
 	body := strings.TrimSpace(rw.body.String())
-	if body == "" {
-		rw.logger.Printf("error response %d %s %s", rw.statusCode, rw.method, rw.path)
-		return
-	}
 	const max = 512
 	if len(body) > max {
 		body = body[:max] + "..."
 	}
 	body = strings.ReplaceAll(body, "\n", " ")
-	rw.logger.Printf("error response %d %s %s | %s", rw.statusCode, rw.method, rw.path, body)
+	if body == "" {
+		rw.logger.Err("error response", "component", "http", "status", rw.statusCode, "method", rw.method, "path", rw.path)
+		return
+	}
+	rw.logger.Err("error response", "component", "http", "status", rw.statusCode, "method", rw.method, "path", rw.path, "body", body)
+}
+
+// spaHandler serves a React SPA: static files from dir, fallback to index.html for client-side routes.
+// Sets Cache-Control: index.html no-cache (always revalidate); hashed assets long-lived.
+func spaHandler(dir string) http.Handler {
+	fs := http.Dir(dir)
+	fileServer := http.FileServer(fs)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := r.URL.Path
+		if path == "/" {
+			path = "/index.html"
+		}
+		if f, err := fs.Open(path); err == nil {
+			f.Close()
+			if path == "/index.html" {
+				w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+			} else if strings.Contains(path, "-") && (strings.HasSuffix(path, ".js") || strings.HasSuffix(path, ".css")) {
+				w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+			}
+			fileServer.ServeHTTP(w, r)
+			return
+		}
+		r.URL.Path = "/"
+		w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+		fileServer.ServeHTTP(w, r)
+	})
 }
 
 func clientIPFromRequest(r *http.Request) string {

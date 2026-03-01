@@ -1,0 +1,101 @@
+const BASE = "/api/v1";
+
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(BASE + path, {
+    headers: { "Content-Type": "application/json", ...init?.headers },
+    ...init,
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({ message: res.statusText }));
+    throw new ApiError(res.status, body.message || body.name || res.statusText, body);
+  }
+  if (res.status === 204) return undefined as T;
+  return res.json();
+}
+
+export class ApiError extends Error {
+  constructor(public status: number, message: string, public body?: unknown) {
+    super(message);
+  }
+}
+
+export interface Column { name: string; type: string; }
+export interface ChartSuggestion { chart_type: string; label: string; reason: string; }
+export interface RunQueryResult {
+  columns: Column[];
+  rows: unknown[][];
+  row_count: number;
+  execution_time_ms: number;
+  limit: number;
+  chart_suggestions?: ChartSuggestion[];
+}
+
+export interface SavedQuery {
+  id: string;
+  name: string;
+  sql: string;
+  description?: string;
+  tags?: string[];
+  created_at: string;
+  updated_at?: string;
+}
+
+export interface NarrativeContent {
+  headline: string;
+  takeaways?: string[];
+  drivers?: string[];
+  limitations?: string[];
+  recommendations?: string[];
+}
+
+export interface Report {
+  id: string;
+  sql: string;
+  narrative: NarrativeContent;
+  metrics: Record<string, unknown>;
+  chart_suggestions?: ChartSuggestion[];
+  created_at: string;
+  llm_model: string;
+  llm_provider: string;
+}
+
+export interface SchemaInfo { name: string; tables: { name: string; columns: Column[] }[]; }
+
+// Normalize SQL for API: trim and strip trailing semicolon (API rejects ";" in sql).
+function normalizeSql(sql: string): string {
+  return sql.trim().replace(/;\s*$/, "");
+}
+
+export const api = {
+  runQuery: (sql: string, limit = 100) =>
+    request<RunQueryResult>("/queries/run", {
+      method: "POST",
+      body: JSON.stringify({ sql: normalizeSql(sql), limit }),
+    }),
+
+  listSaved: (limit = 50, offset = 0) =>
+    request<{ items: SavedQuery[]; limit: number; offset: number }>(`/queries/saved?limit=${limit}&offset=${offset}`),
+
+  saveQuery: (name: string, sql: string, tags: string[] = []) =>
+    request<SavedQuery>("/queries/saved", { method: "POST", body: JSON.stringify({ name, sql, tags }) }),
+
+  getSaved: (id: string) => request<SavedQuery>(`/queries/saved/${id}`),
+
+  deleteSaved: (id: string) => request<void>(`/queries/saved/${id}`, { method: "DELETE" }),
+
+  generateReport: (sql: string) =>
+    request<Report>("/reports/generate", {
+      method: "POST",
+      body: JSON.stringify({ sql: normalizeSql(sql) }),
+    }),
+
+  listReports: (limit = 50, offset = 0) =>
+    request<{ items: Report[]; limit: number; offset: number }>(`/reports?limit=${limit}&offset=${offset}`),
+
+  getReport: (id: string) => request<Report>(`/reports/${id}`),
+
+  getSchema: () => request<{ schemas: SchemaInfo[] }>("/schema"),
+
+  getSuggestions: (limit = 5) =>
+    request<{ suggestions: { sql: string; title: string; source: string }[] }>(`/suggestions/queries?limit=${limit}`),
+};

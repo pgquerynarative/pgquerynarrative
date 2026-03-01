@@ -2,19 +2,18 @@ package narrative
 
 import (
 	"context"
-	"errors"
 	"strings"
 
 	"github.com/pgquerynarrative/pgquerynarrative/api/gen/queries"
+	apperrors "github.com/pgquerynarrative/pgquerynarrative/app/errors"
 )
 
-// ErrEmptyQuery is returned when RunQuery is called with empty or whitespace-only SQL.
-var ErrEmptyQuery = errors.New("query SQL cannot be empty")
+// ErrEmptyQuery is an alias kept for backward compatibility; prefer apperrors.ErrEmptyQuery.
+var ErrEmptyQuery = apperrors.ErrEmptyQuery
 
-// validateQueryInput returns an error if sql is empty or whitespace-only.
 func validateQueryInput(sql string) error {
 	if strings.TrimSpace(sql) == "" {
-		return ErrEmptyQuery
+		return apperrors.ErrEmptyQuery
 	}
 	return nil
 }

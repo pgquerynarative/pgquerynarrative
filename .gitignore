@@ -49,6 +49,7 @@ pgquerynarrative_data/
 docs-site/
 site/
 
-# Project planning (internal use only)
+# Project planning / status (personal workflow; not part of release)
 docs/project/PROJECT_PLAN.md
 docs/project/STATUS.md
+

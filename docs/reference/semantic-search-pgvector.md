@@ -1,6 +1,6 @@
 # Semantic search (pgvector)
 
-Semantic search (embedding-based similarity) is supported in two ways: **in-memory** (default) and **inside PostgreSQL** with the pgvector extension.
+Semantic search (embedding-based similarity) is supported in two ways: **in-memory** (default) and **inside PostgreSQL** with the pgvector extension. It powers [GET /api/v1/suggestions/similar](../api/README.md#suggestions) and RAG context in report generation.
 
 ## Flow
 
@@ -20,7 +20,7 @@ Semantic search (embedding-based similarity) is supported in two ways: **in-memo
 
 ## Embeddings config
 
-See [Configuration – Embeddings](../configuration.md#embeddings). Set `EMBEDDING_BASE_URL` (or use default when `LLM_PROVIDER=ollama`) and optionally `EMBEDDING_MODEL`. Used by `GET /suggestions/similar` and RAG context in report generation.
+See [Configuration – Embeddings](../configuration.md#embeddings). Set `EMBEDDING_BASE_URL` (or use default when `LLM_PROVIDER=ollama`) and optionally `EMBEDDING_MODEL`. Used by `GET /api/v1/suggestions/similar` and RAG context in report generation.
 
 ## Summary
 
@@ -34,6 +34,6 @@ See [Configuration – Embeddings](../configuration.md#embeddings). Set `EMBEDDI
 ## See also
 
 - [Configuration](../configuration.md) — Embeddings variables
-- [API reference](../api/README.md) — `/suggestions/similar` endpoint
+- [API reference](../api/README.md) — Suggestions endpoints
 - [Troubleshooting](troubleshooting.md) — Common issues
 - [Documentation index](../README.md)

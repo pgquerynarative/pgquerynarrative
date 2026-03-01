@@ -1,33 +1,27 @@
 // Package apilog provides console logging for API errors and important events.
-// All messages are written to stdout with a consistent prefix for visibility
-// when running the server (e.g. validation failures, LLM errors, request errors).
+// All messages use structured format (timestamp, level, message, key=value) for visibility.
 package apilog
 
 import (
-	"log"
-	"os"
+	"github.com/pgquerynarrative/pgquerynarrative/app/logger"
 )
-
-var defaultLogger = log.New(os.Stdout, "[pgquerynarrative] ", log.LstdFlags)
 
 // ValidationError logs a validation error (query or report) for the given endpoint.
 func ValidationError(endpoint, name, message string) {
-	defaultLogger.Printf("validation_error %s name=%s message=%s", endpoint, name, message)
+	logger.DefaultLogger().Err("validation_error", "endpoint", endpoint, "name", name, "message", message)
 }
 
 // LLMError logs an LLM/narrative generation error.
 func LLMError(message string) {
-	defaultLogger.Printf("llm_error message=%s", message)
+	logger.DefaultLogger().Err("llm_error", "message", message)
 }
 
 // APIError logs a generic API error response (e.g. 4xx/5xx).
 func APIError(method, path string, status int) {
-	defaultLogger.Printf("api_error %s %s status=%d", method, path, status)
+	logger.DefaultLogger().Err("api_error", "method", method, "path", path, "status", status)
 }
 
-// Request logs a successful API request when LOG_DEBUG is set (handled via debuglog for consistency).
-// Use for high-value events like "report generated" if desired; for now errors are the focus.
+// Request logs a successful API request (e.g. report generated).
 func Request(endpoint, detail string) {
-	// Same prefix so it appears in console with other logs
-	defaultLogger.Printf("api %s %s", endpoint, detail)
+	logger.DefaultLogger().Info("api", "endpoint", endpoint, "detail", detail)
 }

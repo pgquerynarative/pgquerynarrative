@@ -1,10 +1,13 @@
 // Package debuglog provides optional verbose logging when LOG_DEBUG is enabled.
+// Messages use the same structured format (timestamp, level, key=value) as the rest of the app.
 package debuglog
 
 import (
-	"log"
+	"fmt"
 	"os"
 	"strings"
+
+	"github.com/pgquerynarrative/pgquerynarrative/app/logger"
 )
 
 func enabled() bool {
@@ -15,6 +18,6 @@ func enabled() bool {
 // Log writes a log message when LOG_DEBUG is set (1, true, yes, on).
 func Log(format string, args ...interface{}) {
 	if enabled() {
-		log.Printf("[pgquerynarrative] "+format, args...)
+		logger.DefaultLogger().Info("debug", "component", "debug", "msg", fmt.Sprintf(format, args...))
 	}
 }

@@ -1,6 +1,6 @@
 # Embedded integration
 
-Use PgQueryNarrative inside your own Go service: create a `narrative.Client` and call it directly (library) or mount its HTTP endpoints with the provided middleware (Chi, Gin, Echo).
+Use PgQueryNarrative inside your own Go service: create a `narrative.Client` and call it directly (library) or mount its HTTP endpoints with the provided middleware (Chi, Gin, Echo). Config matches the [standalone server](installation.md); see [Configuration](../configuration.md).
 
 ## Library usage
 
@@ -24,18 +24,20 @@ See `examples/library-usage/basic.go`.
 
 ## HTTP middleware (Chi, Gin, Echo)
 
-Mount narrative endpoints on your router.
+Mount narrative endpoints on your router. Package: [pkg/narrative/middleware](https://github.com/pgquerynarrative/pgquerynarrative/tree/main/pkg/narrative/middleware).
 
-**Chi:** `narrativemw.MountChi(r, client, "/api")`  
-**Gin:** `narrativemw.MountGin(r, client, "/api")`  
-**Echo:** `narrativemw.MountEcho(e, client, "/api")`
+| Framework | Mount call |
+|-----------|------------|
+| **Chi** | `narrativemw.MountChi(r, client, "/api")` |
+| **Gin** | `narrativemw.MountGin(r, client, "/api")` |
+| **Echo** | `narrativemw.MountEcho(e, client, "/api")` |
 
-Mounted routes (prefix `/api`):
+Mounted routes (with prefix `/api`):
 
 | Method | Path | Description |
 |--------|------|-------------|
 | POST | /api/query/run | Body: `{"sql":"...", "limit": N}`. Run read-only SQL. |
-| POST | /api/report/generate | Body: `{"sql":"..."}`. Generate narrative report (requires LLM). |
+| POST | /api/report/generate | Body: `{"sql":"..."}`. Generate narrative report (requires [LLM](llm-setup.md)). |
 | GET | /api/schema | Allowed schemas, tables, columns. |
 | GET | /api/suggestions/queries | Query: `intent`, `limit`. Suggested SQL. |
 
@@ -43,10 +45,12 @@ Use empty prefix `""` to mount at root (e.g. `/query/run`).
 
 ## Examples
 
-- `examples/library-usage/basic.go` — client only
-- `examples/chi-integration/main.go` — Chi + middleware
-- `examples/gin-integration/main.go` — Gin + middleware
-- `examples/echo-integration/main.go` — Echo + middleware
+| Example | Description |
+|---------|-------------|
+| `examples/library-usage/basic.go` | Client only |
+| `examples/chi-integration/main.go` | Chi + middleware |
+| `examples/gin-integration/main.go` | Gin + middleware |
+| `examples/echo-integration/main.go` | Echo + middleware |
 
 Build and run (set `DATABASE_*` and `LLM_*` as needed):
 
@@ -55,11 +59,6 @@ go build -o bin/example-chi ./examples/chi-integration
 ./bin/example-chi
 ```
 
-Config matches the standalone server: [Configuration](../configuration.md).
-
 ## See also
 
-- [Configuration](../configuration.md) — Database and LLM
-- [API reference](../api/README.md) — REST endpoints (aligned with middleware)
-- [Deployment](../reference/deployment.md) — Docker, Kubernetes
-- [Documentation index](../README.md)
+- [Configuration](../configuration.md) · [API reference](../api/README.md) · [Documentation index](../README.md)

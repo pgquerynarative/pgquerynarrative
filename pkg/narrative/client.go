@@ -2,7 +2,9 @@ package narrative
 
 import (
 	"context"
+	"errors"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pgquerynarrative/pgquerynarrative/api/gen/queries"
 	"github.com/pgquerynarrative/pgquerynarrative/api/gen/reports"
 	schema "github.com/pgquerynarrative/pgquerynarrative/api/gen/schema"
@@ -130,6 +132,14 @@ func (c *Client) Close() {
 	}
 }
 
+// Ready returns nil if the database pools are reachable (for readiness probes).
+func (c *Client) Ready(ctx context.Context) error {
+	if c.pools == nil {
+		return errors.New("client not initialized")
+	}
+	return c.pools.Health(ctx)
+}
+
 // QueriesService returns the queries service for use with Goa endpoints or direct calls.
 func (c *Client) QueriesService() queries.Service {
 	return c.queriesService
@@ -148,4 +158,13 @@ func (c *Client) SchemaService() schema.Service {
 // SuggestionsService returns the suggestions service for use with Goa endpoints or direct calls.
 func (c *Client) SuggestionsService() suggestions.Service {
 	return c.suggester
+}
+
+// AppPool returns the application database pool for use by the server (e.g. audit logging).
+// Do not close the returned pool; Close the Client instead.
+func (c *Client) AppPool() *pgxpool.Pool {
+	if c == nil || c.pools == nil {
+		return nil
+	}
+	return c.pools.App
 }

@@ -1,29 +1,39 @@
 # Operations
 
-Monitoring and runbooks for production. Deployment: [Deployment](deployment.md). Common issues: [Troubleshooting](troubleshooting.md).
+Monitoring and runbooks for production. Build and deploy: [Deployment](deployment.md). Common issues: [Troubleshooting](troubleshooting.md).
+
+---
 
 ## Monitoring
 
-### Health checks
+### Health checks {#health-checks}
 
-The app does not expose `/health` or `/ready`. Deployments use an API endpoint for liveness/readiness:
+The app exposes dedicated liveness and readiness endpoints:
 
-| Environment | Probe | Endpoint | Purpose |
-|-------------|--------|----------|---------|
-| Docker Compose | healthcheck | `GET http://localhost:8080/api/v1/queries/saved` | Container health |
-| Kubernetes / Helm | livenessProbe, readinessProbe | `GET /api/v1/queries/saved` (port 8080) | Restart if unresponsive; remove from service if not ready |
+| Endpoint | Purpose |
+|----------|---------|
+| **GET /health** | Liveness: process up, HTTP responding. Use for restart-on-failure. |
+| **GET /ready** | Readiness: DB connection checked. If the DB is down, the probe fails. Use to remove from load balancer. |
 
-That endpoint requires a working DB connection (read-only pool). If the DB is down, the probe fails. **Limitation:** Probe does not check LLM; report generation can fail while the app is "healthy."
+**Limitation:** Probes do not check LLM; report generation can fail while the app is "healthy."
+
+| Environment | Probe | Endpoint |
+|-------------|--------|----------|
+| Docker Compose | healthcheck | GET http://localhost:8080/health (liveness), GET http://localhost:8080/ready (readiness) |
+| Kubernetes / Helm | livenessProbe | GET /health (port 8080) |
+| Kubernetes / Helm | readinessProbe | GET /ready (port 8080) |
 
 ### What to monitor
 
 | Area | Watch | How |
 |------|--------|-----|
-| Application | Process up, HTTP responding | Liveness/readiness above; alert on N consecutive failures. |
-| Database | Connectivity, pool exhaustion | App logs (connection errors, pool health). Postgres metrics if available. |
-| LLM | Availability, latency, errors | App logs (report errors, timeouts). Report success rate. |
-| Logs | Errors, slow requests | Stdout/stderr; aggregator (Loki, CloudWatch). Look for pool/report failures, 5xx. |
-| Resources | Memory, CPU | Container/pod metrics (cAdvisor, Prometheus). |
+| **Application** | Process up, HTTP responding | GET /health, GET /ready; alert on N consecutive failures. |
+| **Database** | Connectivity, pool exhaustion | App logs (connection errors, pool health). Postgres metrics if available. |
+| **LLM** | Availability, latency, errors | App logs (report errors, timeouts). Report success rate. |
+| **Logs** | Errors, slow requests | Stdout/stderr; aggregator (Loki, CloudWatch). Look for pool/report failures, 5xx. |
+| **Resources** | Memory, CPU | Container/pod metrics (cAdvisor, Prometheus). |
+
+---
 
 ## Runbooks
 
@@ -33,7 +43,7 @@ That endpoint requires a working DB connection (read-only pool). If the DB is do
 2. **Compose:** `docker compose -f deploy/docker/docker-compose.yml up -d` (or set `image:` to new tag).
 3. **Kubernetes:** Update `image` in `deployment.yaml`; `kubectl apply -f deploy/kubernetes/deployment.yaml`.
 4. **Helm:** `helm upgrade pgqn ./deploy/helm/pgquerynarrative -n pgquerynarrative --set image.tag=<tag>`.
-5. Verify: UI or `GET /api/v1/queries/saved`; check logs.
+5. Verify: UI at http://localhost:8080 or `curl -s http://localhost:8080/ready`; check logs.
 
 ### Rollback
 
@@ -52,19 +62,21 @@ That endpoint requires a working DB connection (read-only pool). If the DB is do
 
 **Symptoms:** Report generation fails or times out; LLM errors in logs.
 
-**Actions:** Check `LLM_BASE_URL`, `LLM_PROVIDER`, `LLM_MODEL`, `LLM_API_KEY`. [Configuration](../configuration.md), [LLM setup](../getting-started/llm-setup.md). Ollama: ensure `ollama serve` and model pulled; Docker: `http://host.docker.internal:11434`. Cloud: verify API key, quota, region. See [Troubleshooting – Reports and LLM](troubleshooting.md#reports-and-llm).
+**Actions:** Check `LLM_BASE_URL`, `LLM_PROVIDER`, `LLM_MODEL`, `LLM_API_KEY`. [Configuration – LLM](../configuration.md#llm), [LLM setup](../getting-started/llm-setup.md). Ollama: ensure `ollama serve` and model pulled; Docker: `http://host.docker.internal:11434`. Cloud: verify API key, quota, region. See [Troubleshooting – Reports and LLM](troubleshooting.md#reports-and-llm).
 
 ### Incident: High memory or CPU
 
 **Symptoms:** OOM, slow responses, resource alerts.
 
-**Actions:** Check usage (e.g. `kubectl top pod`). Correlate with load (concurrent reports). Short term: scale replicas or increase limits. Long term: tune `DATABASE_MAX_CONNECTIONS`, consider rate limiting or queueing for reports.
+**Actions:** Check usage (e.g. `kubectl top pod`). Correlate with load (concurrent reports). Short term: scale replicas or increase limits. Long term: tune `DATABASE_MAX_CONNECTIONS` ([Configuration](../configuration.md)), consider rate limiting or queueing for reports.
 
 ### Incident: Bad deployment (wrong config or image)
 
 **Symptoms:** Wrong behavior after deploy.
 
 **Actions:** Roll back (see Rollback above). Fix ConfigMap/Secret or values; redeploy with correct image and config; verify.
+
+---
 
 ## See also
 

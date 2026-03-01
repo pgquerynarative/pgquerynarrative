@@ -6,7 +6,6 @@ import (
 	"context"
 	"errors"
 	"math"
-	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -16,6 +15,7 @@ import (
 	"github.com/pgquerynarrative/pgquerynarrative/app/apilog"
 	"github.com/pgquerynarrative/pgquerynarrative/app/charts"
 	"github.com/pgquerynarrative/pgquerynarrative/app/embedding"
+	"github.com/pgquerynarrative/pgquerynarrative/app/format"
 	"github.com/pgquerynarrative/pgquerynarrative/app/metrics"
 	"github.com/pgquerynarrative/pgquerynarrative/app/queryrunner"
 )
@@ -31,11 +31,7 @@ type QueriesService struct {
 	embeddingModel string              // Model name to store with embedding (e.g. nomic-embed-text)
 }
 
-// strPtr returns a pointer to the given string value.
-// Helper function for creating string pointers required by Goa types.
-func strPtr(value string) *string {
-	return &value
-}
+var strPtr = format.StrPtr
 
 // NewQueriesService creates a new queries service with the specified dependencies.
 // trendThresholdPercent is the minimum absolute % change to label period comparison as "up" or "down" (0 = default 0.5).
@@ -79,25 +75,13 @@ func NewQueriesServiceWithEmbedding(readOnlyPool, appPool *pgxpool.Pool, runner 
 func (s *QueriesService) Run(ctx context.Context, payload *queries.RunQueryPayload) (*queries.RunQueryResult, error) {
 	result, err := s.runner.Run(ctx, payload.SQL, int(payload.Limit))
 	if err != nil {
-		errMsg := err.Error()
-		if errors.Is(err, context.DeadlineExceeded) ||
-			strings.Contains(errMsg, "query execution timeout") ||
-			strings.Contains(errMsg, "context deadline exceeded") ||
-			strings.Contains(errMsg, "deadline exceeded") {
-			userMsg := "Query timed out. Try a simpler query or reduce the amount of data."
-			apilog.ValidationError("run", "timeout_error", errMsg)
-			return nil, &queries.ValidationError{
-				Name:    "timeout_error",
-				Message: userMsg,
-				Code:    strPtr("TIMEOUT_ERROR"),
-			}
+		kind, userMsg := ClassifyRunError(err)
+		if kind == RunErrorTimeout {
+			apilog.ValidationError("run", "timeout_error", err.Error())
+			return nil, &queries.ValidationError{Name: "timeout_error", Message: userMsg, Code: strPtr("TIMEOUT_ERROR")}
 		}
-		apilog.ValidationError("run", "validation_error", errMsg)
-		return nil, &queries.ValidationError{
-			Name:    "validation_error",
-			Message: errMsg,
-			Code:    strPtr("VALIDATION_ERROR"),
-		}
+		apilog.ValidationError("run", "validation_error", err.Error())
+		return nil, &queries.ValidationError{Name: "validation_error", Message: userMsg, Code: strPtr("VALIDATION_ERROR")}
 	}
 
 	cols := make([]*queries.ColumnInfo, 0, len(result.Columns))

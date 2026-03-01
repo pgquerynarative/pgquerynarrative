@@ -1,6 +1,6 @@
 # Testing
 
-Unit and integration tests. Unit tests: `test/unit/`; run by package or by test name.
+Unit, integration, and E2E tests. Unit tests live in `test/unit/`; run by package or by test name. See [Development setup](setup.md) for prerequisites and commands.
 
 ## Running tests
 
@@ -46,22 +46,56 @@ go test ./pkg/narrative/... -v
 | `test/unit/app/story` | Narrative sanitizer |
 | `test/unit/app/service` | Perf suggestions, metrics-to-API conversion |
 | `test/unit/app/suggestions` | Query suggestions (curated, limit) |
-| `test/unit/web` | Report HTML |
+| `test/unit/web` | Report HTML/export |
 | `cmd/server` | Request logging middleware |
 | `pkg/narrative` | Client, run-query options, validation |
 
-**Integration** (`test/integration/...`): query runner; schema and suggestions against real Postgres; reports List/Get. **E2E** (`test/e2e/...`): full HTTP API against real Postgres (queries, schema, suggestions, reports).
+**Integration** (`test/integration/...`): query runner; schema and suggestions against real Postgres; reports List/Get.
+
+**E2E** (`test/e2e/...`): full HTTP API against real Postgres (queries, schema, suggestions, reports).
 
 ## QA checklist
 
 - Chart suggestions; period comparison and time-series in reports; data quality and perf suggestions; narrative content (no spurious "previous period" for single-period queries).
-- API: `POST /reports/generate`, `GET /reports/{id}`, `GET /reports`; metrics structure; errors (invalid SQL → 400, not found → 404, LLM failure → 500).
+- API: `POST /api/v1/reports/generate`, `GET /api/v1/reports/{id}`, `GET /api/v1/reports`; metrics structure; errors (invalid SQL → 400, not found → 404, LLM failure → 500).
 
 Example API checks: [API examples](../api/examples.md).
 
+## Testing auth, rate limit, and audit
+
+You must start the server with auth and rate limiting enabled; otherwise unauthenticated requests succeed and rate limits never trigger. Defaults: `SECURITY_AUTH_ENABLED=false`, `SECURITY_RATE_LIMIT_RPM=0` (disabled).
+
+Start the server with security enabled and a low rate limit so you can trigger 429 quickly:
+
+```bash
+SECURITY_AUTH_ENABLED=true SECURITY_API_KEY=test-key SECURITY_RATE_LIMIT_RPM=5 make run
+```
+
+**Auth** — Without a token, protected endpoints return **401**. With the correct Bearer token they return **200**.
+
+```bash
+curl -s -o /dev/null -w "%{http_code}\n" http://localhost:8080/api/v1/queries/saved
+curl -s -o /dev/null -w "%{http_code}\n" -H "Authorization: Bearer test-key" http://localhost:8080/api/v1/queries/saved
+```
+
+**Health/ready** — Always unprotected; returns **200**.
+
+```bash
+curl -s -o /dev/null -w "%{http_code}\n" http://localhost:8080/health
+```
+
+**Rate limit** — With `SECURITY_RATE_LIMIT_RPM=5`, send more than 5 requests per minute from the same machine; the 6th and later return **429** (first five return **200**).
+
+```bash
+for i in $(seq 8); do curl -s -o /dev/null -w "%{http_code}\n" -H "Authorization: Bearer test-key" http://localhost:8080/api/v1/queries/saved; done
+```
+
+**Audit log** — Check `app.audit_logs` for `API_REQUEST`, `AUTH_FAILURE`, `RATE_LIMIT_EXCEEDED`.
+
+```bash
+psql -d pgquerynarrative -c "SELECT event_type, details, user_id, ip_address, created_at FROM app.audit_logs ORDER BY created_at DESC LIMIT 10;"
+```
+
 ## See also
 
-- [Development setup](setup.md) — Build, commands, workflow
-- [API examples](../api/examples.md) — Example API calls for QA
-- [Troubleshooting](../reference/troubleshooting.md) — Common issues
-- [Documentation index](../README.md)
+- [Development setup](setup.md) · [API examples](../api/examples.md) · [Documentation index](../README.md)
