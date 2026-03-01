@@ -6,6 +6,9 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
+	"encoding/hex"
+	"encoding/json"
 	"log"
 	"net"
 	"net/http"
@@ -35,6 +38,14 @@ import (
 )
 
 const gracefulTimeout = 10 * time.Second
+
+// Version is set at build time via -ldflags "-X main.Version=...". Default "dev".
+var Version = "dev"
+
+// contextKey type for request-scoped values.
+type contextKey string
+
+const requestIDContextKey contextKey = "request_id"
 
 // main is the application entry point. It loads config, creates the narrative
 // client (which owns DB pools, runner, LLM, and services), wires Goa endpoints
@@ -73,7 +84,11 @@ func main() {
 	<-ctx.Done()
 	appLogger.Info("shutting down server")
 
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), gracefulTimeout)
+	shutdownTimeout := cfg.Server.ShutdownTimeout
+	if shutdownTimeout <= 0 {
+		shutdownTimeout = gracefulTimeout
+	}
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 	defer cancel()
 
 	if err := httpServer.Shutdown(shutdownCtx); err != nil {
@@ -117,6 +132,8 @@ func setupHTTPServer(
 	combinedMux := http.NewServeMux()
 	combinedMux.HandleFunc("/health", healthHandler)
 	combinedMux.HandleFunc("/ready", readyHandler(client))
+	combinedMux.HandleFunc("/version", versionHandler())
+	combinedMux.HandleFunc("/metrics", metricsHandler(client))
 	combinedMux.Handle("/api/", mux)
 	combinedMux.HandleFunc("/web/reports/export", webHandlers.ExportReport)
 	combinedMux.HandleFunc("/web/reports/export/pdf", webHandlers.ExportReportPDF)
@@ -128,7 +145,7 @@ func setupHTTPServer(
 	}
 	rl := ratelimit.NewLimiter(cfg.Security.RateLimitRPM, cfg.Security.RateLimitBurst)
 
-	handler := requestLoggingMiddleware(combinedMux, appLogger, auditStore)
+	handler := requestIDMiddleware(requestLoggingMiddleware(combinedMux, appLogger, auditStore))
 	handler = authMiddleware(handler, cfg.Security.AuthEnabled, cfg.Security.APIKey, auditStore)
 	handler = rateLimitMiddleware(handler, rl, auditStore)
 	handler = securityHeadersMiddleware(handler)
@@ -162,6 +179,50 @@ func readyHandler(client *narrative.Client) http.HandlerFunc {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("OK"))
 	}
+}
+
+func versionHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(map[string]string{"version": Version})
+	}
+}
+
+func metricsHandler(client *narrative.Client) http.HandlerFunc {
+	return func(w http.ResponseWriter, _ *http.Request) {
+		out := map[string]interface{}{"version": Version}
+		if pool := client.AppPool(); pool != nil {
+			stat := pool.Stat()
+			out["pool"] = map[string]int32{
+				"acquired": stat.AcquiredConns(),
+				"idle":     stat.IdleConns(),
+				"total":    stat.TotalConns(),
+				"max":      stat.MaxConns(),
+			}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(out)
+	}
+}
+
+// requestIDMiddleware generates a request ID, sets it in context and X-Request-ID header.
+func requestIDMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		id := r.Header.Get("X-Request-ID")
+		if id == "" {
+			b := make([]byte, 16)
+			if _, err := rand.Read(b); err == nil {
+				id = hex.EncodeToString(b)
+			} else {
+				id = strconv.FormatInt(time.Now().UnixNano(), 36)
+			}
+		}
+		ctx := context.WithValue(r.Context(), requestIDContextKey, id)
+		w.Header().Set("X-Request-ID", id)
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
 }
 
 // authMiddleware requires Bearer token for /api/* and /web/reports/export* when enabled.
@@ -269,13 +330,11 @@ func requestLoggingMiddleware(next http.Handler, appLogger *logger.Logger, audit
 		next.ServeHTTP(wrapped, r)
 
 		duration := time.Since(start).Round(time.Millisecond)
-		appLogger.Info("request",
-			"component", "http",
-			"client_ip", clientIP,
-			"method", method,
-			"path", path,
-			"status", wrapped.statusCode,
-			"duration_ms", duration.Milliseconds())
+		kvs := []interface{}{"component", "http", "client_ip", clientIP, "method", method, "path", path, "status", wrapped.statusCode, "duration_ms", duration.Milliseconds()}
+		if reqID, ok := r.Context().Value(requestIDContextKey).(string); ok && reqID != "" {
+			kvs = append(kvs, "request_id", reqID)
+		}
+		appLogger.Info("request", kvs...)
 		wrapped.logErrorIfAny()
 
 		if auditStore != nil && (strings.HasPrefix(path, "/api/") || path == "/web/reports/export" || path == "/web/reports/export/pdf") {

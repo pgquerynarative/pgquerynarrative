@@ -28,6 +28,9 @@ go.work
 .DS_Store
 Thumbs.db
 
+# Local editor/MCP config (user-specific paths)
+.cursor/mcp.json
+
 # Environment & Secrets
 .env
 .env.local
@@ -48,8 +51,3 @@ pgquerynarrative_data/
 # Documentation sites
 docs-site/
 site/
-
-# Project planning / status (personal workflow; not part of release)
-docs/project/PROJECT_PLAN.md
-docs/project/STATUS.md
-

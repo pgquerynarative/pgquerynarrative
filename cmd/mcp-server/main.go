@@ -34,16 +34,20 @@ const (
 	defaultSuggestLimit = 5
 )
 
+// Version is set at build time via -ldflags "-X main.Version=...". Default "dev".
+var Version = "dev"
+
 func main() {
 	baseURL := os.Getenv("PGQUERYNARRATIVE_URL")
 	if baseURL == "" {
 		baseURL = defaultBaseURL
 	}
-	client := &apiClient{baseURL: baseURL, http: &http.Client{Timeout: httpClientTimeout}}
+	apiKey := os.Getenv("PGQUERYNARRATIVE_API_KEY")
+	client := &apiClient{baseURL: baseURL, apiKey: apiKey, http: &http.Client{Timeout: httpClientTimeout}}
 
 	server := mcp.NewServer(&mcp.Implementation{
 		Name:    "pgquerynarrative",
-		Version: "1.0.0",
+		Version: Version,
 	}, nil)
 
 	mcp.AddTool(server, &mcp.Tool{
@@ -137,6 +141,36 @@ func main() {
 		return toolResult(body, err)
 	})
 
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "list_schemas",
+		Description: "List allowed database schemas, tables, and columns. Same as get_schema. Use this to see what you can query with run_query or ask_question.",
+	}, func(ctx context.Context, req *mcp.CallToolRequest, input ListSchemasInput) (*mcp.CallToolResult, any, error) {
+		body, err := client.get(ctx, apiPrefix+"/schema")
+		return toolResult(body, err)
+	})
+
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "ask_question",
+		Description: "Ask a natural-language question; returns generated SQL and a narrative report (headline, takeaways). Uses the same NL→SQL flow as the web UI. Example: 'What were the top 5 products by revenue?'",
+	}, func(ctx context.Context, req *mcp.CallToolRequest, input AskQuestionInput) (*mcp.CallToolResult, any, error) {
+		if input.Question == "" {
+			return toolResult("", fmt.Errorf("question is required"))
+		}
+		body, err := client.post(ctx, apiPrefix+"/suggestions/ask", map[string]any{"question": input.Question})
+		return toolResult(body, err)
+	})
+
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "explain_sql",
+		Description: "Explain a SQL query in plain English (one or two sentences). Use after run_query or when the user asks what a query does. SQL must be read-only (SELECT or WITH).",
+	}, func(ctx context.Context, req *mcp.CallToolRequest, input ExplainSQLInput) (*mcp.CallToolResult, any, error) {
+		if input.SQL == "" {
+			return toolResult("", fmt.Errorf("sql is required"))
+		}
+		body, err := client.post(ctx, apiPrefix+"/suggestions/explain", map[string]any{"sql": input.SQL})
+		return toolResult(body, err)
+	})
+
 	if err := server.Run(context.Background(), &mcp.StdioTransport{}); err != nil {
 		fmt.Fprintf(os.Stderr, "mcp-server: %v\n", err)
 		os.Exit(1)
@@ -178,9 +212,26 @@ type SuggestQueriesInput struct {
 	Limit  int    `json:"limit" jsonschema:"Max suggestions to return (default 5)"`
 }
 
+type ListSchemasInput struct{}
+
+type AskQuestionInput struct {
+	Question string `json:"question" jsonschema:"Natural-language question (e.g. What were the top 5 products by revenue?)"`
+}
+
+type ExplainSQLInput struct {
+	SQL string `json:"sql" jsonschema:"Read-only SQL to explain (SELECT or WITH)"`
+}
+
 type apiClient struct {
 	baseURL string
+	apiKey  string
 	http    *http.Client
+}
+
+func (c *apiClient) setAuth(req *http.Request) {
+	if c.apiKey != "" {
+		req.Header.Set("Authorization", "Bearer "+c.apiKey)
+	}
 }
 
 func (c *apiClient) post(ctx context.Context, path string, body map[string]any) (string, error) {
@@ -193,6 +244,7 @@ func (c *apiClient) post(ctx context.Context, path string, body map[string]any) 
 		return "", err
 	}
 	req.Header.Set("Content-Type", "application/json")
+	c.setAuth(req)
 	return c.do(req)
 }
 
@@ -201,6 +253,7 @@ func (c *apiClient) get(ctx context.Context, path string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	c.setAuth(req)
 	return c.do(req)
 }
 

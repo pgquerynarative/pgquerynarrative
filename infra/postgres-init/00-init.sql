@@ -29,6 +29,11 @@ GRANT ALL ON ALL TABLES IN SCHEMA public TO pgquerynarrative_app;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public
     GRANT ALL ON TABLES TO pgquerynarrative_app;
 
+GRANT USAGE ON SCHEMA public TO pgquerynarrative_readonly;
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO pgquerynarrative_readonly;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public
+    GRANT SELECT ON TABLES TO pgquerynarrative_readonly;
+
 GRANT USAGE ON SCHEMA demo TO pgquerynarrative_readonly;
 GRANT SELECT ON ALL TABLES IN SCHEMA demo TO pgquerynarrative_readonly;
 ALTER DEFAULT PRIVILEGES IN SCHEMA demo

@@ -17,13 +17,17 @@ import (
 type Client struct {
 	QueriesEndpoint goa.Endpoint
 	SimilarEndpoint goa.Endpoint
+	AskEndpoint     goa.Endpoint
+	ExplainEndpoint goa.Endpoint
 }
 
 // NewClient initializes a "suggestions" service client given the endpoints.
-func NewClient(queries, similar goa.Endpoint) *Client {
+func NewClient(queries, similar, ask, explain goa.Endpoint) *Client {
 	return &Client{
 		QueriesEndpoint: queries,
 		SimilarEndpoint: similar,
+		AskEndpoint:     ask,
+		ExplainEndpoint: explain,
 	}
 }
 
@@ -45,4 +49,32 @@ func (c *Client) Similar(ctx context.Context, p *SimilarPayload) (res *Suggested
 		return
 	}
 	return ires.(*SuggestedQueriesResult), nil
+}
+
+// Ask calls the "ask" endpoint of the "suggestions" service.
+// Ask may return the following errors:
+//   - "validation_error" (type *ValidationError)
+//   - "llm_error" (type *LLMError)
+//   - error: internal error
+func (c *Client) Ask(ctx context.Context, p *AskPayload) (res *AskResult, err error) {
+	var ires any
+	ires, err = c.AskEndpoint(ctx, p)
+	if err != nil {
+		return
+	}
+	return ires.(*AskResult), nil
+}
+
+// Explain calls the "explain" endpoint of the "suggestions" service.
+// Explain may return the following errors:
+//   - "validation_error" (type *ValidationError)
+//   - "llm_error" (type *LLMError)
+//   - error: internal error
+func (c *Client) Explain(ctx context.Context, p *ExplainPayload) (res *ExplainResult, err error) {
+	var ires any
+	ires, err = c.ExplainEndpoint(ctx, p)
+	if err != nil {
+		return
+	}
+	return ires.(*ExplainResult), nil
 }

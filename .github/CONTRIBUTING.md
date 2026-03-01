@@ -10,7 +10,7 @@ By participating in this project, you agree to maintain a respectful and inclusi
 
 ### Reporting Bugs
 
-1. Check if the bug has already been reported in [Issues](https://github.com/your-org/pgquerynarrative/issues)
+1. Check if the bug has already been reported in [Issues](https://github.com/pgquerynarrative/pgquerynarrative/issues)
 2. If not, create a new issue with:
    - Clear title and description
    - Steps to reproduce
@@ -30,7 +30,7 @@ By participating in this project, you agree to maintain a respectful and inclusi
 
 #### 1. Fork and Clone
 ```bash
-git clone https://github.com/your-username/pgquerynarrative.git
+git clone https://github.com/pgquerynarrative/pgquerynarrative.git
 cd pgquerynarrative
 ```
 
@@ -138,4 +138,4 @@ Then create a PR on GitHub with:
 - Check existing documentation
 - Review code examples in the codebase
 
-Thank you for contributing! 🎉
+Thank you for contributing!

@@ -1,4 +1,4 @@
-.PHONY: setup tidy generate build build-mcp run test test-unit test-features test-integration test-e2e lint fmt migrate seed dev dev-stop dev-watch dev-build dev-teardown docker-up docker-down docker-logs db-init start start-docker start-local stop cli cli-shell changelog
+.PHONY: setup tidy generate build build-mcp run test test-unit test-features test-integration test-e2e lint fmt migrate seed dev dev-stop dev-watch dev-build dev-teardown docker-up docker-down docker-logs db-init start start-docker start-local stop cli cli-shell changelog build-release
 
 GO ?= go
 GOLANGCI_LINT ?= golangci-lint
@@ -157,16 +157,37 @@ build-frontend:
 	@cd frontend && npm install --silent && npm run build
 	@echo "✅ Frontend built: frontend/dist/"
 
+# Server version ldflags (set VERSION for release build).
+SERVER_LDFLAGS :=
+ifneq ($(VERSION),)
+  SERVER_LDFLAGS = -ldflags "-X main.Version=$(VERSION)"
+endif
 build:
 	@echo "🔨 Building application..."
 	@$(MAKE) build-frontend
-	$(GO) build -o bin/server ./cmd/server
+	$(GO) build $(SERVER_LDFLAGS) -o bin/server ./cmd/server
 	@echo "✅ Build complete: bin/server"
 
-# Build MCP server for Claude / Cursor (stdio transport)
+# Build MCP server for Claude / Cursor (stdio transport). Set VERSION for ldflags (e.g. VERSION=1.0.0 make build-mcp).
+MCP_LDFLAGS :=
+ifneq ($(VERSION),)
+  MCP_LDFLAGS = -ldflags "-X main.Version=$(VERSION)"
+endif
 build-mcp:
-	$(GO) build -o bin/mcp-server ./cmd/mcp-server
+	$(GO) build $(MCP_LDFLAGS) -o bin/mcp-server ./cmd/mcp-server
 	@echo "✅ MCP server: bin/mcp-server"
+
+# Release build: multi-arch server + MCP binaries and checksums. Set VERSION (e.g. 1.0.0) or leave empty for dev.
+VERSION ?=
+RELEASE_GOOS_ARCH ?= linux/amd64 darwin/amd64 darwin/arm64
+build-release:
+	@mkdir -p bin
+	@for pair in $(RELEASE_GOOS_ARCH); do \
+		GOOS=$${pair%%/*} GOARCH=$${pair##*/} $(GO) build $(SERVER_LDFLAGS) -o bin/pgquerynarrative-server-$${pair%%/*}-$${pair##*/} ./cmd/server; \
+		GOOS=$${pair%%/*} GOARCH=$${pair##*/} $(GO) build $(MCP_LDFLAGS) -o bin/pgquerynarrative-mcp-$${pair%%/*}-$${pair##*/} ./cmd/mcp-server; \
+	done
+	@(cd bin && sha256sum pgquerynarrative-* 2>/dev/null > checksums.txt || true)
+	@echo "✅ Release binaries in bin/ (VERSION=$(VERSION))"
 
 run:
 	$(GO) run ./cmd/server

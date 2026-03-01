@@ -165,6 +165,212 @@ func DecodeSimilarResponse(decoder func(*http.Response) goahttp.Decoder, restore
 	}
 }
 
+// BuildAskRequest instantiates a HTTP request object with method and path set
+// to call the "suggestions" service "ask" endpoint
+func (c *Client) BuildAskRequest(ctx context.Context, v any) (*http.Request, error) {
+	u := &url.URL{Scheme: c.scheme, Host: c.host, Path: AskSuggestionsPath()}
+	req, err := http.NewRequest("POST", u.String(), nil)
+	if err != nil {
+		return nil, goahttp.ErrInvalidURL("suggestions", "ask", u.String(), err)
+	}
+	if ctx != nil {
+		req = req.WithContext(ctx)
+	}
+
+	return req, nil
+}
+
+// EncodeAskRequest returns an encoder for requests sent to the suggestions ask
+// server.
+func EncodeAskRequest(encoder func(*http.Request) goahttp.Encoder) func(*http.Request, any) error {
+	return func(req *http.Request, v any) error {
+		p, ok := v.(*suggestions.AskPayload)
+		if !ok {
+			return goahttp.ErrInvalidType("suggestions", "ask", "*suggestions.AskPayload", v)
+		}
+		body := NewAskRequestBody(p)
+		if err := encoder(req).Encode(&body); err != nil {
+			return goahttp.ErrEncodingError("suggestions", "ask", err)
+		}
+		return nil
+	}
+}
+
+// DecodeAskResponse returns a decoder for responses returned by the
+// suggestions ask endpoint. restoreBody controls whether the response body
+// should be restored after having been read.
+// DecodeAskResponse may return the following errors:
+//   - "llm_error" (type *suggestions.LLMError): http.StatusInternalServerError
+//   - "validation_error" (type *suggestions.ValidationError): http.StatusBadRequest
+//   - error: internal error
+func DecodeAskResponse(decoder func(*http.Response) goahttp.Decoder, restoreBody bool) func(*http.Response) (any, error) {
+	return func(resp *http.Response) (any, error) {
+		if restoreBody {
+			b, err := io.ReadAll(resp.Body)
+			if err != nil {
+				return nil, err
+			}
+			resp.Body = io.NopCloser(bytes.NewBuffer(b))
+			defer func() {
+				resp.Body = io.NopCloser(bytes.NewBuffer(b))
+			}()
+		} else {
+			defer resp.Body.Close()
+		}
+		switch resp.StatusCode {
+		case http.StatusOK:
+			var (
+				body AskResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("suggestions", "ask", err)
+			}
+			err = ValidateAskResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("suggestions", "ask", err)
+			}
+			res := NewAskResultOK(&body)
+			return res, nil
+		case http.StatusInternalServerError:
+			var (
+				body AskLlmErrorResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("suggestions", "ask", err)
+			}
+			err = ValidateAskLlmErrorResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("suggestions", "ask", err)
+			}
+			return nil, NewAskLlmError(&body)
+		case http.StatusBadRequest:
+			var (
+				body AskValidationErrorResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("suggestions", "ask", err)
+			}
+			err = ValidateAskValidationErrorResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("suggestions", "ask", err)
+			}
+			return nil, NewAskValidationError(&body)
+		default:
+			body, _ := io.ReadAll(resp.Body)
+			return nil, goahttp.ErrInvalidResponse("suggestions", "ask", resp.StatusCode, string(body))
+		}
+	}
+}
+
+// BuildExplainRequest instantiates a HTTP request object with method and path
+// set to call the "suggestions" service "explain" endpoint
+func (c *Client) BuildExplainRequest(ctx context.Context, v any) (*http.Request, error) {
+	u := &url.URL{Scheme: c.scheme, Host: c.host, Path: ExplainSuggestionsPath()}
+	req, err := http.NewRequest("POST", u.String(), nil)
+	if err != nil {
+		return nil, goahttp.ErrInvalidURL("suggestions", "explain", u.String(), err)
+	}
+	if ctx != nil {
+		req = req.WithContext(ctx)
+	}
+
+	return req, nil
+}
+
+// EncodeExplainRequest returns an encoder for requests sent to the suggestions
+// explain server.
+func EncodeExplainRequest(encoder func(*http.Request) goahttp.Encoder) func(*http.Request, any) error {
+	return func(req *http.Request, v any) error {
+		p, ok := v.(*suggestions.ExplainPayload)
+		if !ok {
+			return goahttp.ErrInvalidType("suggestions", "explain", "*suggestions.ExplainPayload", v)
+		}
+		body := NewExplainRequestBody(p)
+		if err := encoder(req).Encode(&body); err != nil {
+			return goahttp.ErrEncodingError("suggestions", "explain", err)
+		}
+		return nil
+	}
+}
+
+// DecodeExplainResponse returns a decoder for responses returned by the
+// suggestions explain endpoint. restoreBody controls whether the response body
+// should be restored after having been read.
+// DecodeExplainResponse may return the following errors:
+//   - "llm_error" (type *suggestions.LLMError): http.StatusInternalServerError
+//   - "validation_error" (type *suggestions.ValidationError): http.StatusBadRequest
+//   - error: internal error
+func DecodeExplainResponse(decoder func(*http.Response) goahttp.Decoder, restoreBody bool) func(*http.Response) (any, error) {
+	return func(resp *http.Response) (any, error) {
+		if restoreBody {
+			b, err := io.ReadAll(resp.Body)
+			if err != nil {
+				return nil, err
+			}
+			resp.Body = io.NopCloser(bytes.NewBuffer(b))
+			defer func() {
+				resp.Body = io.NopCloser(bytes.NewBuffer(b))
+			}()
+		} else {
+			defer resp.Body.Close()
+		}
+		switch resp.StatusCode {
+		case http.StatusOK:
+			var (
+				body ExplainResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("suggestions", "explain", err)
+			}
+			err = ValidateExplainResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("suggestions", "explain", err)
+			}
+			res := NewExplainResultOK(&body)
+			return res, nil
+		case http.StatusInternalServerError:
+			var (
+				body ExplainLlmErrorResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("suggestions", "explain", err)
+			}
+			err = ValidateExplainLlmErrorResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("suggestions", "explain", err)
+			}
+			return nil, NewExplainLlmError(&body)
+		case http.StatusBadRequest:
+			var (
+				body ExplainValidationErrorResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("suggestions", "explain", err)
+			}
+			err = ValidateExplainValidationErrorResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("suggestions", "explain", err)
+			}
+			return nil, NewExplainValidationError(&body)
+		default:
+			body, _ := io.ReadAll(resp.Body)
+			return nil, goahttp.ErrInvalidResponse("suggestions", "explain", resp.StatusCode, string(body))
+		}
+	}
+}
+
 // unmarshalQuerySuggestionResponseBodyToSuggestionsQuerySuggestion builds a
 // value of type *suggestions.QuerySuggestion from a value of type
 // *QuerySuggestionResponseBody.
@@ -173,6 +379,291 @@ func unmarshalQuerySuggestionResponseBodyToSuggestionsQuerySuggestion(v *QuerySu
 		SQL:    *v.SQL,
 		Title:  *v.Title,
 		Source: *v.Source,
+	}
+
+	return res
+}
+
+// unmarshalReportResponseBodyToSuggestionsReport builds a value of type
+// *suggestions.Report from a value of type *ReportResponseBody.
+func unmarshalReportResponseBodyToSuggestionsReport(v *ReportResponseBody) *suggestions.Report {
+	res := &suggestions.Report{
+		ID:           *v.ID,
+		SavedQueryID: v.SavedQueryID,
+		SQL:          *v.SQL,
+		CreatedAt:    *v.CreatedAt,
+		LlmModel:     *v.LlmModel,
+		LlmProvider:  *v.LlmProvider,
+	}
+	res.Narrative = unmarshalNarrativeContentResponseBodyToSuggestionsNarrativeContent(v.Narrative)
+	res.Metrics = unmarshalMetricsDataResponseBodyToSuggestionsMetricsData(v.Metrics)
+	if v.ChartSuggestions != nil {
+		res.ChartSuggestions = make([]*suggestions.ChartSuggestion, len(v.ChartSuggestions))
+		for i, val := range v.ChartSuggestions {
+			if val == nil {
+				res.ChartSuggestions[i] = nil
+				continue
+			}
+			res.ChartSuggestions[i] = unmarshalChartSuggestionResponseBodyToSuggestionsChartSuggestion(val)
+		}
+	}
+
+	return res
+}
+
+// unmarshalNarrativeContentResponseBodyToSuggestionsNarrativeContent builds a
+// value of type *suggestions.NarrativeContent from a value of type
+// *NarrativeContentResponseBody.
+func unmarshalNarrativeContentResponseBodyToSuggestionsNarrativeContent(v *NarrativeContentResponseBody) *suggestions.NarrativeContent {
+	res := &suggestions.NarrativeContent{
+		Headline: *v.Headline,
+	}
+	res.Takeaways = make([]string, len(v.Takeaways))
+	for i, val := range v.Takeaways {
+		res.Takeaways[i] = val
+	}
+	if v.Drivers != nil {
+		res.Drivers = make([]string, len(v.Drivers))
+		for i, val := range v.Drivers {
+			res.Drivers[i] = val
+		}
+	}
+	if v.Limitations != nil {
+		res.Limitations = make([]string, len(v.Limitations))
+		for i, val := range v.Limitations {
+			res.Limitations[i] = val
+		}
+	}
+	if v.Recommendations != nil {
+		res.Recommendations = make([]string, len(v.Recommendations))
+		for i, val := range v.Recommendations {
+			res.Recommendations[i] = val
+		}
+	}
+
+	return res
+}
+
+// unmarshalMetricsDataResponseBodyToSuggestionsMetricsData builds a value of
+// type *suggestions.MetricsData from a value of type *MetricsDataResponseBody.
+func unmarshalMetricsDataResponseBodyToSuggestionsMetricsData(v *MetricsDataResponseBody) *suggestions.MetricsData {
+	res := &suggestions.MetricsData{
+		PeriodCurrentLabel:  v.PeriodCurrentLabel,
+		PeriodPreviousLabel: v.PeriodPreviousLabel,
+	}
+	if v.Aggregates != nil {
+		res.Aggregates = make(map[string]*suggestions.AggregateData, len(v.Aggregates))
+		for key, val := range v.Aggregates {
+			tk := key
+			if val == nil {
+				res.Aggregates[tk] = nil
+				continue
+			}
+			res.Aggregates[tk] = unmarshalAggregateDataResponseBodyToSuggestionsAggregateData(val)
+		}
+	}
+	if v.TopCategories != nil {
+		res.TopCategories = make(map[string][]*suggestions.TopCategoryData, len(v.TopCategories))
+		for key, val := range v.TopCategories {
+			tk := key
+			tv := make([]*suggestions.TopCategoryData, len(val))
+			for i, val := range val {
+				if val == nil {
+					tv[i] = nil
+					continue
+				}
+				tv[i] = unmarshalTopCategoryDataResponseBodyToSuggestionsTopCategoryData(val)
+			}
+			res.TopCategories[tk] = tv
+		}
+	}
+	if v.TimeSeries != nil {
+		res.TimeSeries = make(map[string]*suggestions.TimeSeriesData, len(v.TimeSeries))
+		for key, val := range v.TimeSeries {
+			tk := key
+			if val == nil {
+				res.TimeSeries[tk] = nil
+				continue
+			}
+			res.TimeSeries[tk] = unmarshalTimeSeriesDataResponseBodyToSuggestionsTimeSeriesData(val)
+		}
+	}
+	if v.DataQuality != nil {
+		res.DataQuality = make(map[string]*suggestions.ColumnQualityData, len(v.DataQuality))
+		for key, val := range v.DataQuality {
+			tk := key
+			if val == nil {
+				res.DataQuality[tk] = nil
+				continue
+			}
+			res.DataQuality[tk] = unmarshalColumnQualityDataResponseBodyToSuggestionsColumnQualityData(val)
+		}
+	}
+	if v.PerfSuggestions != nil {
+		res.PerfSuggestions = make([]string, len(v.PerfSuggestions))
+		for i, val := range v.PerfSuggestions {
+			res.PerfSuggestions[i] = val
+		}
+	}
+
+	return res
+}
+
+// unmarshalAggregateDataResponseBodyToSuggestionsAggregateData builds a value
+// of type *suggestions.AggregateData from a value of type
+// *AggregateDataResponseBody.
+func unmarshalAggregateDataResponseBodyToSuggestionsAggregateData(v *AggregateDataResponseBody) *suggestions.AggregateData {
+	if v == nil {
+		return nil
+	}
+	res := &suggestions.AggregateData{
+		Sum:    v.Sum,
+		Avg:    v.Avg,
+		Min:    v.Min,
+		Max:    v.Max,
+		Count:  v.Count,
+		StdDev: v.StdDev,
+	}
+
+	return res
+}
+
+// unmarshalTopCategoryDataResponseBodyToSuggestionsTopCategoryData builds a
+// value of type *suggestions.TopCategoryData from a value of type
+// *TopCategoryDataResponseBody.
+func unmarshalTopCategoryDataResponseBodyToSuggestionsTopCategoryData(v *TopCategoryDataResponseBody) *suggestions.TopCategoryData {
+	if v == nil {
+		return nil
+	}
+	res := &suggestions.TopCategoryData{
+		Category:   *v.Category,
+		Value:      *v.Value,
+		Percentage: *v.Percentage,
+	}
+
+	return res
+}
+
+// unmarshalTimeSeriesDataResponseBodyToSuggestionsTimeSeriesData builds a
+// value of type *suggestions.TimeSeriesData from a value of type
+// *TimeSeriesDataResponseBody.
+func unmarshalTimeSeriesDataResponseBodyToSuggestionsTimeSeriesData(v *TimeSeriesDataResponseBody) *suggestions.TimeSeriesData {
+	if v == nil {
+		return nil
+	}
+	res := &suggestions.TimeSeriesData{
+		CurrentPeriod:      *v.CurrentPeriod,
+		PreviousPeriod:     v.PreviousPeriod,
+		Change:             v.Change,
+		ChangePercentage:   v.ChangePercentage,
+		Trend:              *v.Trend,
+		MovingAverage:      v.MovingAverage,
+		NextPeriodForecast: v.NextPeriodForecast,
+		PredictiveSummary:  v.PredictiveSummary,
+	}
+	if v.Periods != nil {
+		res.Periods = make([]*suggestions.PeriodPointData, len(v.Periods))
+		for i, val := range v.Periods {
+			if val == nil {
+				res.Periods[i] = nil
+				continue
+			}
+			res.Periods[i] = unmarshalPeriodPointDataResponseBodyToSuggestionsPeriodPointData(val)
+		}
+	}
+	if v.Anomalies != nil {
+		res.Anomalies = make([]*suggestions.AnomalyPointData, len(v.Anomalies))
+		for i, val := range v.Anomalies {
+			if val == nil {
+				res.Anomalies[i] = nil
+				continue
+			}
+			res.Anomalies[i] = unmarshalAnomalyPointDataResponseBodyToSuggestionsAnomalyPointData(val)
+		}
+	}
+	if v.TrendSummary != nil {
+		res.TrendSummary = unmarshalTrendSummaryDataResponseBodyToSuggestionsTrendSummaryData(v.TrendSummary)
+	}
+
+	return res
+}
+
+// unmarshalPeriodPointDataResponseBodyToSuggestionsPeriodPointData builds a
+// value of type *suggestions.PeriodPointData from a value of type
+// *PeriodPointDataResponseBody.
+func unmarshalPeriodPointDataResponseBodyToSuggestionsPeriodPointData(v *PeriodPointDataResponseBody) *suggestions.PeriodPointData {
+	if v == nil {
+		return nil
+	}
+	res := &suggestions.PeriodPointData{
+		Label: *v.Label,
+		Value: *v.Value,
+	}
+
+	return res
+}
+
+// unmarshalAnomalyPointDataResponseBodyToSuggestionsAnomalyPointData builds a
+// value of type *suggestions.AnomalyPointData from a value of type
+// *AnomalyPointDataResponseBody.
+func unmarshalAnomalyPointDataResponseBodyToSuggestionsAnomalyPointData(v *AnomalyPointDataResponseBody) *suggestions.AnomalyPointData {
+	if v == nil {
+		return nil
+	}
+	res := &suggestions.AnomalyPointData{
+		PeriodLabel: *v.PeriodLabel,
+		Value:       *v.Value,
+		Reason:      *v.Reason,
+	}
+
+	return res
+}
+
+// unmarshalTrendSummaryDataResponseBodyToSuggestionsTrendSummaryData builds a
+// value of type *suggestions.TrendSummaryData from a value of type
+// *TrendSummaryDataResponseBody.
+func unmarshalTrendSummaryDataResponseBodyToSuggestionsTrendSummaryData(v *TrendSummaryDataResponseBody) *suggestions.TrendSummaryData {
+	if v == nil {
+		return nil
+	}
+	res := &suggestions.TrendSummaryData{
+		Direction:   *v.Direction,
+		Slope:       v.Slope,
+		PeriodsUsed: v.PeriodsUsed,
+		Summary:     *v.Summary,
+	}
+
+	return res
+}
+
+// unmarshalColumnQualityDataResponseBodyToSuggestionsColumnQualityData builds
+// a value of type *suggestions.ColumnQualityData from a value of type
+// *ColumnQualityDataResponseBody.
+func unmarshalColumnQualityDataResponseBodyToSuggestionsColumnQualityData(v *ColumnQualityDataResponseBody) *suggestions.ColumnQualityData {
+	if v == nil {
+		return nil
+	}
+	res := &suggestions.ColumnQualityData{
+		NullCount:     *v.NullCount,
+		DistinctCount: *v.DistinctCount,
+		TotalRows:     *v.TotalRows,
+		NullPct:       *v.NullPct,
+	}
+
+	return res
+}
+
+// unmarshalChartSuggestionResponseBodyToSuggestionsChartSuggestion builds a
+// value of type *suggestions.ChartSuggestion from a value of type
+// *ChartSuggestionResponseBody.
+func unmarshalChartSuggestionResponseBodyToSuggestionsChartSuggestion(v *ChartSuggestionResponseBody) *suggestions.ChartSuggestion {
+	if v == nil {
+		return nil
+	}
+	res := &suggestions.ChartSuggestion{
+		ChartType: *v.ChartType,
+		Label:     *v.Label,
+		Reason:    *v.Reason,
 	}
 
 	return res

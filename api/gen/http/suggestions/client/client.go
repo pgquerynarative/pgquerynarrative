@@ -25,6 +25,13 @@ type Client struct {
 	// endpoint.
 	SimilarDoer goahttp.Doer
 
+	// Ask Doer is the HTTP client used to make requests to the ask endpoint.
+	AskDoer goahttp.Doer
+
+	// Explain Doer is the HTTP client used to make requests to the explain
+	// endpoint.
+	ExplainDoer goahttp.Doer
+
 	// RestoreResponseBody controls whether the response bodies are reset after
 	// decoding so they can be read again.
 	RestoreResponseBody bool
@@ -47,6 +54,8 @@ func NewClient(
 	return &Client{
 		QueriesDoer:         doer,
 		SimilarDoer:         doer,
+		AskDoer:             doer,
+		ExplainDoer:         doer,
 		RestoreResponseBody: restoreBody,
 		scheme:              scheme,
 		host:                host,
@@ -98,6 +107,54 @@ func (c *Client) Similar() goa.Endpoint {
 		resp, err := c.SimilarDoer.Do(req)
 		if err != nil {
 			return nil, goahttp.ErrRequestError("suggestions", "similar", err)
+		}
+		return decodeResponse(resp)
+	}
+}
+
+// Ask returns an endpoint that makes HTTP requests to the suggestions service
+// ask server.
+func (c *Client) Ask() goa.Endpoint {
+	var (
+		encodeRequest  = EncodeAskRequest(c.encoder)
+		decodeResponse = DecodeAskResponse(c.decoder, c.RestoreResponseBody)
+	)
+	return func(ctx context.Context, v any) (any, error) {
+		req, err := c.BuildAskRequest(ctx, v)
+		if err != nil {
+			return nil, err
+		}
+		err = encodeRequest(req, v)
+		if err != nil {
+			return nil, err
+		}
+		resp, err := c.AskDoer.Do(req)
+		if err != nil {
+			return nil, goahttp.ErrRequestError("suggestions", "ask", err)
+		}
+		return decodeResponse(resp)
+	}
+}
+
+// Explain returns an endpoint that makes HTTP requests to the suggestions
+// service explain server.
+func (c *Client) Explain() goa.Endpoint {
+	var (
+		encodeRequest  = EncodeExplainRequest(c.encoder)
+		decodeResponse = DecodeExplainResponse(c.decoder, c.RestoreResponseBody)
+	)
+	return func(ctx context.Context, v any) (any, error) {
+		req, err := c.BuildExplainRequest(ctx, v)
+		if err != nil {
+			return nil, err
+		}
+		err = encodeRequest(req, v)
+		if err != nil {
+			return nil, err
+		}
+		resp, err := c.ExplainDoer.Do(req)
+		if err != nil {
+			return nil, goahttp.ErrRequestError("suggestions", "explain", err)
 		}
 		return decodeResponse(resp)
 	}

@@ -12,6 +12,21 @@ import (
 	goa "goa.design/goa/v3/pkg"
 )
 
+// AskRequestBody is the type of the "suggestions" service "ask" endpoint HTTP
+// request body.
+type AskRequestBody struct {
+	// Natural-language question (e.g. 'What were top 5 products by revenue last
+	// month?')
+	Question string `form:"question" json:"question" xml:"question"`
+}
+
+// ExplainRequestBody is the type of the "suggestions" service "explain"
+// endpoint HTTP request body.
+type ExplainRequestBody struct {
+	// Read-only SQL to explain (SELECT or WITH).
+	SQL string `form:"sql" json:"sql" xml:"sql"`
+}
+
 // QueriesResponseBody is the type of the "suggestions" service "queries"
 // endpoint HTTP response body.
 type QueriesResponseBody struct {
@@ -26,6 +41,58 @@ type SimilarResponseBody struct {
 	Suggestions []*QuerySuggestionResponseBody `form:"suggestions,omitempty" json:"suggestions,omitempty" xml:"suggestions,omitempty"`
 }
 
+// AskResponseBody is the type of the "suggestions" service "ask" endpoint HTTP
+// response body.
+type AskResponseBody struct {
+	// The original natural-language question
+	Question *string `form:"question,omitempty" json:"question,omitempty" xml:"question,omitempty"`
+	// The generated and executed SQL
+	SQL *string `form:"sql,omitempty" json:"sql,omitempty" xml:"sql,omitempty"`
+	// The narrative report from the query result
+	Report *ReportResponseBody `form:"report,omitempty" json:"report,omitempty" xml:"report,omitempty"`
+}
+
+// ExplainResponseBody is the type of the "suggestions" service "explain"
+// endpoint HTTP response body.
+type ExplainResponseBody struct {
+	// The SQL that was explained
+	SQL *string `form:"sql,omitempty" json:"sql,omitempty" xml:"sql,omitempty"`
+	// Plain-English explanation (one or two sentences)
+	Explanation *string `form:"explanation,omitempty" json:"explanation,omitempty" xml:"explanation,omitempty"`
+}
+
+// AskLlmErrorResponseBody is the type of the "suggestions" service "ask"
+// endpoint HTTP response body for the "llm_error" error.
+type AskLlmErrorResponseBody struct {
+	Name    *string `form:"name,omitempty" json:"name,omitempty" xml:"name,omitempty"`
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+	Code    *string `form:"code,omitempty" json:"code,omitempty" xml:"code,omitempty"`
+}
+
+// AskValidationErrorResponseBody is the type of the "suggestions" service
+// "ask" endpoint HTTP response body for the "validation_error" error.
+type AskValidationErrorResponseBody struct {
+	Name    *string `form:"name,omitempty" json:"name,omitempty" xml:"name,omitempty"`
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+	Code    *string `form:"code,omitempty" json:"code,omitempty" xml:"code,omitempty"`
+}
+
+// ExplainLlmErrorResponseBody is the type of the "suggestions" service
+// "explain" endpoint HTTP response body for the "llm_error" error.
+type ExplainLlmErrorResponseBody struct {
+	Name    *string `form:"name,omitempty" json:"name,omitempty" xml:"name,omitempty"`
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+	Code    *string `form:"code,omitempty" json:"code,omitempty" xml:"code,omitempty"`
+}
+
+// ExplainValidationErrorResponseBody is the type of the "suggestions" service
+// "explain" endpoint HTTP response body for the "validation_error" error.
+type ExplainValidationErrorResponseBody struct {
+	Name    *string `form:"name,omitempty" json:"name,omitempty" xml:"name,omitempty"`
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+	Code    *string `form:"code,omitempty" json:"code,omitempty" xml:"code,omitempty"`
+}
+
 // QuerySuggestionResponseBody is used to define fields on response body types.
 type QuerySuggestionResponseBody struct {
 	// Suggested SQL (use with run_query or refine)
@@ -34,6 +101,145 @@ type QuerySuggestionResponseBody struct {
 	Title *string `form:"title,omitempty" json:"title,omitempty" xml:"title,omitempty"`
 	// Where the suggestion came from: curated or saved
 	Source *string `form:"source,omitempty" json:"source,omitempty" xml:"source,omitempty"`
+}
+
+// ReportResponseBody is used to define fields on response body types.
+type ReportResponseBody struct {
+	ID           *string                       `form:"id,omitempty" json:"id,omitempty" xml:"id,omitempty"`
+	SavedQueryID *string                       `form:"saved_query_id,omitempty" json:"saved_query_id,omitempty" xml:"saved_query_id,omitempty"`
+	SQL          *string                       `form:"sql,omitempty" json:"sql,omitempty" xml:"sql,omitempty"`
+	Narrative    *NarrativeContentResponseBody `form:"narrative,omitempty" json:"narrative,omitempty" xml:"narrative,omitempty"`
+	Metrics      *MetricsDataResponseBody      `form:"metrics,omitempty" json:"metrics,omitempty" xml:"metrics,omitempty"`
+	// Suggested chart types based on result shape
+	ChartSuggestions []*ChartSuggestionResponseBody `form:"chart_suggestions,omitempty" json:"chart_suggestions,omitempty" xml:"chart_suggestions,omitempty"`
+	CreatedAt        *string                        `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
+	LlmModel         *string                        `form:"llm_model,omitempty" json:"llm_model,omitempty" xml:"llm_model,omitempty"`
+	LlmProvider      *string                        `form:"llm_provider,omitempty" json:"llm_provider,omitempty" xml:"llm_provider,omitempty"`
+}
+
+// NarrativeContentResponseBody is used to define fields on response body types.
+type NarrativeContentResponseBody struct {
+	Headline        *string  `form:"headline,omitempty" json:"headline,omitempty" xml:"headline,omitempty"`
+	Takeaways       []string `form:"takeaways,omitempty" json:"takeaways,omitempty" xml:"takeaways,omitempty"`
+	Drivers         []string `form:"drivers,omitempty" json:"drivers,omitempty" xml:"drivers,omitempty"`
+	Limitations     []string `form:"limitations,omitempty" json:"limitations,omitempty" xml:"limitations,omitempty"`
+	Recommendations []string `form:"recommendations,omitempty" json:"recommendations,omitempty" xml:"recommendations,omitempty"`
+}
+
+// MetricsDataResponseBody is used to define fields on response body types.
+type MetricsDataResponseBody struct {
+	Aggregates    map[string]*AggregateDataResponseBody     `form:"aggregates,omitempty" json:"aggregates,omitempty" xml:"aggregates,omitempty"`
+	TopCategories map[string][]*TopCategoryDataResponseBody `form:"top_categories,omitempty" json:"top_categories,omitempty" xml:"top_categories,omitempty"`
+	TimeSeries    map[string]*TimeSeriesDataResponseBody    `form:"time_series,omitempty" json:"time_series,omitempty" xml:"time_series,omitempty"`
+	// Label for current period when time_series is present
+	PeriodCurrentLabel *string `form:"period_current_label,omitempty" json:"period_current_label,omitempty" xml:"period_current_label,omitempty"`
+	// Label for previous period
+	PeriodPreviousLabel *string `form:"period_previous_label,omitempty" json:"period_previous_label,omitempty" xml:"period_previous_label,omitempty"`
+	// Per-column data quality (nulls, distinct)
+	DataQuality map[string]*ColumnQualityDataResponseBody `form:"data_quality,omitempty" json:"data_quality,omitempty" xml:"data_quality,omitempty"`
+	// Performance suggestions from execution time/row count
+	PerfSuggestions []string `form:"perf_suggestions,omitempty" json:"perf_suggestions,omitempty" xml:"perf_suggestions,omitempty"`
+}
+
+// AggregateDataResponseBody is used to define fields on response body types.
+type AggregateDataResponseBody struct {
+	Sum   *float64 `form:"sum,omitempty" json:"sum,omitempty" xml:"sum,omitempty"`
+	Avg   *float64 `form:"avg,omitempty" json:"avg,omitempty" xml:"avg,omitempty"`
+	Min   *float64 `form:"min,omitempty" json:"min,omitempty" xml:"min,omitempty"`
+	Max   *float64 `form:"max,omitempty" json:"max,omitempty" xml:"max,omitempty"`
+	Count *int32   `form:"count,omitempty" json:"count,omitempty" xml:"count,omitempty"`
+	// Standard deviation (stats)
+	StdDev *float64 `form:"std_dev,omitempty" json:"std_dev,omitempty" xml:"std_dev,omitempty"`
+}
+
+// TopCategoryDataResponseBody is used to define fields on response body types.
+type TopCategoryDataResponseBody struct {
+	Category   *string  `form:"category,omitempty" json:"category,omitempty" xml:"category,omitempty"`
+	Value      *float64 `form:"value,omitempty" json:"value,omitempty" xml:"value,omitempty"`
+	Percentage *float64 `form:"percentage,omitempty" json:"percentage,omitempty" xml:"percentage,omitempty"`
+}
+
+// TimeSeriesDataResponseBody is used to define fields on response body types.
+type TimeSeriesDataResponseBody struct {
+	CurrentPeriod    *float64 `form:"current_period,omitempty" json:"current_period,omitempty" xml:"current_period,omitempty"`
+	PreviousPeriod   *float64 `form:"previous_period,omitempty" json:"previous_period,omitempty" xml:"previous_period,omitempty"`
+	Change           *float64 `form:"change,omitempty" json:"change,omitempty" xml:"change,omitempty"`
+	ChangePercentage *float64 `form:"change_percentage,omitempty" json:"change_percentage,omitempty" xml:"change_percentage,omitempty"`
+	Trend            *string  `form:"trend,omitempty" json:"trend,omitempty" xml:"trend,omitempty"`
+	// Last N period labels and values (newest last)
+	Periods []*PeriodPointDataResponseBody `form:"periods,omitempty" json:"periods,omitempty" xml:"periods,omitempty"`
+	// Simple moving average for latest period (e.g. 3-period SMA)
+	MovingAverage *float64 `form:"moving_average,omitempty" json:"moving_average,omitempty" xml:"moving_average,omitempty"`
+	// Periods flagged as statistical anomalies (e.g. z-score)
+	Anomalies []*AnomalyPointDataResponseBody `form:"anomalies,omitempty" json:"anomalies,omitempty" xml:"anomalies,omitempty"`
+	// Trend over multiple periods (direction, slope, summary)
+	TrendSummary *TrendSummaryDataResponseBody `form:"trend_summary,omitempty" json:"trend_summary,omitempty" xml:"trend_summary,omitempty"`
+	// Simple predictive: last value + trend slope
+	NextPeriodForecast *float64 `form:"next_period_forecast,omitempty" json:"next_period_forecast,omitempty" xml:"next_period_forecast,omitempty"`
+	// Human-readable predictive sentence for the narrative
+	PredictiveSummary *string `form:"predictive_summary,omitempty" json:"predictive_summary,omitempty" xml:"predictive_summary,omitempty"`
+}
+
+// PeriodPointDataResponseBody is used to define fields on response body types.
+type PeriodPointDataResponseBody struct {
+	Label *string  `form:"label,omitempty" json:"label,omitempty" xml:"label,omitempty"`
+	Value *float64 `form:"value,omitempty" json:"value,omitempty" xml:"value,omitempty"`
+}
+
+// AnomalyPointDataResponseBody is used to define fields on response body types.
+type AnomalyPointDataResponseBody struct {
+	PeriodLabel *string  `form:"period_label,omitempty" json:"period_label,omitempty" xml:"period_label,omitempty"`
+	Value       *float64 `form:"value,omitempty" json:"value,omitempty" xml:"value,omitempty"`
+	Reason      *string  `form:"reason,omitempty" json:"reason,omitempty" xml:"reason,omitempty"`
+}
+
+// TrendSummaryDataResponseBody is used to define fields on response body types.
+type TrendSummaryDataResponseBody struct {
+	// increasing, decreasing, or stable
+	Direction *string `form:"direction,omitempty" json:"direction,omitempty" xml:"direction,omitempty"`
+	// Change per period from linear regression
+	Slope       *float64 `form:"slope,omitempty" json:"slope,omitempty" xml:"slope,omitempty"`
+	PeriodsUsed *int32   `form:"periods_used,omitempty" json:"periods_used,omitempty" xml:"periods_used,omitempty"`
+	// Human-readable trend description
+	Summary *string `form:"summary,omitempty" json:"summary,omitempty" xml:"summary,omitempty"`
+}
+
+// ColumnQualityDataResponseBody is used to define fields on response body
+// types.
+type ColumnQualityDataResponseBody struct {
+	NullCount     *int32 `form:"null_count,omitempty" json:"null_count,omitempty" xml:"null_count,omitempty"`
+	DistinctCount *int32 `form:"distinct_count,omitempty" json:"distinct_count,omitempty" xml:"distinct_count,omitempty"`
+	TotalRows     *int32 `form:"total_rows,omitempty" json:"total_rows,omitempty" xml:"total_rows,omitempty"`
+	// Null percentage 0–100
+	NullPct *float64 `form:"null_pct,omitempty" json:"null_pct,omitempty" xml:"null_pct,omitempty"`
+}
+
+// ChartSuggestionResponseBody is used to define fields on response body types.
+type ChartSuggestionResponseBody struct {
+	// Chart type identifier: bar, line, pie, area, table
+	ChartType *string `form:"chart_type,omitempty" json:"chart_type,omitempty" xml:"chart_type,omitempty"`
+	// Human-readable label
+	Label *string `form:"label,omitempty" json:"label,omitempty" xml:"label,omitempty"`
+	// Why this chart fits the data
+	Reason *string `form:"reason,omitempty" json:"reason,omitempty" xml:"reason,omitempty"`
+}
+
+// NewAskRequestBody builds the HTTP request body from the payload of the "ask"
+// endpoint of the "suggestions" service.
+func NewAskRequestBody(p *suggestions.AskPayload) *AskRequestBody {
+	body := &AskRequestBody{
+		Question: p.Question,
+	}
+	return body
+}
+
+// NewExplainRequestBody builds the HTTP request body from the payload of the
+// "explain" endpoint of the "suggestions" service.
+func NewExplainRequestBody(p *suggestions.ExplainPayload) *ExplainRequestBody {
+	body := &ExplainRequestBody{
+		SQL: p.SQL,
+	}
+	return body
 }
 
 // NewQueriesSuggestedQueriesResultOK builds a "suggestions" service "queries"
@@ -63,6 +269,76 @@ func NewSimilarSuggestedQueriesResultOK(body *SimilarResponseBody) *suggestions.
 			continue
 		}
 		v.Suggestions[i] = unmarshalQuerySuggestionResponseBodyToSuggestionsQuerySuggestion(val)
+	}
+
+	return v
+}
+
+// NewAskResultOK builds a "suggestions" service "ask" endpoint result from a
+// HTTP "OK" response.
+func NewAskResultOK(body *AskResponseBody) *suggestions.AskResult {
+	v := &suggestions.AskResult{
+		Question: *body.Question,
+		SQL:      *body.SQL,
+	}
+	v.Report = unmarshalReportResponseBodyToSuggestionsReport(body.Report)
+
+	return v
+}
+
+// NewAskLlmError builds a suggestions service ask endpoint llm_error error.
+func NewAskLlmError(body *AskLlmErrorResponseBody) *suggestions.LLMError {
+	v := &suggestions.LLMError{
+		Name:    *body.Name,
+		Message: *body.Message,
+		Code:    body.Code,
+	}
+
+	return v
+}
+
+// NewAskValidationError builds a suggestions service ask endpoint
+// validation_error error.
+func NewAskValidationError(body *AskValidationErrorResponseBody) *suggestions.ValidationError {
+	v := &suggestions.ValidationError{
+		Name:    *body.Name,
+		Message: *body.Message,
+		Code:    body.Code,
+	}
+
+	return v
+}
+
+// NewExplainResultOK builds a "suggestions" service "explain" endpoint result
+// from a HTTP "OK" response.
+func NewExplainResultOK(body *ExplainResponseBody) *suggestions.ExplainResult {
+	v := &suggestions.ExplainResult{
+		SQL:         *body.SQL,
+		Explanation: *body.Explanation,
+	}
+
+	return v
+}
+
+// NewExplainLlmError builds a suggestions service explain endpoint llm_error
+// error.
+func NewExplainLlmError(body *ExplainLlmErrorResponseBody) *suggestions.LLMError {
+	v := &suggestions.LLMError{
+		Name:    *body.Name,
+		Message: *body.Message,
+		Code:    body.Code,
+	}
+
+	return v
+}
+
+// NewExplainValidationError builds a suggestions service explain endpoint
+// validation_error error.
+func NewExplainValidationError(body *ExplainValidationErrorResponseBody) *suggestions.ValidationError {
+	v := &suggestions.ValidationError{
+		Name:    *body.Name,
+		Message: *body.Message,
+		Code:    body.Code,
 	}
 
 	return v
@@ -100,6 +376,85 @@ func ValidateSimilarResponseBody(body *SimilarResponseBody) (err error) {
 	return
 }
 
+// ValidateAskResponseBody runs the validations defined on AskResponseBody
+func ValidateAskResponseBody(body *AskResponseBody) (err error) {
+	if body.Question == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("question", "body"))
+	}
+	if body.SQL == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("sql", "body"))
+	}
+	if body.Report == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("report", "body"))
+	}
+	if body.Report != nil {
+		if err2 := ValidateReportResponseBody(body.Report); err2 != nil {
+			err = goa.MergeErrors(err, err2)
+		}
+	}
+	return
+}
+
+// ValidateExplainResponseBody runs the validations defined on
+// ExplainResponseBody
+func ValidateExplainResponseBody(body *ExplainResponseBody) (err error) {
+	if body.SQL == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("sql", "body"))
+	}
+	if body.Explanation == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("explanation", "body"))
+	}
+	return
+}
+
+// ValidateAskLlmErrorResponseBody runs the validations defined on
+// ask_llm_error_response_body
+func ValidateAskLlmErrorResponseBody(body *AskLlmErrorResponseBody) (err error) {
+	if body.Name == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("name", "body"))
+	}
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
+// ValidateAskValidationErrorResponseBody runs the validations defined on
+// ask_validation_error_response_body
+func ValidateAskValidationErrorResponseBody(body *AskValidationErrorResponseBody) (err error) {
+	if body.Name == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("name", "body"))
+	}
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
+// ValidateExplainLlmErrorResponseBody runs the validations defined on
+// explain_llm_error_response_body
+func ValidateExplainLlmErrorResponseBody(body *ExplainLlmErrorResponseBody) (err error) {
+	if body.Name == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("name", "body"))
+	}
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
+// ValidateExplainValidationErrorResponseBody runs the validations defined on
+// explain_validation_error_response_body
+func ValidateExplainValidationErrorResponseBody(body *ExplainValidationErrorResponseBody) (err error) {
+	if body.Name == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("name", "body"))
+	}
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
 // ValidateQuerySuggestionResponseBody runs the validations defined on
 // QuerySuggestionResponseBody
 func ValidateQuerySuggestionResponseBody(body *QuerySuggestionResponseBody) (err error) {
@@ -111,6 +466,193 @@ func ValidateQuerySuggestionResponseBody(body *QuerySuggestionResponseBody) (err
 	}
 	if body.Source == nil {
 		err = goa.MergeErrors(err, goa.MissingFieldError("source", "body"))
+	}
+	return
+}
+
+// ValidateMetricsDataResponseBody runs the validations defined on MetricsDataResponseBody. Goa does not emit this for composite map types; no required fields.
+func ValidateMetricsDataResponseBody(body *MetricsDataResponseBody) (err error) {
+	return
+}
+
+// ValidateReportResponseBody runs the validations defined on ReportResponseBody
+func ValidateReportResponseBody(body *ReportResponseBody) (err error) {
+	if body.ID == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("id", "body"))
+	}
+	if body.SQL == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("sql", "body"))
+	}
+	if body.Narrative == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("narrative", "body"))
+	}
+	if body.Metrics == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("metrics", "body"))
+	}
+	if body.CreatedAt == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("created_at", "body"))
+	}
+	if body.LlmModel == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("llm_model", "body"))
+	}
+	if body.LlmProvider == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("llm_provider", "body"))
+	}
+	if body.ID != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.id", *body.ID, goa.FormatUUID))
+	}
+	if body.SavedQueryID != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.saved_query_id", *body.SavedQueryID, goa.FormatUUID))
+	}
+	if body.Narrative != nil {
+		if err2 := ValidateNarrativeContentResponseBody(body.Narrative); err2 != nil {
+			err = goa.MergeErrors(err, err2)
+		}
+	}
+	if body.Metrics != nil {
+		if err2 := ValidateMetricsDataResponseBody(body.Metrics); err2 != nil {
+			err = goa.MergeErrors(err, err2)
+		}
+	}
+	for _, e := range body.ChartSuggestions {
+		if e != nil {
+			if err2 := ValidateChartSuggestionResponseBody(e); err2 != nil {
+				err = goa.MergeErrors(err, err2)
+			}
+		}
+	}
+	if body.CreatedAt != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.created_at", *body.CreatedAt, goa.FormatDateTime))
+	}
+	return
+}
+
+// ValidateNarrativeContentResponseBody runs the validations defined on
+// NarrativeContentResponseBody
+func ValidateNarrativeContentResponseBody(body *NarrativeContentResponseBody) (err error) {
+	if body.Headline == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("headline", "body"))
+	}
+	if body.Takeaways == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("takeaways", "body"))
+	}
+	return
+}
+
+// ValidateTopCategoryDataResponseBody runs the validations defined on
+// TopCategoryDataResponseBody
+func ValidateTopCategoryDataResponseBody(body *TopCategoryDataResponseBody) (err error) {
+	if body.Category == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("category", "body"))
+	}
+	if body.Value == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("value", "body"))
+	}
+	if body.Percentage == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("percentage", "body"))
+	}
+	return
+}
+
+// ValidateTimeSeriesDataResponseBody runs the validations defined on
+// TimeSeriesDataResponseBody
+func ValidateTimeSeriesDataResponseBody(body *TimeSeriesDataResponseBody) (err error) {
+	if body.CurrentPeriod == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("current_period", "body"))
+	}
+	if body.Trend == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("trend", "body"))
+	}
+	for _, e := range body.Periods {
+		if e != nil {
+			if err2 := ValidatePeriodPointDataResponseBody(e); err2 != nil {
+				err = goa.MergeErrors(err, err2)
+			}
+		}
+	}
+	for _, e := range body.Anomalies {
+		if e != nil {
+			if err2 := ValidateAnomalyPointDataResponseBody(e); err2 != nil {
+				err = goa.MergeErrors(err, err2)
+			}
+		}
+	}
+	if body.TrendSummary != nil {
+		if err2 := ValidateTrendSummaryDataResponseBody(body.TrendSummary); err2 != nil {
+			err = goa.MergeErrors(err, err2)
+		}
+	}
+	return
+}
+
+// ValidatePeriodPointDataResponseBody runs the validations defined on
+// PeriodPointDataResponseBody
+func ValidatePeriodPointDataResponseBody(body *PeriodPointDataResponseBody) (err error) {
+	if body.Label == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("label", "body"))
+	}
+	if body.Value == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("value", "body"))
+	}
+	return
+}
+
+// ValidateAnomalyPointDataResponseBody runs the validations defined on
+// AnomalyPointDataResponseBody
+func ValidateAnomalyPointDataResponseBody(body *AnomalyPointDataResponseBody) (err error) {
+	if body.PeriodLabel == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("period_label", "body"))
+	}
+	if body.Value == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("value", "body"))
+	}
+	if body.Reason == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("reason", "body"))
+	}
+	return
+}
+
+// ValidateTrendSummaryDataResponseBody runs the validations defined on
+// TrendSummaryDataResponseBody
+func ValidateTrendSummaryDataResponseBody(body *TrendSummaryDataResponseBody) (err error) {
+	if body.Direction == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("direction", "body"))
+	}
+	if body.Summary == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("summary", "body"))
+	}
+	return
+}
+
+// ValidateColumnQualityDataResponseBody runs the validations defined on
+// ColumnQualityDataResponseBody
+func ValidateColumnQualityDataResponseBody(body *ColumnQualityDataResponseBody) (err error) {
+	if body.NullCount == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("null_count", "body"))
+	}
+	if body.DistinctCount == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("distinct_count", "body"))
+	}
+	if body.TotalRows == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("total_rows", "body"))
+	}
+	if body.NullPct == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("null_pct", "body"))
+	}
+	return
+}
+
+// ValidateChartSuggestionResponseBody runs the validations defined on
+// ChartSuggestionResponseBody
+func ValidateChartSuggestionResponseBody(body *ChartSuggestionResponseBody) (err error) {
+	if body.ChartType == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("chart_type", "body"))
+	}
+	if body.Label == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("label", "body"))
+	}
+	if body.Reason == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("reason", "body"))
 	}
 	return
 }

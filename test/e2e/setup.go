@@ -156,11 +156,13 @@ func BuildFullServer(t *testing.T, ctx context.Context, pool *pgxpool.Pool, cfg 
 	loader := catalog.NewLoader(pool, []string{"demo"})
 	schemaService := service.NewSchemaService(loader)
 	suggester := pkgsuggestions.NewSuggester(pool)
+	askService := service.NewAskService(loader, llmClient, validator, reportsService)
+	suggestionsService := &service.SuggestionsServiceWrapper{Suggester: suggester, AskSvc: askService}
 
 	queriesEndpoints := queries.NewEndpoints(queriesService)
 	reportsEndpoints := reports.NewEndpoints(reportsService)
 	schemaEndpoints := schema.NewEndpoints(schemaService)
-	suggestionsEndpoints := suggestions.NewEndpoints(suggester)
+	suggestionsEndpoints := suggestions.NewEndpoints(suggestionsService)
 
 	mux := goahttp.NewMuxer()
 	dec := goahttp.RequestDecoder

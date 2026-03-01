@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-Entries are managed in `changelog/` — see [changelog/README.md](changelog/README.md) for how to add and release.
+Entries: edit `changelog/unreleased.md` then run `make changelog`.
 
 ## [Unreleased]
 
@@ -23,7 +23,17 @@ All items below are **Release 1** scope. The next version (e.g. v1.0.0) will shi
 - Claude LLM provider: `LLM_PROVIDER=claude`, `LLM_MODEL`, `LLM_API_KEY` (Anthropic Messages API)
 - Gemini LLM provider: `LLM_PROVIDER=gemini`, `LLM_MODEL`, `LLM_API_KEY` for report generation
 - MCP server (`cmd/mcp-server`): tools for Claude desktop / Cursor (run query, generate report, list saved/reports); `config/mcp-example.json`, docs
-- **MCP schema, context, and query suggestions:** Schema API `GET /api/v1/schema` (queryable tables/columns from `information_schema`); suggestions API `GET /api/v1/suggestions/queries?intent=...&limit=...` (curated examples + saved-query match by intent); MCP tools `get_schema`, `get_context` (schema + saved queries merged), `suggest_queries`; `app/catalog`, `app/suggestions`; design and testing in `docs/development/mcp-schema-context-design.md`
+- **MCP schema, context, and query suggestions:** Schema API `GET /api/v1/schema` (queryable tables/columns from `information_schema`); suggestions API `GET /api/v1/suggestions/queries?intent=...&limit=...` (curated examples + saved-query match by intent); MCP tools `get_schema`, `get_context` (schema + saved queries merged), `suggest_queries`, `list_schemas`, `ask_question`, `explain_sql`; `app/catalog`, `app/suggestions`
+- **Ask (NL→SQL→report):** `POST /api/v1/suggestions/ask` — natural-language question → generated SQL → run → narrative report in one step
+- **Explain SQL:** `POST /api/v1/suggestions/explain` — plain-English explanation of a SQL query (one or two sentences)
+- **Semantic search (similar queries):** `GET /api/v1/suggestions/similar?text=...` — embedding-based retrieval of saved queries similar to text; RAG context in report generation when embeddings enabled
+- **Embeddings:** `EMBEDDING_BASE_URL`, `EMBEDDING_MODEL`; in-memory or pgvector (migration 000007); powers similar-query and RAG
+- **Configurable schemas:** `DATABASE_ALLOWED_SCHEMAS` (default `public,demo`) — comma-separated schemas queries may access; migration 000010 grants readonly access to `public`
+- **demo.sales_summary view:** Read-only aggregated view (migration 000009) for schema discovery and queries
+- **Health, readiness, metrics, version:** `GET /health` (liveness), `GET /ready` (readiness, DB check), `GET /metrics` (pool stats), `GET /version` (build version)
+- **CORS:** `CORS_ORIGINS` for configurable allowed origins
+- **Report export:** HTML (`/web/reports/export?id=...`) and PDF (`/web/reports/export/pdf?id=...`) download; auth-protected when `SECURITY_AUTH_ENABLED` true
+- **Query Runner UI:** Schema browser (left sidebar, schema→tables→columns, click to insert); query suggestions card (fetches API, click to run); Ctrl+E focus editor, Ctrl+Enter run; session-stored query history (last 10)
 - Report UI: show LLM provider and model; improved report card layout and CSS
 - PostgreSQL extension for calling PgQueryNarrative from SQL
 - CLI tool for Docker-only usage
@@ -31,9 +41,14 @@ All items below are **Release 1** scope. The next version (e.g. v1.0.0) will shi
 - Security scanning (secret scan, CodeQL, govulncheck, gosec)
 - **Chart suggestions:** By data structure (time series → line/area; category+value → bar/pie; table); suggestion buttons and chart-type dropdown built from API on query page; area chart support; report page shows suggested charts; unit tests (app/charts/suggester_test.go)
 - **Advanced metrics:** Richer time-series (last N periods, 3-period moving average); anomaly detection (z-score, configurable threshold); trend analysis (linear regression over last 6 periods, direction and summary); report API (`periods`, `moving_average`, `anomalies`, `trend_summary`); report UI (trend summary, anomalies list, period history table); unit tests (app/metrics/calculator_test.go)
+- **Authentication:** Optional API key (Bearer token) for `/api/*` and `/web/reports/export*`; `SECURITY_AUTH_ENABLED`, `SECURITY_API_KEY`; 401 when missing or invalid; `/health` and `/ready` always unauthenticated
+- **Rate limiting:** Per-client IP; `SECURITY_RATE_LIMIT_RPM` (0 = disabled), `SECURITY_RATE_LIMIT_BURST`; 429 when exceeded
+- **Audit trail:** `app.audit_logs` table and migration; request logging middleware records API_REQUEST (path, status, identity); AUTH_FAILURE and RATE_LIMIT_EXCEEDED on auth/rate-limit events
+- **Testing:** Unit tests for auth (ValidateRequest) and ratelimit (NewLimiter, Allow); integration test for audit store (Record + DB); E2E tests for GET /health and GET /ready
+- **Versioning and releases:** Versioning and releases doc (`docs/reference/versioning-and-releases.md`); `make build-release` for multi-arch server + MCP binaries and checksums; release workflow builds server and MCP for linux/amd64, darwin/amd64, darwin/arm64
 
 ### Changed
-- **Documentation:** Reorganized into `docs/api/`, `docs/usage/`, `docs/features/`; added Period comparison doc and Metrics section in configuration (`PERIOD_TREND_THRESHOLD_PERCENT`); API examples in `docs/api/examples.md`, CLI usage in `docs/usage/cli-usage.md`; docs index and cross-links updated
+- **Documentation:** Reorganized into `docs/api/`, `docs/usage/`; added Period comparison and Metrics section in configuration (`PERIOD_TREND_THRESHOLD_PERCENT`); API examples in `docs/api/examples.md`, CLI usage in `docs/usage/cli-usage.md`; docs index and cross-links updated
 - Documentation: single generic LLM setup guide (Ollama, Gemini, Claude, OpenAI, Groq, MCP); docs shortened and standardized
 - Go 1.23 → 1.24; PostgreSQL 18 as default (16, 17, 18 supported)
 - Docker: postgres:18-alpine, memory limits
@@ -46,20 +61,6 @@ All items below are **Release 1** scope. The next version (e.g. v1.0.0) will shi
 
 ### Security
 - Secret scanning, dependency vulnerability scanning, CodeQL, gosec
-
-## [0.1.0] - 2026-02-17
-
-### Added
-- Initial release
-- Query execution engine
-- Query validation and security
-- Metrics calculation
-- LLM integration for narrative generation
-- Web UI
-- RESTful API
-- Docker support
-- Database migrations
-- Demo data seeding
+- Optional API authentication (Bearer token), per-IP rate limiting, and audit logging to `app.audit_logs`
 
 [Unreleased]: https://github.com/pgquerynarrative/pgquerynarrative/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/pgquerynarrative/pgquerynarrative/releases/tag/v0.1.0

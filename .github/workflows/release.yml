@@ -29,15 +29,20 @@ jobs:
         run: go mod download
       - name: Generate code
         run: make generate
+      - name: Set version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then VER="${{ github.event.inputs.version }}"; else VER="${{ github.ref_name }}"; fi
+          echo "VERSION=${VER#v}" >> $GITHUB_ENV
       - name: Build binaries
         run: |
-          GOOS=linux GOARCH=amd64 go build -o bin/pgquerynarrative-linux-amd64 ./cmd/server
-          GOOS=darwin GOARCH=amd64 go build -o bin/pgquerynarrative-darwin-amd64 ./cmd/server
-          GOOS=darwin GOARCH=arm64 go build -o bin/pgquerynarrative-darwin-arm64 ./cmd/server
+          mkdir -p bin
+          for pair in linux/amd64 darwin/amd64 darwin/arm64; do
+            GOOS=${pair%%/*} GOARCH=${pair##*/} go build -ldflags "-X main.Version=$VERSION" -o bin/pgquerynarrative-server-${pair%%/*}-${pair##*/} ./cmd/server
+            GOOS=${pair%%/*} GOARCH=${pair##*/} go build -ldflags "-X main.Version=$VERSION" -o bin/pgquerynarrative-mcp-${pair%%/*}-${pair##*/} ./cmd/mcp-server
+          done
       - name: Create checksums
         run: |
-          cd bin
-          sha256sum * > checksums.txt
+          cd bin && sha256sum pgquerynarrative-* > checksums.txt
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:

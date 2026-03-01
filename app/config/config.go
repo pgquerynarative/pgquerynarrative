@@ -34,11 +34,12 @@ type MetricsConfig struct {
 
 // ServerConfig contains HTTP server settings.
 type ServerConfig struct {
-	Host         string        // Server host (default: "0.0.0.0")
-	Port         int           // Server port (default: 8080)
-	ReadTimeout  time.Duration // Request read timeout
-	WriteTimeout time.Duration // Response write timeout
-	CORSOrigins  []string      // Allowed CORS origins (empty = same-origin only)
+	Host            string        // Server host (default: "0.0.0.0")
+	Port            int           // Server port (default: 8080)
+	ReadTimeout     time.Duration // Request read timeout
+	WriteTimeout    time.Duration // Response write timeout
+	ShutdownTimeout time.Duration // Graceful shutdown timeout (default: 10s)
+	CORSOrigins     []string      // Allowed CORS origins (empty = same-origin only)
 }
 
 // DatabaseConfig contains PostgreSQL connection settings.
@@ -53,6 +54,7 @@ type DatabaseConfig struct {
 	ReadOnlyPassword string        // Read-only user password
 	SSLMode          string        // SSL mode (disable, require, etc.)
 	QueryTimeout     time.Duration // Maximum query execution time
+	AllowedSchemas   []string      // Schemas queries may access (e.g. demo, public). Default: demo.
 }
 
 // SecurityConfig contains security-related settings.
@@ -76,11 +78,12 @@ type LLMConfig struct {
 func Load() Config {
 	cfg := Config{
 		Server: ServerConfig{
-			Host:         getEnv("PGQUERYNARRATIVE_HOST", "0.0.0.0"),
-			Port:         getEnvInt("PGQUERYNARRATIVE_PORT", 8080),
-			ReadTimeout:  getEnvDuration("PGQUERYNARRATIVE_READ_TIMEOUT", 15*time.Second),
-			WriteTimeout: getEnvDuration("PGQUERYNARRATIVE_WRITE_TIMEOUT", 60*time.Second),
-			CORSOrigins:  getEnvSlice("CORS_ORIGINS", ","),
+			Host:            getEnv("PGQUERYNARRATIVE_HOST", "0.0.0.0"),
+			Port:            getEnvInt("PGQUERYNARRATIVE_PORT", 8080),
+			ReadTimeout:     getEnvDuration("PGQUERYNARRATIVE_READ_TIMEOUT", 15*time.Second),
+			WriteTimeout:    getEnvDuration("PGQUERYNARRATIVE_WRITE_TIMEOUT", 60*time.Second),
+			ShutdownTimeout: getEnvDuration("SHUTDOWN_TIMEOUT", 10*time.Second),
+			CORSOrigins:     getEnvSlice("CORS_ORIGINS", ","),
 		},
 		Database: DatabaseConfig{
 			Host:             getEnv("DATABASE_HOST", "localhost"),
@@ -93,6 +96,7 @@ func Load() Config {
 			ReadOnlyPassword: getEnv("DATABASE_READONLY_PASSWORD", "pgquerynarrative_readonly"),
 			SSLMode:          getEnv("DATABASE_SSL_MODE", "disable"),
 			QueryTimeout:     getEnvDuration("QUERY_TIMEOUT", 30*time.Second),
+			AllowedSchemas:   getEnvAllowedSchemas("DATABASE_ALLOWED_SCHEMAS", "public,demo"),
 		},
 		Security: SecurityConfig{
 			AuthEnabled:    getEnvBool("SECURITY_AUTH_ENABLED", false),
@@ -171,9 +175,16 @@ func getEnvDuration(key string, fallback time.Duration) time.Duration {
 	return fallback
 }
 
-// getEnvSlice retrieves an environment variable, splits by sep, trims each part, and returns non-empty elements.
-func getEnvSlice(key, sep string) []string {
-	value := os.Getenv(key)
+// getEnvAllowedSchemas retrieves DATABASE_ALLOWED_SCHEMAS (comma-separated) or returns default (e.g. demo).
+func getEnvAllowedSchemas(key, defaultVal string) []string {
+	val := os.Getenv(key)
+	if val == "" {
+		val = defaultVal
+	}
+	return getEnvSliceWithVal(val, ",")
+}
+
+func getEnvSliceWithVal(value, sep string) []string {
 	if value == "" {
 		return nil
 	}
@@ -186,4 +197,9 @@ func getEnvSlice(key, sep string) []string {
 		}
 	}
 	return out
+}
+
+// getEnvSlice retrieves an environment variable, splits by sep, trims each part, and returns non-empty elements.
+func getEnvSlice(key, sep string) []string {
+	return getEnvSliceWithVal(os.Getenv(key), sep)
 }

@@ -14,8 +14,10 @@ The app exposes dedicated liveness and readiness endpoints:
 |----------|---------|
 | **GET /health** | Liveness: process up, HTTP responding. Use for restart-on-failure. |
 | **GET /ready** | Readiness: DB connection checked. If the DB is down, the probe fails. Use to remove from load balancer. |
+| **GET /version** | JSON `{"version":"..."}`. Build-time version (e.g. 1.0.0). |
+| **GET /metrics** | JSON with `version` and `pool` (acquired, idle, total, max connections). For pool visibility. |
 
-**Limitation:** Probes do not check LLM; report generation can fail while the app is "healthy."
+All responses include `X-Request-ID` when request ID middleware is used. **Limitation:** Probes do not check LLM; report generation can fail while the app is "healthy."
 
 | Environment | Probe | Endpoint |
 |-------------|--------|----------|

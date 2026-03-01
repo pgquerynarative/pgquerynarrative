@@ -1,6 +1,6 @@
 # API reference
 
-REST API base: `http://localhost:8080/api/v1` (override with [Configuration](../configuration.md) server port). All request/response bodies are JSON. When `SECURITY_AUTH_ENABLED` is true, send `Authorization: Bearer <SECURITY_API_KEY>`; otherwise requests are unauthenticated. Rate limiting (when `SECURITY_RATE_LIMIT_RPM` > 0) returns 429. OpenAPI: `api/gen/http/openapi3.json`, `api/gen/http/openapi3.yaml`.
+REST API base: `http://localhost:8080/api/v1` (override with [Configuration](../configuration.md) server port). All request/response bodies are JSON. When `SECURITY_AUTH_ENABLED` is true, send `Authorization: Bearer <SECURITY_API_KEY>`; otherwise requests are unauthenticated. Rate limiting (when `SECURITY_RATE_LIMIT_RPM` > 0) returns 429. **OpenAPI 3:** `api/gen/http/openapi3.json` and `api/gen/http/openapi3.yaml` for codegen and API tooling.
 
 ## Queries
 
@@ -24,6 +24,8 @@ REST API base: `http://localhost:8080/api/v1` (override with [Configuration](../
 |--------|------|-------------|
 | GET | `/suggestions/queries` | Query: `intent`, `limit` (default 5). Suggested SQL (curated + saved-query match). |
 | GET | `/suggestions/similar` | Query: `text` (required), `limit` (default 5). Saved queries semantically similar to text (embedding-based). Requires [embeddings](../reference/semantic-search-pgvector.md) enabled. |
+| POST | `/suggestions/ask` | Body: `{"question":"..."}`. Natural language → SQL → run → narrative report. Requires [LLM](../getting-started/llm-setup.md). |
+| POST | `/suggestions/explain` | Body: `{"sql":"..."}`. Plain-English explanation of SQL. Requires [LLM](../getting-started/llm-setup.md). |
 
 ## Reports
 
@@ -39,7 +41,7 @@ Response JSON: `{"name","message","code"}`. Codes: `VALIDATION_ERROR`, `TIMEOUT_
 
 ## See also
 
-- [API examples](examples.md) — cURL for queries, reports, saved queries
+- [API examples](examples.md) — cURL for queries, suggestions (ask, explain), reports, saved queries
 - [Configuration](../configuration.md) — Environment variables
 - [Deployment](../reference/deployment.md) — Running the API
 - [Embedded integration](../getting-started/embedded.md) — Library and middleware (different path prefix)

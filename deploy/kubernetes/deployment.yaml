@@ -15,10 +15,18 @@ spec:
       labels:
         app.kubernetes.io/name: pgquerynarrative
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
       containers:
         - name: app
-          image: pgquerynarrative:latest
+          image: pgquerynarrative:1.0.0
           imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - NET_RAW
           ports:
             - containerPort: 8080
               name: http

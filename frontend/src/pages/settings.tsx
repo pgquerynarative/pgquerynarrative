@@ -53,7 +53,7 @@ export default function SettingsPage() {
             </div>
           </CardHeader>
           <CardContent className="space-y-3 text-sm">
-            <Row label="Allowed schemas" value="demo" />
+            <Row label="Allowed schemas" value="public, demo" />
             <Row label="Max query length" value="10,000 chars" />
             <Row label="Max rows per query" value="1,000" />
             <Row label="Server port" value={envOrDefault("PORT", "8080")} />
@@ -64,9 +64,9 @@ export default function SettingsPage() {
   );
 }
 
-function Row({ label, value, masked }: { label: string; value: string; masked?: boolean }) {
+function Row({ label, value, masked, title }: { label: string; value: string; masked?: boolean; title?: string }) {
   return (
-    <div className="flex items-center justify-between py-1.5 border-b border-border/50 last:border-0">
+    <div className="flex items-center justify-between py-1.5 border-b border-border/50 last:border-0" title={title}>
       <span className="text-muted-foreground">{label}</span>
       {masked && value !== "—" ? (
         <Badge variant="secondary">••••••</Badge>

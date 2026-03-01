@@ -25,11 +25,11 @@ import (
 // is propagated to the underlying operations. Call Close when done to release
 // database connection pools; Close is idempotent and safe to call multiple times.
 type Client struct {
-	pools          *db.Pools
-	queriesService *service.QueriesService
-	reportsService *service.ReportsService
-	schemaService  *service.SchemaService
-	suggester      *pkgsuggestions.Suggester
+	pools              *db.Pools
+	queriesService     *service.QueriesService
+	reportsService     *service.ReportsService
+	schemaService      *service.SchemaService
+	suggestionsService suggestions.Service
 }
 
 // NewClient builds a narrative client from the given config. It creates
@@ -98,13 +98,15 @@ func NewClient(ctx context.Context, cfg Config) (*Client, error) {
 
 	catalogLoader := catalog.NewLoader(pools.ReadOnly, allowedSchemas)
 	schemaService := service.NewSchemaService(catalogLoader)
+	askService := service.NewAskService(catalogLoader, llmClient, validator, reportsService)
+	suggestionsService := &service.SuggestionsServiceWrapper{Suggester: suggester, AskSvc: askService}
 
 	return &Client{
-		pools:          pools,
-		queriesService: queriesService,
-		reportsService: reportsService,
-		schemaService:  schemaService,
-		suggester:      suggester,
+		pools:              pools,
+		queriesService:     queriesService,
+		reportsService:     reportsService,
+		schemaService:      schemaService,
+		suggestionsService: suggestionsService,
 	}, nil
 }
 
@@ -157,7 +159,7 @@ func (c *Client) SchemaService() schema.Service {
 
 // SuggestionsService returns the suggestions service for use with Goa endpoints or direct calls.
 func (c *Client) SuggestionsService() suggestions.Service {
-	return c.suggester
+	return c.suggestionsService
 }
 
 // AppPool returns the application database pool for use by the server (e.g. audit logging).

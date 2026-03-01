@@ -91,8 +91,15 @@ func FromAppConfig(cfg config.Config) Config {
 			BaseURL: cfg.Embedding.BaseURL,
 			Model:   cfg.Embedding.Model,
 		},
-		AllowedSchemas:  []string{"demo"},
+		AllowedSchemas:  allowedSchemasOrDefault(cfg.Database.AllowedSchemas),
 		MaxQueryLength:  10000,
 		MaxRowsPerQuery: 1000,
 	}
+}
+
+func allowedSchemasOrDefault(schemas []string) []string {
+	if len(schemas) > 0 {
+		return schemas
+	}
+	return []string{"public", "demo"}
 }

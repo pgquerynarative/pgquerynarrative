@@ -29,7 +29,7 @@ PgQueryNarrative turns SQL query results into business narratives using an LLM. 
 | Document | Description |
 |----------|-------------|
 | [API reference](api/README.md) | REST endpoints, request/response shapes, error codes |
-| [API examples](api/examples.md) | cURL examples for run, save, and reports |
+| [API examples](api/examples.md) | cURL examples for run, ask, explain, save, and reports |
 
 ### Reference
 
@@ -40,6 +40,7 @@ PgQueryNarrative turns SQL query results into business narratives using an LLM. 
 | [Troubleshooting](reference/troubleshooting.md) | Common issues and fixes |
 | [PostgreSQL extension](reference/postgres-extension.md) | Call the API from SQL via `CREATE EXTENSION pgquerynarrative` |
 | [Semantic search (pgvector)](reference/semantic-search-pgvector.md) | Embeddings, similar-query search, RAG in report generation |
+| [Versioning and releases](reference/versioning-and-releases.md) | Version control, changelog, release build, and packaging |
 
 ### Development
 

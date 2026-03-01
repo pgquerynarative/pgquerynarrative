@@ -49,6 +49,61 @@ var _ = Service("suggestions", func() {
 			Response(StatusOK)
 		})
 	})
+
+	Method("ask", func() {
+		Description("Natural language to SQL and report in one step: ask a question, get a generated SELECT, run it, and return the narrative report. Requires LLM.")
+		Payload(func() {
+			Attribute("question", String, "Natural-language question (e.g. 'What were top 5 products by revenue last month?')", func() {
+				MinLength(1)
+				MaxLength(1000)
+			})
+			Required("question")
+		})
+		Result(AskResult)
+		Error("validation_error", ValidationError)
+		Error("llm_error", LLMError)
+		HTTP(func() {
+			POST("/api/v1/suggestions/ask")
+			Response(StatusOK)
+			Response(StatusBadRequest, "validation_error")
+			Response(StatusInternalServerError, "llm_error")
+		})
+	})
+
+	Method("explain", func() {
+		Description("Explain a SQL query in plain English (one or two sentences). Requires LLM.")
+		Payload(func() {
+			Attribute("sql", String, "Read-only SQL to explain (SELECT or WITH).", func() {
+				MinLength(1)
+				MaxLength(10000)
+			})
+			Required("sql")
+		})
+		Result(ExplainResult)
+		Error("validation_error", ValidationError)
+		Error("llm_error", LLMError)
+		HTTP(func() {
+			POST("/api/v1/suggestions/explain")
+			Response(StatusOK)
+			Response(StatusBadRequest, "validation_error")
+			Response(StatusInternalServerError, "llm_error")
+		})
+	})
+})
+
+// ExplainResult is the result of the suggestions explain method.
+var ExplainResult = Type("ExplainResult", func() {
+	Attribute("sql", String, "The SQL that was explained")
+	Attribute("explanation", String, "Plain-English explanation (one or two sentences)")
+	Required("sql", "explanation")
+})
+
+// AskResult is the result of the suggestions ask method (NL → SQL → report).
+var AskResult = Type("AskResult", func() {
+	Attribute("question", String, "The original natural-language question")
+	Attribute("sql", String, "The generated and executed SQL")
+	Attribute("report", Report, "The narrative report from the query result")
+	Required("question", "sql", "report")
 })
 
 // SuggestedQueriesResult is the result of the suggestions queries method.

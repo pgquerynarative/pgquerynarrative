@@ -56,8 +56,19 @@ go test ./pkg/narrative/... -v
 
 ## QA checklist
 
-- Chart suggestions; period comparison and time-series in reports; data quality and perf suggestions; narrative content (no spurious "previous period" for single-period queries).
-- API: `POST /api/v1/reports/generate`, `GET /api/v1/reports/{id}`, `GET /api/v1/reports`; metrics structure; errors (invalid SQL → 400, not found → 404, LLM failure → 500).
+**Queries:** Run query; period comparison and chart suggestions in response; save, list, get, delete saved queries; invalid SQL → 400.
+
+**Schema:** `GET /api/v1/schema` returns allowed schemas, tables, columns.
+
+**Suggestions:** `GET /api/v1/suggestions/queries` (curated + intent match); `GET /api/v1/suggestions/similar` (embeddings); `POST /api/v1/suggestions/ask` (NL→SQL→report); `POST /api/v1/suggestions/explain` (plain-English SQL explanation).
+
+**Reports:** Generate, get, list; metrics (period comparison, time-series, anomalies, trend, data quality, perf); narrative content; errors (not found → 404, LLM failure → 500).
+
+**Export:** HTML and PDF at `/web/reports/export?id=...` and `/web/reports/export/pdf?id=...`.
+
+**Probes:** `GET /health`, `GET /ready`, `GET /metrics`, `GET /version` return 200.
+
+**UI:** Query Runner schema browser, query suggestions card, shortcuts (Ctrl+E, Ctrl+Enter); Reports export buttons.
 
 Example API checks: [API examples](../api/examples.md).
 

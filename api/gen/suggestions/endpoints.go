@@ -17,6 +17,8 @@ import (
 type Endpoints struct {
 	Queries goa.Endpoint
 	Similar goa.Endpoint
+	Ask     goa.Endpoint
+	Explain goa.Endpoint
 }
 
 // NewEndpoints wraps the methods of the "suggestions" service with endpoints.
@@ -24,6 +26,8 @@ func NewEndpoints(s Service) *Endpoints {
 	return &Endpoints{
 		Queries: NewQueriesEndpoint(s),
 		Similar: NewSimilarEndpoint(s),
+		Ask:     NewAskEndpoint(s),
+		Explain: NewExplainEndpoint(s),
 	}
 }
 
@@ -31,6 +35,8 @@ func NewEndpoints(s Service) *Endpoints {
 func (e *Endpoints) Use(m func(goa.Endpoint) goa.Endpoint) {
 	e.Queries = m(e.Queries)
 	e.Similar = m(e.Similar)
+	e.Ask = m(e.Ask)
+	e.Explain = m(e.Explain)
 }
 
 // NewQueriesEndpoint returns an endpoint function that calls the method
@@ -48,5 +54,23 @@ func NewSimilarEndpoint(s Service) goa.Endpoint {
 	return func(ctx context.Context, req any) (any, error) {
 		p := req.(*SimilarPayload)
 		return s.Similar(ctx, p)
+	}
+}
+
+// NewAskEndpoint returns an endpoint function that calls the method "ask" of
+// service "suggestions".
+func NewAskEndpoint(s Service) goa.Endpoint {
+	return func(ctx context.Context, req any) (any, error) {
+		p := req.(*AskPayload)
+		return s.Ask(ctx, p)
+	}
+}
+
+// NewExplainEndpoint returns an endpoint function that calls the method
+// "explain" of service "suggestions".
+func NewExplainEndpoint(s Service) goa.Endpoint {
+	return func(ctx context.Context, req any) (any, error) {
+		p := req.(*ExplainPayload)
+		return s.Explain(ctx, p)
 	}
 }

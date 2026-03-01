@@ -1,15 +1,16 @@
-FROM node:22-alpine AS frontend-build
+FROM node:22.12-alpine AS frontend-build
 WORKDIR /frontend
 COPY frontend/package.json frontend/package-lock.json* ./
 RUN npm install --silent
 COPY frontend/ .
 RUN npm run build
 
-FROM golang:1.24-alpine
+FROM golang:1.24.4-alpine
 
 WORKDIR /app
 
-RUN apk add --no-cache git postgresql-client wget
+RUN apk add --no-cache git postgresql-client wget && \
+    adduser -D -u 1000 appuser
 
 COPY go.mod go.sum ./
 RUN go mod download
@@ -25,8 +26,11 @@ ENV PGQUERYNARRATIVE_HOST=0.0.0.0
 ENV PGQUERYNARRATIVE_PORT=8080
 
 COPY tools/docker/entrypoint.sh /app/tools/docker/entrypoint.sh
-RUN chmod +x /app/tools/docker/entrypoint.sh
+RUN chmod +x /app/tools/docker/entrypoint.sh && \
+    chown -R appuser:appuser /app
 
 EXPOSE 8080
+
+USER appuser:appuser
 
 ENTRYPOINT ["/app/tools/docker/entrypoint.sh"]

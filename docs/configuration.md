@@ -28,6 +28,8 @@ PgQueryNarrative is configured via **environment variables** only. Sensible defa
 | `PGQUERYNARRATIVE_PORT` | `8080` | Server port. |
 | `PGQUERYNARRATIVE_READ_TIMEOUT` | `15s` | Request read timeout. |
 | `PGQUERYNARRATIVE_WRITE_TIMEOUT` | `60s` | Response write timeout. |
+| `SHUTDOWN_TIMEOUT` | `10s` | Graceful shutdown timeout. |
+| `CORS_ORIGINS` | (empty) | Comma-separated origins for CORS; when set, `Access-Control-Allow-Origin` is sent for matching request origins. Empty = same-origin only. |
 
 ---
 
@@ -46,6 +48,7 @@ PgQueryNarrative is configured via **environment variables** only. Sensible defa
 | `DATABASE_SSL_MODE` | `disable` | SSL mode: `disable` \| `require` \| `verify-full`. |
 | `DATABASE_MAX_CONNECTIONS` | `10` | Max connection pool size. |
 | `QUERY_TIMEOUT` | `30s` | Query execution timeout. |
+| `DATABASE_ALLOWED_SCHEMAS` | `public,demo` | Comma-separated schemas queries may access. Use your own schemas here (e.g. `public` or `public,analytics`). |
 
 ---
 
@@ -82,15 +85,15 @@ For [LLM setup – MCP](getting-started/llm-setup.md#mcp-claude-desktop--cursor)
 1. Build: `make build-mcp` → `bin/mcp-server`.
 2. Edit MCP config:
    - **Claude:** macOS `~/Library/Application Support/Claude/claude_desktop_config.json`; Windows `%APPDATA%\Claude\`; Linux `~/.config/Claude/`.
-   - **Cursor:** Settings → MCP or the MCP config file.
+   - **Cursor:** `.cursor/mcp.json` in the project root (or Settings → MCP). See `config/mcp-example.json` for the template.
 3. Add under `mcpServers` (replace path):
    ```json
    "pgquerynarrative": {
-     "command": "/FULL/PATH/TO/pgquerynarrative/bin/mcp-server"
+     "command": "/path/to/pgquerynarrative/bin/mcp-server"
    }
    ```
-   If app is not at http://localhost:8080: `"env": { "PGQUERYNARRATIVE_URL": "http://localhost:8080" }`. See `config/mcp-example.json`.
-4. Restart client. Tools: `run_query`, `generate_report`, `list_saved_queries`, `get_report`, `list_reports`.
+   If the app is not at http://localhost:8080, set `"env": { "PGQUERYNARRATIVE_URL": "http://localhost:PORT" }`. If the app has auth enabled (`SECURITY_AUTH_ENABLED=true`), set `"env": { "PGQUERYNARRATIVE_API_KEY": "your-secret-key" }` (same value as `SECURITY_API_KEY`). See `config/mcp-example.json`.
+4. Restart the client. Available tools: `run_query`, `generate_report`, `list_saved_queries`, `get_report`, `list_reports`, `get_schema`, `get_context`, `suggest_queries`, `list_schemas`, `ask_question`, `explain_sql`. See [How to use MCP tools](getting-started/llm-setup.md#how-to-use-mcp-tools-in-cursor--claude) below.
 
 ---
 

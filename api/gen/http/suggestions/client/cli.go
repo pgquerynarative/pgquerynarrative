@@ -8,8 +8,10 @@
 package client
 
 import (
+	"encoding/json"
 	"fmt"
 	"strconv"
+	"unicode/utf8"
 
 	suggestions "github.com/pgquerynarrative/pgquerynarrative/api/gen/suggestions"
 	goa "goa.design/goa/v3/pkg"
@@ -85,6 +87,60 @@ func BuildSimilarPayload(suggestionsSimilarText string, suggestionsSimilarLimit 
 	v := &suggestions.SimilarPayload{}
 	v.Text = text
 	v.Limit = limit
+
+	return v, nil
+}
+
+// BuildAskPayload builds the payload for the suggestions ask endpoint from CLI
+// flags.
+func BuildAskPayload(suggestionsAskBody string) (*suggestions.AskPayload, error) {
+	var err error
+	var body AskRequestBody
+	{
+		err = json.Unmarshal([]byte(suggestionsAskBody), &body)
+		if err != nil {
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"question\": \"lq\"\n   }'")
+		}
+		if utf8.RuneCountInString(body.Question) < 1 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.question", body.Question, utf8.RuneCountInString(body.Question), 1, true))
+		}
+		if utf8.RuneCountInString(body.Question) > 1000 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.question", body.Question, utf8.RuneCountInString(body.Question), 1000, false))
+		}
+		if err != nil {
+			return nil, err
+		}
+	}
+	v := &suggestions.AskPayload{
+		Question: body.Question,
+	}
+
+	return v, nil
+}
+
+// BuildExplainPayload builds the payload for the suggestions explain endpoint
+// from CLI flags.
+func BuildExplainPayload(suggestionsExplainBody string) (*suggestions.ExplainPayload, error) {
+	var err error
+	var body ExplainRequestBody
+	{
+		err = json.Unmarshal([]byte(suggestionsExplainBody), &body)
+		if err != nil {
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"sql\": \"vjn\"\n   }'")
+		}
+		if utf8.RuneCountInString(body.SQL) < 1 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.sql", body.SQL, utf8.RuneCountInString(body.SQL), 1, true))
+		}
+		if utf8.RuneCountInString(body.SQL) > 10000 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.sql", body.SQL, utf8.RuneCountInString(body.SQL), 10000, false))
+		}
+		if err != nil {
+			return nil, err
+		}
+	}
+	v := &suggestions.ExplainPayload{
+		SQL: body.SQL,
+	}
 
 	return v, nil
 }

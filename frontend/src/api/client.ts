@@ -6,8 +6,13 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     ...init,
   });
   if (!res.ok) {
-    const body = await res.json().catch(() => ({ message: res.statusText }));
-    throw new ApiError(res.status, body.message || body.name || res.statusText, body);
+    const body = await res.json().catch(() => ({})) as Record<string, unknown>;
+    const message =
+      (typeof body?.message === "string" && body.message) ||
+      (body?.body && typeof (body.body as Record<string, unknown>).message === "string" && (body.body as Record<string, unknown>).message) ||
+      (typeof body?.name === "string" && body.name) ||
+      res.statusText;
+    throw new ApiError(res.status, message as string, body);
   }
   if (res.status === 204) return undefined as T;
   return res.json();
@@ -59,6 +64,12 @@ export interface Report {
   llm_provider: string;
 }
 
+export interface AskResult {
+  question: string;
+  sql: string;
+  report: Report;
+}
+
 export interface SchemaInfo { name: string; tables: { name: string; columns: Column[] }[]; }
 
 // Normalize SQL for API: trim and strip trailing semicolon (API rejects ";" in sql).
@@ -98,4 +109,10 @@ export const api = {
 
   getSuggestions: (limit = 5) =>
     request<{ suggestions: { sql: string; title: string; source: string }[] }>(`/suggestions/queries?limit=${limit}`),
+
+  ask: (question: string) =>
+    request<AskResult>("/suggestions/ask", {
+      method: "POST",
+      body: JSON.stringify({ question: question.trim() }),
+    }),
 };

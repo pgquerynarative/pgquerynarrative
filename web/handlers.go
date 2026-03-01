@@ -119,28 +119,44 @@ func buildExportHTML(sql, createdAt, bodyHTML string) string {
 	if len(sqlEscaped) > 500 {
 		sqlEscaped = sqlEscaped[:500] + "…"
 	}
-	return `<!DOCTYPE html>
+	tmpl := template.Must(template.New("export").Parse(`<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Report — PgQueryNarrative</title>
 <style>
-` + reportExportStyles() + `
+{{.Styles}}
 </style>
 </head>
 <body class="export-body">
 <header class="export-header">
   <h1>PgQueryNarrative Report</h1>
-  <p class="export-meta">Generated: ` + template.HTMLEscapeString(created) + `</p>
-  <details class="export-sql"><summary>Query</summary><pre>` + sqlEscaped + `</pre></details>
+  <p class="export-meta">Generated: {{.Created}}</p>
+  <details class="export-sql"><summary>Query</summary><pre>{{.SQL}}</pre></details>
 </header>
 <main class="export-main">
-` + bodyHTML + `
+{{.Body}}
 </main>
 <footer class="export-footer">Exported from PgQueryNarrative. Open in a browser or print to PDF.</footer>
 </body>
-</html>`
+</html>`))
+	data := struct {
+		Styles  string
+		Created string
+		SQL     template.HTML
+		Body    template.HTML
+	}{
+		Styles:  reportExportStyles(),
+		Created: created,
+		SQL:     template.HTML(sqlEscaped),
+		Body:    template.HTML(bodyHTML),
+	}
+	var buf strings.Builder
+	if err := tmpl.Execute(&buf, data); err != nil {
+		return "" // fallback; caller should handle
+	}
+	return buf.String()
 }
 
 // reportExportStyles returns inline CSS for the exported report (self-contained, print-friendly).
@@ -273,7 +289,7 @@ func FormatReportHTML(report *reports.Report) string {
 				if *ts.ChangePercentage >= 0 {
 					sb.WriteString("+")
 				}
-				sb.WriteString(fmt.Sprintf("%.1f%%", *ts.ChangePercentage))
+				sb.WriteString(template.HTMLEscapeString(fmt.Sprintf("%.1f%%", *ts.ChangePercentage)))
 				sb.WriteString("</span>")
 			}
 			sb.WriteString("</li>")
@@ -387,7 +403,7 @@ func FormatReportHTML(report *reports.Report) string {
 			sb.WriteString("</td><td>")
 			sb.WriteString(strconv.Itoa(int(q.NullCount)))
 			sb.WriteString("</td><td>")
-			sb.WriteString(fmt.Sprintf("%.1f", q.NullPct))
+			sb.WriteString(template.HTMLEscapeString(fmt.Sprintf("%.1f", q.NullPct)))
 			sb.WriteString("%</td><td>")
 			sb.WriteString(strconv.Itoa(int(q.DistinctCount)))
 			sb.WriteString("</td><td>")

@@ -2,7 +2,7 @@
 # Build context: repository root (docker compose -f deploy/docker/docker-compose.yml build).
 
 # ---- Builder ----
-FROM golang:1.24-alpine AS builder
+FROM golang:1.24.4-alpine AS builder
 WORKDIR /app
 
 RUN apk add --no-cache git
@@ -27,12 +27,10 @@ RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o bin/server ./cmd/server
 
 # ---- Runtime ----
 FROM alpine:3.20
-RUN apk add --no-cache ca-certificates postgresql-client
+RUN apk add --no-cache ca-certificates postgresql-client && \
+    adduser -D -u 1000 pgquerynarrative
 
 WORKDIR /app
-
-ENV PGQUERYNARRATIVE_HOST=0.0.0.0
-ENV PGQUERYNARRATIVE_PORT=8080
 
 # Application binary and migrations
 COPY --from=builder /app/bin/server bin/server
@@ -42,8 +40,14 @@ COPY --from=builder /app/app/db/migrations migrations/
 # Entrypoint and optional seed
 COPY deploy/docker/entrypoint.sh tools/docker/entrypoint.sh
 COPY tools/db/seed.sql tools/db/seed.sql
-RUN chmod +x tools/docker/entrypoint.sh
+RUN chmod +x tools/docker/entrypoint.sh && \
+    chown -R pgquerynarrative:pgquerynarrative /app
+
+ENV PGQUERYNARRATIVE_HOST=0.0.0.0
+ENV PGQUERYNARRATIVE_PORT=8080
 
 EXPOSE 8080
+
+USER pgquerynarrative:pgquerynarrative
 
 ENTRYPOINT ["/app/tools/docker/entrypoint.sh"]

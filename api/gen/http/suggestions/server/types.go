@@ -8,8 +8,26 @@
 package server
 
 import (
+	"unicode/utf8"
+
 	suggestions "github.com/pgquerynarrative/pgquerynarrative/api/gen/suggestions"
+	goa "goa.design/goa/v3/pkg"
 )
+
+// AskRequestBody is the type of the "suggestions" service "ask" endpoint HTTP
+// request body.
+type AskRequestBody struct {
+	// Natural-language question (e.g. 'What were top 5 products by revenue last
+	// month?')
+	Question *string `form:"question,omitempty" json:"question,omitempty" xml:"question,omitempty"`
+}
+
+// ExplainRequestBody is the type of the "suggestions" service "explain"
+// endpoint HTTP request body.
+type ExplainRequestBody struct {
+	// Read-only SQL to explain (SELECT or WITH).
+	SQL *string `form:"sql,omitempty" json:"sql,omitempty" xml:"sql,omitempty"`
+}
 
 // QueriesResponseBody is the type of the "suggestions" service "queries"
 // endpoint HTTP response body.
@@ -25,6 +43,58 @@ type SimilarResponseBody struct {
 	Suggestions []*QuerySuggestionResponseBody `form:"suggestions" json:"suggestions" xml:"suggestions"`
 }
 
+// AskResponseBody is the type of the "suggestions" service "ask" endpoint HTTP
+// response body.
+type AskResponseBody struct {
+	// The original natural-language question
+	Question string `form:"question" json:"question" xml:"question"`
+	// The generated and executed SQL
+	SQL string `form:"sql" json:"sql" xml:"sql"`
+	// The narrative report from the query result
+	Report *ReportResponseBody `form:"report" json:"report" xml:"report"`
+}
+
+// ExplainResponseBody is the type of the "suggestions" service "explain"
+// endpoint HTTP response body.
+type ExplainResponseBody struct {
+	// The SQL that was explained
+	SQL string `form:"sql" json:"sql" xml:"sql"`
+	// Plain-English explanation (one or two sentences)
+	Explanation string `form:"explanation" json:"explanation" xml:"explanation"`
+}
+
+// AskLlmErrorResponseBody is the type of the "suggestions" service "ask"
+// endpoint HTTP response body for the "llm_error" error.
+type AskLlmErrorResponseBody struct {
+	Name    string  `form:"name" json:"name" xml:"name"`
+	Message string  `form:"message" json:"message" xml:"message"`
+	Code    *string `form:"code,omitempty" json:"code,omitempty" xml:"code,omitempty"`
+}
+
+// AskValidationErrorResponseBody is the type of the "suggestions" service
+// "ask" endpoint HTTP response body for the "validation_error" error.
+type AskValidationErrorResponseBody struct {
+	Name    string  `form:"name" json:"name" xml:"name"`
+	Message string  `form:"message" json:"message" xml:"message"`
+	Code    *string `form:"code,omitempty" json:"code,omitempty" xml:"code,omitempty"`
+}
+
+// ExplainLlmErrorResponseBody is the type of the "suggestions" service
+// "explain" endpoint HTTP response body for the "llm_error" error.
+type ExplainLlmErrorResponseBody struct {
+	Name    string  `form:"name" json:"name" xml:"name"`
+	Message string  `form:"message" json:"message" xml:"message"`
+	Code    *string `form:"code,omitempty" json:"code,omitempty" xml:"code,omitempty"`
+}
+
+// ExplainValidationErrorResponseBody is the type of the "suggestions" service
+// "explain" endpoint HTTP response body for the "validation_error" error.
+type ExplainValidationErrorResponseBody struct {
+	Name    string  `form:"name" json:"name" xml:"name"`
+	Message string  `form:"message" json:"message" xml:"message"`
+	Code    *string `form:"code,omitempty" json:"code,omitempty" xml:"code,omitempty"`
+}
+
 // QuerySuggestionResponseBody is used to define fields on response body types.
 type QuerySuggestionResponseBody struct {
 	// Suggested SQL (use with run_query or refine)
@@ -33,6 +103,127 @@ type QuerySuggestionResponseBody struct {
 	Title string `form:"title" json:"title" xml:"title"`
 	// Where the suggestion came from: curated or saved
 	Source string `form:"source" json:"source" xml:"source"`
+}
+
+// ReportResponseBody is used to define fields on response body types.
+type ReportResponseBody struct {
+	ID           string                        `form:"id" json:"id" xml:"id"`
+	SavedQueryID *string                       `form:"saved_query_id,omitempty" json:"saved_query_id,omitempty" xml:"saved_query_id,omitempty"`
+	SQL          string                        `form:"sql" json:"sql" xml:"sql"`
+	Narrative    *NarrativeContentResponseBody `form:"narrative" json:"narrative" xml:"narrative"`
+	Metrics      *MetricsDataResponseBody      `form:"metrics" json:"metrics" xml:"metrics"`
+	// Suggested chart types based on result shape
+	ChartSuggestions []*ChartSuggestionResponseBody `form:"chart_suggestions,omitempty" json:"chart_suggestions,omitempty" xml:"chart_suggestions,omitempty"`
+	CreatedAt        string                         `form:"created_at" json:"created_at" xml:"created_at"`
+	LlmModel         string                         `form:"llm_model" json:"llm_model" xml:"llm_model"`
+	LlmProvider      string                         `form:"llm_provider" json:"llm_provider" xml:"llm_provider"`
+}
+
+// NarrativeContentResponseBody is used to define fields on response body types.
+type NarrativeContentResponseBody struct {
+	Headline        string   `form:"headline" json:"headline" xml:"headline"`
+	Takeaways       []string `form:"takeaways" json:"takeaways" xml:"takeaways"`
+	Drivers         []string `form:"drivers,omitempty" json:"drivers,omitempty" xml:"drivers,omitempty"`
+	Limitations     []string `form:"limitations,omitempty" json:"limitations,omitempty" xml:"limitations,omitempty"`
+	Recommendations []string `form:"recommendations,omitempty" json:"recommendations,omitempty" xml:"recommendations,omitempty"`
+}
+
+// MetricsDataResponseBody is used to define fields on response body types.
+type MetricsDataResponseBody struct {
+	Aggregates    map[string]*AggregateDataResponseBody     `form:"aggregates,omitempty" json:"aggregates,omitempty" xml:"aggregates,omitempty"`
+	TopCategories map[string][]*TopCategoryDataResponseBody `form:"top_categories,omitempty" json:"top_categories,omitempty" xml:"top_categories,omitempty"`
+	TimeSeries    map[string]*TimeSeriesDataResponseBody    `form:"time_series,omitempty" json:"time_series,omitempty" xml:"time_series,omitempty"`
+	// Label for current period when time_series is present
+	PeriodCurrentLabel *string `form:"period_current_label,omitempty" json:"period_current_label,omitempty" xml:"period_current_label,omitempty"`
+	// Label for previous period
+	PeriodPreviousLabel *string `form:"period_previous_label,omitempty" json:"period_previous_label,omitempty" xml:"period_previous_label,omitempty"`
+	// Per-column data quality (nulls, distinct)
+	DataQuality map[string]*ColumnQualityDataResponseBody `form:"data_quality,omitempty" json:"data_quality,omitempty" xml:"data_quality,omitempty"`
+	// Performance suggestions from execution time/row count
+	PerfSuggestions []string `form:"perf_suggestions,omitempty" json:"perf_suggestions,omitempty" xml:"perf_suggestions,omitempty"`
+}
+
+// AggregateDataResponseBody is used to define fields on response body types.
+type AggregateDataResponseBody struct {
+	Sum   *float64 `form:"sum,omitempty" json:"sum,omitempty" xml:"sum,omitempty"`
+	Avg   *float64 `form:"avg,omitempty" json:"avg,omitempty" xml:"avg,omitempty"`
+	Min   *float64 `form:"min,omitempty" json:"min,omitempty" xml:"min,omitempty"`
+	Max   *float64 `form:"max,omitempty" json:"max,omitempty" xml:"max,omitempty"`
+	Count *int32   `form:"count,omitempty" json:"count,omitempty" xml:"count,omitempty"`
+	// Standard deviation (stats)
+	StdDev *float64 `form:"std_dev,omitempty" json:"std_dev,omitempty" xml:"std_dev,omitempty"`
+}
+
+// TopCategoryDataResponseBody is used to define fields on response body types.
+type TopCategoryDataResponseBody struct {
+	Category   string  `form:"category" json:"category" xml:"category"`
+	Value      float64 `form:"value" json:"value" xml:"value"`
+	Percentage float64 `form:"percentage" json:"percentage" xml:"percentage"`
+}
+
+// TimeSeriesDataResponseBody is used to define fields on response body types.
+type TimeSeriesDataResponseBody struct {
+	CurrentPeriod    float64  `form:"current_period" json:"current_period" xml:"current_period"`
+	PreviousPeriod   *float64 `form:"previous_period,omitempty" json:"previous_period,omitempty" xml:"previous_period,omitempty"`
+	Change           *float64 `form:"change,omitempty" json:"change,omitempty" xml:"change,omitempty"`
+	ChangePercentage *float64 `form:"change_percentage,omitempty" json:"change_percentage,omitempty" xml:"change_percentage,omitempty"`
+	Trend            string   `form:"trend" json:"trend" xml:"trend"`
+	// Last N period labels and values (newest last)
+	Periods []*PeriodPointDataResponseBody `form:"periods,omitempty" json:"periods,omitempty" xml:"periods,omitempty"`
+	// Simple moving average for latest period (e.g. 3-period SMA)
+	MovingAverage *float64 `form:"moving_average,omitempty" json:"moving_average,omitempty" xml:"moving_average,omitempty"`
+	// Periods flagged as statistical anomalies (e.g. z-score)
+	Anomalies []*AnomalyPointDataResponseBody `form:"anomalies,omitempty" json:"anomalies,omitempty" xml:"anomalies,omitempty"`
+	// Trend over multiple periods (direction, slope, summary)
+	TrendSummary *TrendSummaryDataResponseBody `form:"trend_summary,omitempty" json:"trend_summary,omitempty" xml:"trend_summary,omitempty"`
+	// Simple predictive: last value + trend slope
+	NextPeriodForecast *float64 `form:"next_period_forecast,omitempty" json:"next_period_forecast,omitempty" xml:"next_period_forecast,omitempty"`
+	// Human-readable predictive sentence for the narrative
+	PredictiveSummary *string `form:"predictive_summary,omitempty" json:"predictive_summary,omitempty" xml:"predictive_summary,omitempty"`
+}
+
+// PeriodPointDataResponseBody is used to define fields on response body types.
+type PeriodPointDataResponseBody struct {
+	Label string  `form:"label" json:"label" xml:"label"`
+	Value float64 `form:"value" json:"value" xml:"value"`
+}
+
+// AnomalyPointDataResponseBody is used to define fields on response body types.
+type AnomalyPointDataResponseBody struct {
+	PeriodLabel string  `form:"period_label" json:"period_label" xml:"period_label"`
+	Value       float64 `form:"value" json:"value" xml:"value"`
+	Reason      string  `form:"reason" json:"reason" xml:"reason"`
+}
+
+// TrendSummaryDataResponseBody is used to define fields on response body types.
+type TrendSummaryDataResponseBody struct {
+	// increasing, decreasing, or stable
+	Direction string `form:"direction" json:"direction" xml:"direction"`
+	// Change per period from linear regression
+	Slope       *float64 `form:"slope,omitempty" json:"slope,omitempty" xml:"slope,omitempty"`
+	PeriodsUsed *int32   `form:"periods_used,omitempty" json:"periods_used,omitempty" xml:"periods_used,omitempty"`
+	// Human-readable trend description
+	Summary string `form:"summary" json:"summary" xml:"summary"`
+}
+
+// ColumnQualityDataResponseBody is used to define fields on response body
+// types.
+type ColumnQualityDataResponseBody struct {
+	NullCount     int32 `form:"null_count" json:"null_count" xml:"null_count"`
+	DistinctCount int32 `form:"distinct_count" json:"distinct_count" xml:"distinct_count"`
+	TotalRows     int32 `form:"total_rows" json:"total_rows" xml:"total_rows"`
+	// Null percentage 0–100
+	NullPct float64 `form:"null_pct" json:"null_pct" xml:"null_pct"`
+}
+
+// ChartSuggestionResponseBody is used to define fields on response body types.
+type ChartSuggestionResponseBody struct {
+	// Chart type identifier: bar, line, pie, area, table
+	ChartType string `form:"chart_type" json:"chart_type" xml:"chart_type"`
+	// Human-readable label
+	Label string `form:"label" json:"label" xml:"label"`
+	// Why this chart fits the data
+	Reason string `form:"reason" json:"reason" xml:"reason"`
 }
 
 // NewQueriesResponseBody builds the HTTP response body from the result of the
@@ -73,6 +264,73 @@ func NewSimilarResponseBody(res *suggestions.SuggestedQueriesResult) *SimilarRes
 	return body
 }
 
+// NewAskResponseBody builds the HTTP response body from the result of the
+// "ask" endpoint of the "suggestions" service.
+func NewAskResponseBody(res *suggestions.AskResult) *AskResponseBody {
+	body := &AskResponseBody{
+		Question: res.Question,
+		SQL:      res.SQL,
+	}
+	if res.Report != nil {
+		body.Report = marshalSuggestionsReportToReportResponseBody(res.Report)
+	}
+	return body
+}
+
+// NewExplainResponseBody builds the HTTP response body from the result of the
+// "explain" endpoint of the "suggestions" service.
+func NewExplainResponseBody(res *suggestions.ExplainResult) *ExplainResponseBody {
+	body := &ExplainResponseBody{
+		SQL:         res.SQL,
+		Explanation: res.Explanation,
+	}
+	return body
+}
+
+// NewAskLlmErrorResponseBody builds the HTTP response body from the result of
+// the "ask" endpoint of the "suggestions" service.
+func NewAskLlmErrorResponseBody(res *suggestions.LLMError) *AskLlmErrorResponseBody {
+	body := &AskLlmErrorResponseBody{
+		Name:    res.Name,
+		Message: res.Message,
+		Code:    res.Code,
+	}
+	return body
+}
+
+// NewAskValidationErrorResponseBody builds the HTTP response body from the
+// result of the "ask" endpoint of the "suggestions" service.
+func NewAskValidationErrorResponseBody(res *suggestions.ValidationError) *AskValidationErrorResponseBody {
+	body := &AskValidationErrorResponseBody{
+		Name:    res.Name,
+		Message: res.Message,
+		Code:    res.Code,
+	}
+	return body
+}
+
+// NewExplainLlmErrorResponseBody builds the HTTP response body from the result
+// of the "explain" endpoint of the "suggestions" service.
+func NewExplainLlmErrorResponseBody(res *suggestions.LLMError) *ExplainLlmErrorResponseBody {
+	body := &ExplainLlmErrorResponseBody{
+		Name:    res.Name,
+		Message: res.Message,
+		Code:    res.Code,
+	}
+	return body
+}
+
+// NewExplainValidationErrorResponseBody builds the HTTP response body from the
+// result of the "explain" endpoint of the "suggestions" service.
+func NewExplainValidationErrorResponseBody(res *suggestions.ValidationError) *ExplainValidationErrorResponseBody {
+	body := &ExplainValidationErrorResponseBody{
+		Name:    res.Name,
+		Message: res.Message,
+		Code:    res.Code,
+	}
+	return body
+}
+
 // NewQueriesPayload builds a suggestions service queries endpoint payload.
 func NewQueriesPayload(intent *string, limit int32) *suggestions.QueriesPayload {
 	v := &suggestions.QueriesPayload{}
@@ -89,4 +347,58 @@ func NewSimilarPayload(text *string, limit int32) *suggestions.SimilarPayload {
 	v.Limit = limit
 
 	return v
+}
+
+// NewAskPayload builds a suggestions service ask endpoint payload.
+func NewAskPayload(body *AskRequestBody) *suggestions.AskPayload {
+	v := &suggestions.AskPayload{
+		Question: *body.Question,
+	}
+
+	return v
+}
+
+// NewExplainPayload builds a suggestions service explain endpoint payload.
+func NewExplainPayload(body *ExplainRequestBody) *suggestions.ExplainPayload {
+	v := &suggestions.ExplainPayload{
+		SQL: *body.SQL,
+	}
+
+	return v
+}
+
+// ValidateAskRequestBody runs the validations defined on AskRequestBody
+func ValidateAskRequestBody(body *AskRequestBody) (err error) {
+	if body.Question == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("question", "body"))
+	}
+	if body.Question != nil {
+		if utf8.RuneCountInString(*body.Question) < 1 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.question", *body.Question, utf8.RuneCountInString(*body.Question), 1, true))
+		}
+	}
+	if body.Question != nil {
+		if utf8.RuneCountInString(*body.Question) > 1000 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.question", *body.Question, utf8.RuneCountInString(*body.Question), 1000, false))
+		}
+	}
+	return
+}
+
+// ValidateExplainRequestBody runs the validations defined on ExplainRequestBody
+func ValidateExplainRequestBody(body *ExplainRequestBody) (err error) {
+	if body.SQL == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("sql", "body"))
+	}
+	if body.SQL != nil {
+		if utf8.RuneCountInString(*body.SQL) < 1 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.sql", *body.SQL, utf8.RuneCountInString(*body.SQL), 1, true))
+		}
+	}
+	if body.SQL != nil {
+		if utf8.RuneCountInString(*body.SQL) > 10000 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.sql", *body.SQL, utf8.RuneCountInString(*body.SQL), 10000, false))
+		}
+	}
+	return
 }

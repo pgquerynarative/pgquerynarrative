@@ -9,6 +9,8 @@ package server
 
 import (
 	"context"
+	"errors"
+	"io"
 	"net/http"
 	"strconv"
 
@@ -123,6 +125,172 @@ func DecodeSimilarRequest(mux goahttp.Muxer, decoder func(*http.Request) goahttp
 	}
 }
 
+// EncodeAskResponse returns an encoder for responses returned by the
+// suggestions ask endpoint.
+func EncodeAskResponse(encoder func(context.Context, http.ResponseWriter) goahttp.Encoder) func(context.Context, http.ResponseWriter, any) error {
+	return func(ctx context.Context, w http.ResponseWriter, v any) error {
+		res, _ := v.(*suggestions.AskResult)
+		enc := encoder(ctx, w)
+		body := NewAskResponseBody(res)
+		w.WriteHeader(http.StatusOK)
+		return enc.Encode(body)
+	}
+}
+
+// DecodeAskRequest returns a decoder for requests sent to the suggestions ask
+// endpoint.
+func DecodeAskRequest(mux goahttp.Muxer, decoder func(*http.Request) goahttp.Decoder) func(*http.Request) (*suggestions.AskPayload, error) {
+	return func(r *http.Request) (*suggestions.AskPayload, error) {
+		var (
+			body AskRequestBody
+			err  error
+		)
+		err = decoder(r).Decode(&body)
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				return nil, goa.MissingPayloadError()
+			}
+			var gerr *goa.ServiceError
+			if errors.As(err, &gerr) {
+				return nil, gerr
+			}
+			return nil, goa.DecodePayloadError(err.Error())
+		}
+		err = ValidateAskRequestBody(&body)
+		if err != nil {
+			return nil, err
+		}
+		payload := NewAskPayload(&body)
+
+		return payload, nil
+	}
+}
+
+// EncodeAskError returns an encoder for errors returned by the ask suggestions
+// endpoint.
+func EncodeAskError(encoder func(context.Context, http.ResponseWriter) goahttp.Encoder, formatter func(ctx context.Context, err error) goahttp.Statuser) func(context.Context, http.ResponseWriter, error) error {
+	encodeError := goahttp.ErrorEncoder(encoder, formatter)
+	return func(ctx context.Context, w http.ResponseWriter, v error) error {
+		var en goa.GoaErrorNamer
+		if !errors.As(v, &en) {
+			return encodeError(ctx, w, v)
+		}
+		switch en.GoaErrorName() {
+		case "llm_error":
+			var res *suggestions.LLMError
+			errors.As(v, &res)
+			enc := encoder(ctx, w)
+			var body any
+			if formatter != nil {
+				body = formatter(ctx, res)
+			} else {
+				body = NewAskLlmErrorResponseBody(res)
+			}
+			w.Header().Set("goa-error", res.GoaErrorName())
+			w.WriteHeader(http.StatusInternalServerError)
+			return enc.Encode(body)
+		case "validation_error":
+			var res *suggestions.ValidationError
+			errors.As(v, &res)
+			enc := encoder(ctx, w)
+			var body any
+			if formatter != nil {
+				body = formatter(ctx, res)
+			} else {
+				body = NewAskValidationErrorResponseBody(res)
+			}
+			w.Header().Set("goa-error", res.GoaErrorName())
+			w.WriteHeader(http.StatusBadRequest)
+			return enc.Encode(body)
+		default:
+			return encodeError(ctx, w, v)
+		}
+	}
+}
+
+// EncodeExplainResponse returns an encoder for responses returned by the
+// suggestions explain endpoint.
+func EncodeExplainResponse(encoder func(context.Context, http.ResponseWriter) goahttp.Encoder) func(context.Context, http.ResponseWriter, any) error {
+	return func(ctx context.Context, w http.ResponseWriter, v any) error {
+		res, _ := v.(*suggestions.ExplainResult)
+		enc := encoder(ctx, w)
+		body := NewExplainResponseBody(res)
+		w.WriteHeader(http.StatusOK)
+		return enc.Encode(body)
+	}
+}
+
+// DecodeExplainRequest returns a decoder for requests sent to the suggestions
+// explain endpoint.
+func DecodeExplainRequest(mux goahttp.Muxer, decoder func(*http.Request) goahttp.Decoder) func(*http.Request) (*suggestions.ExplainPayload, error) {
+	return func(r *http.Request) (*suggestions.ExplainPayload, error) {
+		var (
+			body ExplainRequestBody
+			err  error
+		)
+		err = decoder(r).Decode(&body)
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				return nil, goa.MissingPayloadError()
+			}
+			var gerr *goa.ServiceError
+			if errors.As(err, &gerr) {
+				return nil, gerr
+			}
+			return nil, goa.DecodePayloadError(err.Error())
+		}
+		err = ValidateExplainRequestBody(&body)
+		if err != nil {
+			return nil, err
+		}
+		payload := NewExplainPayload(&body)
+
+		return payload, nil
+	}
+}
+
+// EncodeExplainError returns an encoder for errors returned by the explain
+// suggestions endpoint.
+func EncodeExplainError(encoder func(context.Context, http.ResponseWriter) goahttp.Encoder, formatter func(ctx context.Context, err error) goahttp.Statuser) func(context.Context, http.ResponseWriter, error) error {
+	encodeError := goahttp.ErrorEncoder(encoder, formatter)
+	return func(ctx context.Context, w http.ResponseWriter, v error) error {
+		var en goa.GoaErrorNamer
+		if !errors.As(v, &en) {
+			return encodeError(ctx, w, v)
+		}
+		switch en.GoaErrorName() {
+		case "llm_error":
+			var res *suggestions.LLMError
+			errors.As(v, &res)
+			enc := encoder(ctx, w)
+			var body any
+			if formatter != nil {
+				body = formatter(ctx, res)
+			} else {
+				body = NewExplainLlmErrorResponseBody(res)
+			}
+			w.Header().Set("goa-error", res.GoaErrorName())
+			w.WriteHeader(http.StatusInternalServerError)
+			return enc.Encode(body)
+		case "validation_error":
+			var res *suggestions.ValidationError
+			errors.As(v, &res)
+			enc := encoder(ctx, w)
+			var body any
+			if formatter != nil {
+				body = formatter(ctx, res)
+			} else {
+				body = NewExplainValidationErrorResponseBody(res)
+			}
+			w.Header().Set("goa-error", res.GoaErrorName())
+			w.WriteHeader(http.StatusBadRequest)
+			return enc.Encode(body)
+		default:
+			return encodeError(ctx, w, v)
+		}
+	}
+}
+
 // marshalSuggestionsQuerySuggestionToQuerySuggestionResponseBody builds a
 // value of type *QuerySuggestionResponseBody from a value of type
 // *suggestions.QuerySuggestion.
@@ -131,6 +299,299 @@ func marshalSuggestionsQuerySuggestionToQuerySuggestionResponseBody(v *suggestio
 		SQL:    v.SQL,
 		Title:  v.Title,
 		Source: v.Source,
+	}
+
+	return res
+}
+
+// marshalSuggestionsReportToReportResponseBody builds a value of type
+// *ReportResponseBody from a value of type *suggestions.Report.
+func marshalSuggestionsReportToReportResponseBody(v *suggestions.Report) *ReportResponseBody {
+	res := &ReportResponseBody{
+		ID:           v.ID,
+		SavedQueryID: v.SavedQueryID,
+		SQL:          v.SQL,
+		CreatedAt:    v.CreatedAt,
+		LlmModel:     v.LlmModel,
+		LlmProvider:  v.LlmProvider,
+	}
+	if v.Narrative != nil {
+		res.Narrative = marshalSuggestionsNarrativeContentToNarrativeContentResponseBody(v.Narrative)
+	}
+	if v.Metrics != nil {
+		res.Metrics = marshalSuggestionsMetricsDataToMetricsDataResponseBody(v.Metrics)
+	}
+	if v.ChartSuggestions != nil {
+		res.ChartSuggestions = make([]*ChartSuggestionResponseBody, len(v.ChartSuggestions))
+		for i, val := range v.ChartSuggestions {
+			if val == nil {
+				res.ChartSuggestions[i] = nil
+				continue
+			}
+			res.ChartSuggestions[i] = marshalSuggestionsChartSuggestionToChartSuggestionResponseBody(val)
+		}
+	}
+
+	return res
+}
+
+// marshalSuggestionsNarrativeContentToNarrativeContentResponseBody builds a
+// value of type *NarrativeContentResponseBody from a value of type
+// *suggestions.NarrativeContent.
+func marshalSuggestionsNarrativeContentToNarrativeContentResponseBody(v *suggestions.NarrativeContent) *NarrativeContentResponseBody {
+	res := &NarrativeContentResponseBody{
+		Headline: v.Headline,
+	}
+	if v.Takeaways != nil {
+		res.Takeaways = make([]string, len(v.Takeaways))
+		for i, val := range v.Takeaways {
+			res.Takeaways[i] = val
+		}
+	} else {
+		res.Takeaways = []string{}
+	}
+	if v.Drivers != nil {
+		res.Drivers = make([]string, len(v.Drivers))
+		for i, val := range v.Drivers {
+			res.Drivers[i] = val
+		}
+	}
+	if v.Limitations != nil {
+		res.Limitations = make([]string, len(v.Limitations))
+		for i, val := range v.Limitations {
+			res.Limitations[i] = val
+		}
+	}
+	if v.Recommendations != nil {
+		res.Recommendations = make([]string, len(v.Recommendations))
+		for i, val := range v.Recommendations {
+			res.Recommendations[i] = val
+		}
+	}
+
+	return res
+}
+
+// marshalSuggestionsMetricsDataToMetricsDataResponseBody builds a value of
+// type *MetricsDataResponseBody from a value of type *suggestions.MetricsData.
+func marshalSuggestionsMetricsDataToMetricsDataResponseBody(v *suggestions.MetricsData) *MetricsDataResponseBody {
+	res := &MetricsDataResponseBody{
+		PeriodCurrentLabel:  v.PeriodCurrentLabel,
+		PeriodPreviousLabel: v.PeriodPreviousLabel,
+	}
+	if v.Aggregates != nil {
+		res.Aggregates = make(map[string]*AggregateDataResponseBody, len(v.Aggregates))
+		for key, val := range v.Aggregates {
+			tk := key
+			if val == nil {
+				res.Aggregates[tk] = nil
+				continue
+			}
+			res.Aggregates[tk] = marshalSuggestionsAggregateDataToAggregateDataResponseBody(val)
+		}
+	}
+	if v.TopCategories != nil {
+		res.TopCategories = make(map[string][]*TopCategoryDataResponseBody, len(v.TopCategories))
+		for key, val := range v.TopCategories {
+			tk := key
+			tv := make([]*TopCategoryDataResponseBody, len(val))
+			for i, val := range val {
+				if val == nil {
+					tv[i] = nil
+					continue
+				}
+				tv[i] = marshalSuggestionsTopCategoryDataToTopCategoryDataResponseBody(val)
+			}
+			res.TopCategories[tk] = tv
+		}
+	}
+	if v.TimeSeries != nil {
+		res.TimeSeries = make(map[string]*TimeSeriesDataResponseBody, len(v.TimeSeries))
+		for key, val := range v.TimeSeries {
+			tk := key
+			if val == nil {
+				res.TimeSeries[tk] = nil
+				continue
+			}
+			res.TimeSeries[tk] = marshalSuggestionsTimeSeriesDataToTimeSeriesDataResponseBody(val)
+		}
+	}
+	if v.DataQuality != nil {
+		res.DataQuality = make(map[string]*ColumnQualityDataResponseBody, len(v.DataQuality))
+		for key, val := range v.DataQuality {
+			tk := key
+			if val == nil {
+				res.DataQuality[tk] = nil
+				continue
+			}
+			res.DataQuality[tk] = marshalSuggestionsColumnQualityDataToColumnQualityDataResponseBody(val)
+		}
+	}
+	if v.PerfSuggestions != nil {
+		res.PerfSuggestions = make([]string, len(v.PerfSuggestions))
+		for i, val := range v.PerfSuggestions {
+			res.PerfSuggestions[i] = val
+		}
+	}
+
+	return res
+}
+
+// marshalSuggestionsAggregateDataToAggregateDataResponseBody builds a value of
+// type *AggregateDataResponseBody from a value of type
+// *suggestions.AggregateData.
+func marshalSuggestionsAggregateDataToAggregateDataResponseBody(v *suggestions.AggregateData) *AggregateDataResponseBody {
+	if v == nil {
+		return nil
+	}
+	res := &AggregateDataResponseBody{
+		Sum:    v.Sum,
+		Avg:    v.Avg,
+		Min:    v.Min,
+		Max:    v.Max,
+		Count:  v.Count,
+		StdDev: v.StdDev,
+	}
+
+	return res
+}
+
+// marshalSuggestionsTopCategoryDataToTopCategoryDataResponseBody builds a
+// value of type *TopCategoryDataResponseBody from a value of type
+// *suggestions.TopCategoryData.
+func marshalSuggestionsTopCategoryDataToTopCategoryDataResponseBody(v *suggestions.TopCategoryData) *TopCategoryDataResponseBody {
+	if v == nil {
+		return nil
+	}
+	res := &TopCategoryDataResponseBody{
+		Category:   v.Category,
+		Value:      v.Value,
+		Percentage: v.Percentage,
+	}
+
+	return res
+}
+
+// marshalSuggestionsTimeSeriesDataToTimeSeriesDataResponseBody builds a value
+// of type *TimeSeriesDataResponseBody from a value of type
+// *suggestions.TimeSeriesData.
+func marshalSuggestionsTimeSeriesDataToTimeSeriesDataResponseBody(v *suggestions.TimeSeriesData) *TimeSeriesDataResponseBody {
+	if v == nil {
+		return nil
+	}
+	res := &TimeSeriesDataResponseBody{
+		CurrentPeriod:      v.CurrentPeriod,
+		PreviousPeriod:     v.PreviousPeriod,
+		Change:             v.Change,
+		ChangePercentage:   v.ChangePercentage,
+		Trend:              v.Trend,
+		MovingAverage:      v.MovingAverage,
+		NextPeriodForecast: v.NextPeriodForecast,
+		PredictiveSummary:  v.PredictiveSummary,
+	}
+	if v.Periods != nil {
+		res.Periods = make([]*PeriodPointDataResponseBody, len(v.Periods))
+		for i, val := range v.Periods {
+			if val == nil {
+				res.Periods[i] = nil
+				continue
+			}
+			res.Periods[i] = marshalSuggestionsPeriodPointDataToPeriodPointDataResponseBody(val)
+		}
+	}
+	if v.Anomalies != nil {
+		res.Anomalies = make([]*AnomalyPointDataResponseBody, len(v.Anomalies))
+		for i, val := range v.Anomalies {
+			if val == nil {
+				res.Anomalies[i] = nil
+				continue
+			}
+			res.Anomalies[i] = marshalSuggestionsAnomalyPointDataToAnomalyPointDataResponseBody(val)
+		}
+	}
+	if v.TrendSummary != nil {
+		res.TrendSummary = marshalSuggestionsTrendSummaryDataToTrendSummaryDataResponseBody(v.TrendSummary)
+	}
+
+	return res
+}
+
+// marshalSuggestionsPeriodPointDataToPeriodPointDataResponseBody builds a
+// value of type *PeriodPointDataResponseBody from a value of type
+// *suggestions.PeriodPointData.
+func marshalSuggestionsPeriodPointDataToPeriodPointDataResponseBody(v *suggestions.PeriodPointData) *PeriodPointDataResponseBody {
+	if v == nil {
+		return nil
+	}
+	res := &PeriodPointDataResponseBody{
+		Label: v.Label,
+		Value: v.Value,
+	}
+
+	return res
+}
+
+// marshalSuggestionsAnomalyPointDataToAnomalyPointDataResponseBody builds a
+// value of type *AnomalyPointDataResponseBody from a value of type
+// *suggestions.AnomalyPointData.
+func marshalSuggestionsAnomalyPointDataToAnomalyPointDataResponseBody(v *suggestions.AnomalyPointData) *AnomalyPointDataResponseBody {
+	if v == nil {
+		return nil
+	}
+	res := &AnomalyPointDataResponseBody{
+		PeriodLabel: v.PeriodLabel,
+		Value:       v.Value,
+		Reason:      v.Reason,
+	}
+
+	return res
+}
+
+// marshalSuggestionsTrendSummaryDataToTrendSummaryDataResponseBody builds a
+// value of type *TrendSummaryDataResponseBody from a value of type
+// *suggestions.TrendSummaryData.
+func marshalSuggestionsTrendSummaryDataToTrendSummaryDataResponseBody(v *suggestions.TrendSummaryData) *TrendSummaryDataResponseBody {
+	if v == nil {
+		return nil
+	}
+	res := &TrendSummaryDataResponseBody{
+		Direction:   v.Direction,
+		Slope:       v.Slope,
+		PeriodsUsed: v.PeriodsUsed,
+		Summary:     v.Summary,
+	}
+
+	return res
+}
+
+// marshalSuggestionsColumnQualityDataToColumnQualityDataResponseBody builds a
+// value of type *ColumnQualityDataResponseBody from a value of type
+// *suggestions.ColumnQualityData.
+func marshalSuggestionsColumnQualityDataToColumnQualityDataResponseBody(v *suggestions.ColumnQualityData) *ColumnQualityDataResponseBody {
+	if v == nil {
+		return nil
+	}
+	res := &ColumnQualityDataResponseBody{
+		NullCount:     v.NullCount,
+		DistinctCount: v.DistinctCount,
+		TotalRows:     v.TotalRows,
+		NullPct:       v.NullPct,
+	}
+
+	return res
+}
+
+// marshalSuggestionsChartSuggestionToChartSuggestionResponseBody builds a
+// value of type *ChartSuggestionResponseBody from a value of type
+// *suggestions.ChartSuggestion.
+func marshalSuggestionsChartSuggestionToChartSuggestionResponseBody(v *suggestions.ChartSuggestion) *ChartSuggestionResponseBody {
+	if v == nil {
+		return nil
+	}
+	res := &ChartSuggestionResponseBody{
+		ChartType: v.ChartType,
+		Label:     v.Label,
+		Reason:    v.Reason,
 	}
 
 	return res

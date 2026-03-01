@@ -20,6 +20,11 @@ type Service interface {
 	// Return saved queries semantically similar to the given text
 	// (embedding-based). Requires embeddings to be enabled.
 	Similar(context.Context, *SimilarPayload) (res *SuggestedQueriesResult, err error)
+	// Natural language to SQL and report in one step: ask a question, get a
+	// generated SELECT, run it, and return the narrative report. Requires LLM.
+	Ask(context.Context, *AskPayload) (res *AskResult, err error)
+	// Explain a SQL query in plain English (one or two sentences). Requires LLM.
+	Explain(context.Context, *ExplainPayload) (res *ExplainResult, err error)
 }
 
 // APIName is the name of the API as defined in the design.
@@ -36,7 +41,104 @@ const ServiceName = "suggestions"
 // MethodNames lists the service method names as defined in the design. These
 // are the same values that are set in the endpoint request contexts under the
 // MethodKey key.
-var MethodNames = [2]string{"queries", "similar"}
+var MethodNames = [4]string{"queries", "similar", "ask", "explain"}
+
+type AggregateData struct {
+	Sum   *float64
+	Avg   *float64
+	Min   *float64
+	Max   *float64
+	Count *int32
+	// Standard deviation (stats)
+	StdDev *float64
+}
+
+type AnomalyPointData struct {
+	PeriodLabel string
+	Value       float64
+	Reason      string
+}
+
+// AskPayload is the payload type of the suggestions service ask method.
+type AskPayload struct {
+	// Natural-language question (e.g. 'What were top 5 products by revenue last
+	// month?')
+	Question string
+}
+
+// AskResult is the result type of the suggestions service ask method.
+type AskResult struct {
+	// The original natural-language question
+	Question string
+	// The generated and executed SQL
+	SQL string
+	// The narrative report from the query result
+	Report *Report
+}
+
+type ChartSuggestion struct {
+	// Chart type identifier: bar, line, pie, area, table
+	ChartType string
+	// Human-readable label
+	Label string
+	// Why this chart fits the data
+	Reason string
+}
+
+type ColumnQualityData struct {
+	NullCount     int32
+	DistinctCount int32
+	TotalRows     int32
+	// Null percentage 0–100
+	NullPct float64
+}
+
+// ExplainPayload is the payload type of the suggestions service explain method.
+type ExplainPayload struct {
+	// Read-only SQL to explain (SELECT or WITH).
+	SQL string
+}
+
+// ExplainResult is the result type of the suggestions service explain method.
+type ExplainResult struct {
+	// The SQL that was explained
+	SQL string
+	// Plain-English explanation (one or two sentences)
+	Explanation string
+}
+
+type LLMError struct {
+	Name    string
+	Message string
+	Code    *string
+}
+
+type MetricsData struct {
+	Aggregates    map[string]*AggregateData
+	TopCategories map[string][]*TopCategoryData
+	TimeSeries    map[string]*TimeSeriesData
+	// Label for current period when time_series is present
+	PeriodCurrentLabel *string
+	// Label for previous period
+	PeriodPreviousLabel *string
+	// Per-column data quality (nulls, distinct)
+	DataQuality map[string]*ColumnQualityData
+	// Performance suggestions from execution time/row count
+	PerfSuggestions []string
+}
+
+type NarrativeContent struct {
+	Headline        string
+	Takeaways       []string
+	Drivers         []string
+	Limitations     []string
+	Recommendations []string
+}
+
+type PeriodPointData struct {
+	Label string
+	Value float64
+}
 
 // QueriesPayload is the payload type of the suggestions service queries method.
 type QueriesPayload struct {
@@ -56,6 +158,19 @@ type QuerySuggestion struct {
 	Source string
 }
 
+type Report struct {
+	ID           string
+	SavedQueryID *string
+	SQL          string
+	Narrative    *NarrativeContent
+	Metrics      *MetricsData
+	// Suggested chart types based on result shape
+	ChartSuggestions []*ChartSuggestion
+	CreatedAt        string
+	LlmModel         string
+	LlmProvider      string
+}
+
 // SimilarPayload is the payload type of the suggestions service similar method.
 type SimilarPayload struct {
 	// Natural-language or SQL text to find similar queries for.
@@ -69,4 +184,80 @@ type SimilarPayload struct {
 type SuggestedQueriesResult struct {
 	// Suggested SQL and metadata
 	Suggestions []*QuerySuggestion
+}
+
+type TimeSeriesData struct {
+	CurrentPeriod    float64
+	PreviousPeriod   *float64
+	Change           *float64
+	ChangePercentage *float64
+	Trend            string
+	// Last N period labels and values (newest last)
+	Periods []*PeriodPointData
+	// Simple moving average for latest period (e.g. 3-period SMA)
+	MovingAverage *float64
+	// Periods flagged as statistical anomalies (e.g. z-score)
+	Anomalies []*AnomalyPointData
+	// Trend over multiple periods (direction, slope, summary)
+	TrendSummary *TrendSummaryData
+	// Simple predictive: last value + trend slope
+	NextPeriodForecast *float64
+	// Human-readable predictive sentence for the narrative
+	PredictiveSummary *string
+}
+
+type TopCategoryData struct {
+	Category   string
+	Value      float64
+	Percentage float64
+}
+
+type TrendSummaryData struct {
+	// increasing, decreasing, or stable
+	Direction string
+	// Change per period from linear regression
+	Slope       *float64
+	PeriodsUsed *int32
+	// Human-readable trend description
+	Summary string
+}
+
+type ValidationError struct {
+	Name    string
+	Message string
+	Code    *string
+}
+
+// Error returns an error description.
+func (e *LLMError) Error() string {
+	return ""
+}
+
+// ErrorName returns "LLMError".
+//
+// Deprecated: Use GoaErrorName - https://github.com/goadesign/goa/issues/3105
+func (e *LLMError) ErrorName() string {
+	return e.GoaErrorName()
+}
+
+// GoaErrorName returns "LLMError".
+func (e *LLMError) GoaErrorName() string {
+	return "llm_error"
+}
+
+// Error returns an error description.
+func (e *ValidationError) Error() string {
+	return ""
+}
+
+// ErrorName returns "ValidationError".
+//
+// Deprecated: Use GoaErrorName - https://github.com/goadesign/goa/issues/3105
+func (e *ValidationError) ErrorName() string {
+	return e.GoaErrorName()
+}
+
+// GoaErrorName returns "ValidationError".
+func (e *ValidationError) GoaErrorName() string {
+	return "validation_error"
 }

@@ -13,7 +13,7 @@ Run read-only SQL against PostgreSQL, get metrics and chart suggestions, and gen
 
 ## Overview
 
-PgQueryNarrative is a Go application that executes read-only SQL against a PostgreSQL database, computes metrics (aggregates, time-series, period comparison, anomaly detection), suggests chart types from result structure, and generates narrative reports via a configurable LLM. The [React SPA](frontend/) provides a query editor, saved queries, reports list, and export (HTML/PDF). The REST API and [CLI](docs/usage/cli-usage.md) support automation and integration.
+PgQueryNarrative is a Go application that executes read-only SQL against a PostgreSQL database, computes metrics (aggregates, time-series, period comparison, anomaly detection), suggests chart types from result structure, and generates narrative reports via a configurable LLM. The [React SPA](frontend/) provides a query editor (schema browser, suggestions, Ask), saved queries, reports list, and export (HTML/PDF). The REST API and [CLI](docs/usage/cli-usage.md) support automation and integration.
 
 ## Quick start
 

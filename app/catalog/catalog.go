@@ -12,8 +12,8 @@ import (
 )
 
 // Loader loads schema metadata from the database using the read-only pool.
-// Only tables in allowed schemas are returned, so the result matches
-// what the query validator permits.
+// Only tables and views in allowed schemas are returned (information_schema.columns
+// includes both), so the result matches what the query validator permits.
 type Loader struct {
 	pool           *pgxpool.Pool
 	allowedSchemas []string
@@ -35,8 +35,9 @@ const infoSchemaColumns = `
 	ORDER BY table_schema, table_name, ordinal_position
 `
 
-// Load returns the list of allowed schemas with their tables and columns.
+// Load returns the list of allowed schemas with their tables, views, and columns.
 // It uses the read-only pool so only objects visible to that user are included.
+// Views in allowed schemas (e.g. demo.sales_summary) are included automatically.
 func (l *Loader) Load(ctx context.Context) (*schema.SchemaResult, error) {
 	if len(l.allowedSchemas) == 0 {
 		return &schema.SchemaResult{Schemas: []*schema.SchemaInfo{}}, nil

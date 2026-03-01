@@ -1,6 +1,7 @@
-FROM alpine:latest
+FROM alpine:3.20
 
-RUN apk add --no-cache curl jq
+RUN apk add --no-cache curl jq && \
+    adduser -D -u 1000 cliuser
 
 WORKDIR /app
 
@@ -8,7 +9,8 @@ COPY tools/cli/pgquerynarrative-cli.sh /usr/local/bin/pgquerynarrative
 RUN chmod +x /usr/local/bin/pgquerynarrative
 
 # Create alias for convenience (works with sh)
-RUN echo 'alias pqn="pgquerynarrative"' >> /root/.profile
 RUN echo 'alias pqn="pgquerynarrative"' >> /etc/profile
+
+USER cliuser:cliuser
 
 CMD ["/bin/sh"]
