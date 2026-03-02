@@ -25,10 +25,10 @@ func TestLimiter_Allow(t *testing.T) {
 		t.Error("nil limiter should allow")
 	}
 
-	// rpm=2: first two allowed, third denied
-	l := ratelimit.NewLimiter(2, 10)
+	// rpm=2, burst=2: token bucket starts with 2 tokens; first two allowed, third denied
+	l := ratelimit.NewLimiter(2, 2)
 	if l == nil {
-		t.Fatal("NewLimiter(2, 10) returned nil")
+		t.Fatal("NewLimiter(2, 2) returned nil")
 	}
 	key := "client-A"
 	if !l.Allow(key) {
@@ -38,7 +38,7 @@ func TestLimiter_Allow(t *testing.T) {
 		t.Error("second request should be allowed")
 	}
 	if l.Allow(key) {
-		t.Error("third request should be denied")
+		t.Error("third request should be denied (no tokens until refill)")
 	}
 	if l.Allow(key) {
 		t.Error("fourth request should be denied")

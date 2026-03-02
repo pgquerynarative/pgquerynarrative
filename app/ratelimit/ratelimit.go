@@ -1,5 +1,6 @@
 // Package ratelimit provides in-memory per-key rate limiting for the HTTP server.
 // When SECURITY_RATE_LIMIT_RPM > 0, requests are limited per client key (IP or identity).
+// Burst is supported: a token bucket refills at rpm tokens per minute, capped at burst.
 package ratelimit
 
 import (
@@ -7,17 +8,18 @@ import (
 	"time"
 )
 
-// Limiter limits the number of requests per key within a time window.
+// Limiter limits the number of requests per key using a token bucket.
 // Keys are typically client IP or authenticated identity.
 type Limiter struct {
-	mu     sync.Mutex
-	hits   map[string][]time.Time
-	rpm    int
-	window time.Duration
+	mu         sync.Mutex
+	tokens     map[string]float64
+	lastRefill map[string]time.Time
+	rpm        int
+	burst      int
 }
 
-// NewLimiter returns a limiter that allows rpm requests per key per minute.
-// Burst is ignored in this implementation; the window is one minute.
+// NewLimiter returns a limiter that allows up to burst tokens per key, refilling at rpm per minute.
+// When burst <= 0 it defaults to rpm * 2.
 func NewLimiter(rpm int, burst int) *Limiter {
 	if rpm <= 0 {
 		return nil
@@ -25,16 +27,17 @@ func NewLimiter(rpm int, burst int) *Limiter {
 	if burst <= 0 {
 		burst = rpm * 2
 	}
-	_ = burst // reserve for future use
 	return &Limiter{
-		hits:   make(map[string][]time.Time),
-		rpm:    rpm,
-		window: time.Minute,
+		tokens:     make(map[string]float64),
+		lastRefill: make(map[string]time.Time),
+		rpm:        rpm,
+		burst:      burst,
 	}
 }
 
 // Allow reports whether the request for key is allowed.
-// It records the request and prunes old entries for key. Thread-safe.
+// It refills the token bucket for key (at rpm per minute, capped at burst), then consumes one token if available.
+// Thread-safe.
 func (l *Limiter) Allow(key string) bool {
 	if l == nil || l.rpm <= 0 {
 		return true
@@ -42,21 +45,25 @@ func (l *Limiter) Allow(key string) bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	now := time.Now()
-	cutoff := now.Add(-l.window)
-	times := l.hits[key]
-	// Prune entries outside the window
-	i := 0
-	for _, t := range times {
-		if t.After(cutoff) {
-			times[i] = t
-			i++
-		}
+	tokens := l.tokens[key]
+	last := l.lastRefill[key]
+	if last.IsZero() {
+		// First use for this key: start with full bucket
+		tokens = float64(l.burst)
+		last = now
+	} else {
+		// Refill: tokens per minute elapsed
+		elapsed := now.Sub(last).Minutes()
+		tokens += float64(l.rpm) * elapsed
 	}
-	times = times[:i]
-	if len(times) >= l.rpm {
-		l.hits[key] = times
-		return false
+	if tokens > float64(l.burst) {
+		tokens = float64(l.burst)
 	}
-	l.hits[key] = append(times, now)
-	return true
+	l.lastRefill[key] = now
+	if tokens >= 1 {
+		l.tokens[key] = tokens - 1
+		return true
+	}
+	l.tokens[key] = tokens
+	return false
 }

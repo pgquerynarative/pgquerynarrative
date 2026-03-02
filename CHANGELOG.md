@@ -11,7 +11,18 @@ Entries: edit `changelog/unreleased.md` then run `make changelog`.
 
 All items below are **Release 1** scope. The next version (e.g. v1.0.0) will ship Release 1.
 
+### Planned (Release 2)
+
+Additional analytics: further cohort metrics, configurable windows, and seasonal adjustments.
+
 ### Added
+- **Isolation Forest anomaly detection:** `METRICS_ANOMALY_METHOD=isolation_forest` now supported; calculator branches on method and uses Isolation Forest (random trees, median split, anomaly score) when set; z-score remains default
+- **Rate limit burst:** Token-bucket limiter; `SECURITY_RATE_LIMIT_BURST` is now used (refill at RPM, cap at burst); new keys start with full bucket
+- **Cohort analysis:** When a dimension column name contains `cohort` (e.g. `cohort_month`), metrics calculator aggregates by (cohort, period) and fills `metrics.cohorts` with period values and optional retention %; period column can be text or numeric
+- **Cohort in report UI:** Report detail Analytics card shows a Cohorts section (cohort label, retention %, period–value table) when `metrics.cohorts` is present
+- **Cohort in HTML/PDF export:** Report export (HTML and PDF) includes a Cohorts section with the same structure
+- **E2E test for cohort:** `Generate_Cohorts` subtest in reports E2E verifies cohort-shaped query produces `metrics.cohorts`
+- **Docs:** Cohort input shape documented (Configuration – Cohort analysis); UI overview and docs index updated; reference to removed file removed from changelog
 - **Period comparison:** Automatic period-over-period (e.g. this month vs last month) when query results have a date/time column and numeric measures; derived % change and trend (up/down/flat); "Vs previous period" block in query results and report UI with optional period labels
 - **Run query API:** `period_comparison` array and optional `period_current_label` / `period_previous_label` on run response
 - **Reports API:** `metrics.period_current_label` and `metrics.period_previous_label` when time series is present

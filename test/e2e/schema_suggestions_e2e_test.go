@@ -15,6 +15,7 @@ import (
 	schema "github.com/pgquerynarrative/pgquerynarrative/api/gen/schema"
 	suggestions "github.com/pgquerynarrative/pgquerynarrative/api/gen/suggestions"
 	"github.com/pgquerynarrative/pgquerynarrative/app/catalog"
+	"github.com/pgquerynarrative/pgquerynarrative/app/config"
 	"github.com/pgquerynarrative/pgquerynarrative/app/queryrunner"
 	"github.com/pgquerynarrative/pgquerynarrative/app/service"
 	pkgsuggestions "github.com/pgquerynarrative/pgquerynarrative/app/suggestions"
@@ -37,7 +38,7 @@ func TestSchemaAndSuggestionsE2E(t *testing.T) {
 	validator := queryrunner.NewValidator([]string{"demo"}, 10000)
 	runner := queryrunner.NewRunner(pool, validator, 1000, 30*time.Second)
 	mockLLM := &e2eLLM{response: ""}
-	reportsService := service.NewReportsService(pool, pool, runner, mockLLM, 0)
+	reportsService := service.NewReportsService(pool, pool, runner, mockLLM, config.MetricsConfig{})
 	askService := service.NewAskService(loader, mockLLM, validator, reportsService)
 	suggestionsService := &service.SuggestionsServiceWrapper{Suggester: suggester, AskSvc: askService}
 	schemaEndpoints := schema.NewEndpoints(schemaService)

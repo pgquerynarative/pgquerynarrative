@@ -355,6 +355,26 @@ func unmarshalMetricsDataResponseBodyToReportsMetricsData(v *MetricsDataResponse
 			res.TimeSeries[tk] = unmarshalTimeSeriesDataResponseBodyToReportsTimeSeriesData(val)
 		}
 	}
+	if v.Correlations != nil {
+		res.Correlations = make([]*reports.CorrelationPairData, len(v.Correlations))
+		for i, val := range v.Correlations {
+			if val == nil {
+				res.Correlations[i] = nil
+				continue
+			}
+			res.Correlations[i] = unmarshalCorrelationPairDataResponseBodyToReportsCorrelationPairData(val)
+		}
+	}
+	if v.Cohorts != nil {
+		res.Cohorts = make([]*reports.CohortMetricData, len(v.Cohorts))
+		for i, val := range v.Cohorts {
+			if val == nil {
+				res.Cohorts[i] = nil
+				continue
+			}
+			res.Cohorts[i] = unmarshalCohortMetricDataResponseBodyToReportsCohortMetricData(val)
+		}
+	}
 	if v.DataQuality != nil {
 		res.DataQuality = make(map[string]*reports.ColumnQualityData, len(v.DataQuality))
 		for key, val := range v.DataQuality {
@@ -418,14 +438,20 @@ func unmarshalTimeSeriesDataResponseBodyToReportsTimeSeriesData(v *TimeSeriesDat
 		return nil
 	}
 	res := &reports.TimeSeriesData{
-		CurrentPeriod:      *v.CurrentPeriod,
-		PreviousPeriod:     v.PreviousPeriod,
-		Change:             v.Change,
-		ChangePercentage:   v.ChangePercentage,
-		Trend:              *v.Trend,
-		MovingAverage:      v.MovingAverage,
-		NextPeriodForecast: v.NextPeriodForecast,
-		PredictiveSummary:  v.PredictiveSummary,
+		CurrentPeriod:              *v.CurrentPeriod,
+		PreviousPeriod:             v.PreviousPeriod,
+		Change:                     v.Change,
+		ChangePercentage:           v.ChangePercentage,
+		Trend:                      *v.Trend,
+		MovingAverage:              v.MovingAverage,
+		NextPeriodForecast:         v.NextPeriodForecast,
+		ForecastCiLower:            v.ForecastCiLower,
+		ForecastCiUpper:            v.ForecastCiUpper,
+		PredictiveSummary:          v.PredictiveSummary,
+		ExponentialSmoothForecast:  v.ExponentialSmoothForecast,
+		HoltForecast:               v.HoltForecast,
+		SeasonalPeriod:             v.SeasonalPeriod,
+		SeasonallyAdjustedForecast: v.SeasonallyAdjustedForecast,
 	}
 	if v.Periods != nil {
 		res.Periods = make([]*reports.PeriodPointData, len(v.Periods))
@@ -497,6 +523,63 @@ func unmarshalTrendSummaryDataResponseBodyToReportsTrendSummaryData(v *TrendSumm
 		Slope:       v.Slope,
 		PeriodsUsed: v.PeriodsUsed,
 		Summary:     *v.Summary,
+	}
+
+	return res
+}
+
+// unmarshalCorrelationPairDataResponseBodyToReportsCorrelationPairData builds
+// a value of type *reports.CorrelationPairData from a value of type
+// *CorrelationPairDataResponseBody.
+func unmarshalCorrelationPairDataResponseBodyToReportsCorrelationPairData(v *CorrelationPairDataResponseBody) *reports.CorrelationPairData {
+	if v == nil {
+		return nil
+	}
+	res := &reports.CorrelationPairData{
+		ColumnA:  *v.ColumnA,
+		ColumnB:  *v.ColumnB,
+		Pearson:  *v.Pearson,
+		Spearman: *v.Spearman,
+	}
+
+	return res
+}
+
+// unmarshalCohortMetricDataResponseBodyToReportsCohortMetricData builds a
+// value of type *reports.CohortMetricData from a value of type
+// *CohortMetricDataResponseBody.
+func unmarshalCohortMetricDataResponseBodyToReportsCohortMetricData(v *CohortMetricDataResponseBody) *reports.CohortMetricData {
+	if v == nil {
+		return nil
+	}
+	res := &reports.CohortMetricData{
+		CohortLabel:  *v.CohortLabel,
+		RetentionPct: v.RetentionPct,
+	}
+	if v.Periods != nil {
+		res.Periods = make([]*reports.CohortPeriodPointData, len(v.Periods))
+		for i, val := range v.Periods {
+			if val == nil {
+				res.Periods[i] = nil
+				continue
+			}
+			res.Periods[i] = unmarshalCohortPeriodPointDataResponseBodyToReportsCohortPeriodPointData(val)
+		}
+	}
+
+	return res
+}
+
+// unmarshalCohortPeriodPointDataResponseBodyToReportsCohortPeriodPointData
+// builds a value of type *reports.CohortPeriodPointData from a value of type
+// *CohortPeriodPointDataResponseBody.
+func unmarshalCohortPeriodPointDataResponseBodyToReportsCohortPeriodPointData(v *CohortPeriodPointDataResponseBody) *reports.CohortPeriodPointData {
+	if v == nil {
+		return nil
+	}
+	res := &reports.CohortPeriodPointData{
+		PeriodLabel: *v.PeriodLabel,
+		Value:       *v.Value,
 	}
 
 	return res

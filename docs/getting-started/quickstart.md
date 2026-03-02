@@ -34,7 +34,7 @@ Requires [Installation](installation.md) steps (setup, generate, build, db-init,
 |--------|------|
 | **Web UI (React SPA)** | http://localhost:8080 — query editor, saved queries, reports, export |
 | **CLI** | `make cli CMD='query "SELECT * FROM demo.sales LIMIT 5"'` — [CLI usage](../usage/cli-usage.md) |
-| **API** | [API examples](../api/examples.md) — run, save, reports |
+| **API** | [API example](../api/examples.md) |
 | **Reports** | Configure an [LLM](llm-setup.md) for narrative generation |
 
 ## See also

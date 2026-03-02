@@ -14,6 +14,7 @@ import (
 	"github.com/pgquerynarrative/pgquerynarrative/api/gen/queries"
 	"github.com/pgquerynarrative/pgquerynarrative/app/apilog"
 	"github.com/pgquerynarrative/pgquerynarrative/app/charts"
+	"github.com/pgquerynarrative/pgquerynarrative/app/config"
 	"github.com/pgquerynarrative/pgquerynarrative/app/embedding"
 	"github.com/pgquerynarrative/pgquerynarrative/app/format"
 	"github.com/pgquerynarrative/pgquerynarrative/app/metrics"
@@ -25,7 +26,7 @@ type QueriesService struct {
 	readOnlyPool   *pgxpool.Pool       // Pool for executing queries (read-only)
 	appPool        *pgxpool.Pool       // Pool for saving queries (full access)
 	runner         *queryrunner.Runner // Query execution engine
-	trendThreshold float64             // Min absolute % change for up/down vs flat (0 = use default 0.5)
+	metricsOpts    *metrics.Options    // Metrics and time-series options (windows, thresholds)
 	embedder       embedding.Embedder  // Optional: for storing query embeddings on save
 	embeddingStore *embedding.Store    // Optional: for RAG / similar-query retrieval
 	embeddingModel string              // Model name to store with embedding (e.g. nomic-embed-text)
@@ -34,25 +35,27 @@ type QueriesService struct {
 var strPtr = format.StrPtr
 
 // NewQueriesService creates a new queries service with the specified dependencies.
-// trendThresholdPercent is the minimum absolute % change to label period comparison as "up" or "down" (0 = default 0.5).
-func NewQueriesService(readOnlyPool, appPool *pgxpool.Pool, runner *queryrunner.Runner, trendThresholdPercent float64) *QueriesService {
+// metricsCfg supplies trend threshold, anomaly sigma, trend periods, and moving-average window; nil uses defaults.
+func NewQueriesService(readOnlyPool, appPool *pgxpool.Pool, runner *queryrunner.Runner, metricsCfg config.MetricsConfig) *QueriesService {
+	opts := metricsOptionsFromConfig(metricsCfg)
 	return &QueriesService{
-		readOnlyPool:   readOnlyPool,
-		appPool:        appPool,
-		runner:         runner,
-		trendThreshold: trendThresholdPercent,
+		readOnlyPool: readOnlyPool,
+		appPool:      appPool,
+		runner:       runner,
+		metricsOpts:  opts,
 	}
 }
 
 // NewQueriesServiceWithEmbedding is like NewQueriesService but enables storing embeddings
 // when saved queries are created, for similar-query retrieval and RAG. embeddingModel
 // is the name of the embedding model (e.g. nomic-embed-text).
-func NewQueriesServiceWithEmbedding(readOnlyPool, appPool *pgxpool.Pool, runner *queryrunner.Runner, trendThresholdPercent float64, embedder embedding.Embedder, embeddingStore *embedding.Store, embeddingModel string) *QueriesService {
+func NewQueriesServiceWithEmbedding(readOnlyPool, appPool *pgxpool.Pool, runner *queryrunner.Runner, metricsCfg config.MetricsConfig, embedder embedding.Embedder, embeddingStore *embedding.Store, embeddingModel string) *QueriesService {
+	opts := metricsOptionsFromConfig(metricsCfg)
 	return &QueriesService{
 		readOnlyPool:   readOnlyPool,
 		appPool:        appPool,
 		runner:         runner,
-		trendThreshold: trendThresholdPercent,
+		metricsOpts:    opts,
 		embedder:       embedder,
 		embeddingStore: embeddingStore,
 		embeddingModel: embeddingModel,
@@ -97,7 +100,7 @@ func (s *QueriesService) Run(ctx context.Context, payload *queries.RunQueryPaylo
 	}
 
 	chartSuggestions := suggestToQueries(charts.Suggest(colNames, colTypes, result.Rows))
-	periodComparison, currentLabel, previousLabel := timeSeriesToPeriodComparison(colNames, result.Rows, s.trendThreshold)
+	periodComparison, currentLabel, previousLabel := timeSeriesToPeriodComparison(colNames, result.Rows, s.metricsOpts)
 
 	var rowCount32 int32 = math.MaxInt32
 	if result.RowCount < math.MaxInt32 {
@@ -137,14 +140,32 @@ func suggestToQueries(in []charts.Suggestion) []*queries.ChartSuggestion {
 	return out
 }
 
+// metricsOptionsFromConfig builds metrics.Options from config. Nil or zero config uses defaults.
+func metricsOptionsFromConfig(c config.MetricsConfig) *metrics.Options {
+	o := &metrics.Options{
+		TrendThresholdPercent:    c.TrendThresholdPercent,
+		AnomalySigma:             c.AnomalySigma,
+		AnomalyMethod:            c.AnomalyMethod,
+		TrendPeriods:             c.TrendPeriods,
+		MovingAvgWindow:          c.MovingAvgWindow,
+		ConfidenceLevel:          c.ConfidenceLevel,
+		MinRowsForCorrelation:    c.MinRowsForCorrelation,
+		SmoothingAlpha:           c.SmoothingAlpha,
+		SmoothingBeta:            c.SmoothingBeta,
+		MaxSeasonalLag:           c.MaxSeasonalLag,
+		MinPeriodsForSeasonality: c.MinPeriodsForSeasonality,
+	}
+	o.ApplyDefaults()
+	return o
+}
+
 // timeSeriesToPeriodComparison computes period-over-period from query result and returns API slice and period labels.
-// trendThresholdPercent is passed to metrics (0 = default 0.5).
-func timeSeriesToPeriodComparison(columnNames []string, rows [][]interface{}, trendThresholdPercent float64) ([]*queries.PeriodComparisonItem, string, string) {
+func timeSeriesToPeriodComparison(columnNames []string, rows [][]interface{}, opts *metrics.Options) ([]*queries.PeriodComparisonItem, string, string) {
 	if len(rows) < 2 {
 		return nil, "", ""
 	}
 	profiles := metrics.ProfileColumns(columnNames, rows)
-	m := metrics.CalculateMetrics(columnNames, rows, profiles, trendThresholdPercent)
+	m := metrics.CalculateMetrics(columnNames, rows, profiles, opts)
 	if len(m.TimeSeries) == 0 {
 		return nil, "", ""
 	}

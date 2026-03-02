@@ -151,6 +151,19 @@ func copyMetricsToSuggestions(m *reports.MetricsData) *suggestions.MetricsData {
 		PeriodPreviousLabel: m.PeriodPreviousLabel,
 		PerfSuggestions:     append([]string(nil), m.PerfSuggestions...),
 	}
+	if len(m.Correlations) > 0 {
+		out.Correlations = make([]*suggestions.CorrelationPairData, len(m.Correlations))
+		for i, c := range m.Correlations {
+			if c != nil {
+				out.Correlations[i] = &suggestions.CorrelationPairData{
+					ColumnA:  c.ColumnA,
+					ColumnB:  c.ColumnB,
+					Pearson:  c.Pearson,
+					Spearman: c.Spearman,
+				}
+			}
+		}
+	}
 	if m.Aggregates != nil {
 		out.Aggregates = make(map[string]*suggestions.AggregateData)
 		for k, v := range m.Aggregates {
@@ -174,14 +187,20 @@ func copyMetricsToSuggestions(m *reports.MetricsData) *suggestions.MetricsData {
 		for k, v := range m.TimeSeries {
 			if v != nil {
 				ts := &suggestions.TimeSeriesData{
-					CurrentPeriod:      v.CurrentPeriod,
-					PreviousPeriod:     v.PreviousPeriod,
-					Change:             v.Change,
-					ChangePercentage:   v.ChangePercentage,
-					Trend:              v.Trend,
-					MovingAverage:      v.MovingAverage,
-					NextPeriodForecast: v.NextPeriodForecast,
-					PredictiveSummary:  v.PredictiveSummary,
+					CurrentPeriod:              v.CurrentPeriod,
+					PreviousPeriod:             v.PreviousPeriod,
+					Change:                     v.Change,
+					ChangePercentage:           v.ChangePercentage,
+					Trend:                      v.Trend,
+					MovingAverage:              v.MovingAverage,
+					NextPeriodForecast:         v.NextPeriodForecast,
+					ForecastCiLower:            v.ForecastCiLower,
+					ForecastCiUpper:            v.ForecastCiUpper,
+					PredictiveSummary:          v.PredictiveSummary,
+					ExponentialSmoothForecast:  v.ExponentialSmoothForecast,
+					HoltForecast:               v.HoltForecast,
+					SeasonalPeriod:             v.SeasonalPeriod,
+					SeasonallyAdjustedForecast: v.SeasonallyAdjustedForecast,
 				}
 				for _, p := range v.Periods {
 					if p != nil {
@@ -205,6 +224,25 @@ func copyMetricsToSuggestions(m *reports.MetricsData) *suggestions.MetricsData {
 		for k, v := range m.DataQuality {
 			if v != nil {
 				out.DataQuality[k] = &suggestions.ColumnQualityData{NullCount: v.NullCount, DistinctCount: v.DistinctCount, TotalRows: v.TotalRows, NullPct: v.NullPct}
+			}
+		}
+	}
+	if len(m.Cohorts) > 0 {
+		out.Cohorts = make([]*suggestions.CohortMetricData, len(m.Cohorts))
+		for i, co := range m.Cohorts {
+			if co == nil {
+				continue
+			}
+			periods := make([]*suggestions.CohortPeriodPointData, len(co.Periods))
+			for j, p := range co.Periods {
+				if p != nil {
+					periods[j] = &suggestions.CohortPeriodPointData{PeriodLabel: p.PeriodLabel, Value: p.Value}
+				}
+			}
+			out.Cohorts[i] = &suggestions.CohortMetricData{
+				CohortLabel:  co.CohortLabel,
+				Periods:      periods,
+				RetentionPct: co.RetentionPct,
 			}
 		}
 	}

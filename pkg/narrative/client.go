@@ -10,7 +10,7 @@ import (
 	schema "github.com/pgquerynarrative/pgquerynarrative/api/gen/schema"
 	suggestions "github.com/pgquerynarrative/pgquerynarrative/api/gen/suggestions"
 	"github.com/pgquerynarrative/pgquerynarrative/app/catalog"
-	"github.com/pgquerynarrative/pgquerynarrative/app/config"
+	appconfig "github.com/pgquerynarrative/pgquerynarrative/app/config"
 	"github.com/pgquerynarrative/pgquerynarrative/app/db"
 	"github.com/pgquerynarrative/pgquerynarrative/app/embedding"
 	"github.com/pgquerynarrative/pgquerynarrative/app/llm"
@@ -36,7 +36,7 @@ type Client struct {
 // database pools, query runner, LLM client, and all services. The returned
 // client must be closed to release resources.
 func NewClient(ctx context.Context, cfg Config) (*Client, error) {
-	dbCfg := config.DatabaseConfig{
+	dbCfg := appconfig.DatabaseConfig{
 		Host:             cfg.Database.Host,
 		Port:             cfg.Database.Port,
 		Database:         cfg.Database.Database,
@@ -75,23 +75,36 @@ func NewClient(ctx context.Context, cfg Config) (*Client, error) {
 	var suggester *pkgsuggestions.Suggester
 	embeddingStore := embedding.NewStore(pools.App)
 
+	metricsCfg := appconfig.MetricsConfig{
+		TrendThresholdPercent:    cfg.Metrics.TrendThresholdPercent,
+		AnomalySigma:             cfg.Metrics.AnomalySigma,
+		AnomalyMethod:            cfg.Metrics.AnomalyMethod,
+		TrendPeriods:             cfg.Metrics.TrendPeriods,
+		MovingAvgWindow:          cfg.Metrics.MovingAvgWindow,
+		ConfidenceLevel:          cfg.Metrics.ConfidenceLevel,
+		MinRowsForCorrelation:    cfg.Metrics.MinRowsForCorrelation,
+		SmoothingAlpha:           cfg.Metrics.SmoothingAlpha,
+		SmoothingBeta:            cfg.Metrics.SmoothingBeta,
+		MaxSeasonalLag:           cfg.Metrics.MaxSeasonalLag,
+		MinPeriodsForSeasonality: cfg.Metrics.MinPeriodsForSeasonality,
+	}
 	if cfg.Embedding.BaseURL != "" && cfg.Embedding.Model != "" {
 		emb := embedding.NewOllamaEmbedder(cfg.Embedding.BaseURL, cfg.Embedding.Model)
 		queriesService = service.NewQueriesServiceWithEmbedding(
-			pools.ReadOnly, pools.App, runner, cfg.Metrics.TrendThresholdPercent,
+			pools.ReadOnly, pools.App, runner, metricsCfg,
 			emb, embeddingStore, cfg.Embedding.Model,
 		)
 		reportsService = service.NewReportsServiceWithRAG(
-			pools.ReadOnly, pools.App, runner, llmClient, cfg.Metrics.TrendThresholdPercent,
+			pools.ReadOnly, pools.App, runner, llmClient, metricsCfg,
 			emb, embeddingStore,
 		)
 		suggester = pkgsuggestions.NewSuggesterWithEmbedding(pools.App, emb, embeddingStore)
 	} else {
 		queriesService = service.NewQueriesService(
-			pools.ReadOnly, pools.App, runner, cfg.Metrics.TrendThresholdPercent,
+			pools.ReadOnly, pools.App, runner, metricsCfg,
 		)
 		reportsService = service.NewReportsService(
-			pools.ReadOnly, pools.App, runner, llmClient, cfg.Metrics.TrendThresholdPercent,
+			pools.ReadOnly, pools.App, runner, llmClient, metricsCfg,
 		)
 		suggester = pkgsuggestions.NewSuggester(pools.App)
 	}

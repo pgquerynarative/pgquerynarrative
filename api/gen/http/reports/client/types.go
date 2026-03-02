@@ -95,6 +95,11 @@ type MetricsDataResponseBody struct {
 	Aggregates    map[string]*AggregateDataResponseBody     `form:"aggregates,omitempty" json:"aggregates,omitempty" xml:"aggregates,omitempty"`
 	TopCategories map[string][]*TopCategoryDataResponseBody `form:"top_categories,omitempty" json:"top_categories,omitempty" xml:"top_categories,omitempty"`
 	TimeSeries    map[string]*TimeSeriesDataResponseBody    `form:"time_series,omitempty" json:"time_series,omitempty" xml:"time_series,omitempty"`
+	// Pairwise Pearson and Spearman (when ≥2 numeric measures, enough rows)
+	Correlations []*CorrelationPairDataResponseBody `form:"correlations,omitempty" json:"correlations,omitempty" xml:"correlations,omitempty"`
+	// Cohort analysis when cohort dimension present (inputs: cohort key, time
+	// grain)
+	Cohorts []*CohortMetricDataResponseBody `form:"cohorts,omitempty" json:"cohorts,omitempty" xml:"cohorts,omitempty"`
 	// Label for current period when time_series is present
 	PeriodCurrentLabel *string `form:"period_current_label,omitempty" json:"period_current_label,omitempty" xml:"period_current_label,omitempty"`
 	// Label for previous period
@@ -140,8 +145,20 @@ type TimeSeriesDataResponseBody struct {
 	TrendSummary *TrendSummaryDataResponseBody `form:"trend_summary,omitempty" json:"trend_summary,omitempty" xml:"trend_summary,omitempty"`
 	// Simple predictive: last value + trend slope
 	NextPeriodForecast *float64 `form:"next_period_forecast,omitempty" json:"next_period_forecast,omitempty" xml:"next_period_forecast,omitempty"`
+	// Lower bound of confidence interval for next-period forecast
+	ForecastCiLower *float64 `form:"forecast_ci_lower,omitempty" json:"forecast_ci_lower,omitempty" xml:"forecast_ci_lower,omitempty"`
+	// Upper bound of confidence interval for next-period forecast
+	ForecastCiUpper *float64 `form:"forecast_ci_upper,omitempty" json:"forecast_ci_upper,omitempty" xml:"forecast_ci_upper,omitempty"`
 	// Human-readable predictive sentence for the narrative
 	PredictiveSummary *string `form:"predictive_summary,omitempty" json:"predictive_summary,omitempty" xml:"predictive_summary,omitempty"`
+	// One-step-ahead forecast from simple exponential smoothing
+	ExponentialSmoothForecast *float64 `form:"exponential_smooth_forecast,omitempty" json:"exponential_smooth_forecast,omitempty" xml:"exponential_smooth_forecast,omitempty"`
+	// One-step-ahead forecast from Holt linear trend
+	HoltForecast *float64 `form:"holt_forecast,omitempty" json:"holt_forecast,omitempty" xml:"holt_forecast,omitempty"`
+	// Detected seasonal period (0=none, e.g. 4=quarterly, 12=monthly)
+	SeasonalPeriod *int32 `form:"seasonal_period,omitempty" json:"seasonal_period,omitempty" xml:"seasonal_period,omitempty"`
+	// Next-period forecast with seasonal component
+	SeasonallyAdjustedForecast *float64 `form:"seasonally_adjusted_forecast,omitempty" json:"seasonally_adjusted_forecast,omitempty" xml:"seasonally_adjusted_forecast,omitempty"`
 }
 
 // PeriodPointDataResponseBody is used to define fields on response body types.
@@ -166,6 +183,31 @@ type TrendSummaryDataResponseBody struct {
 	PeriodsUsed *int32   `form:"periods_used,omitempty" json:"periods_used,omitempty" xml:"periods_used,omitempty"`
 	// Human-readable trend description
 	Summary *string `form:"summary,omitempty" json:"summary,omitempty" xml:"summary,omitempty"`
+}
+
+// CorrelationPairDataResponseBody is used to define fields on response body
+// types.
+type CorrelationPairDataResponseBody struct {
+	ColumnA *string `form:"column_a,omitempty" json:"column_a,omitempty" xml:"column_a,omitempty"`
+	ColumnB *string `form:"column_b,omitempty" json:"column_b,omitempty" xml:"column_b,omitempty"`
+	// Pearson correlation -1 to 1
+	Pearson *float64 `form:"pearson,omitempty" json:"pearson,omitempty" xml:"pearson,omitempty"`
+	// Spearman rank correlation -1 to 1
+	Spearman *float64 `form:"spearman,omitempty" json:"spearman,omitempty" xml:"spearman,omitempty"`
+}
+
+// CohortMetricDataResponseBody is used to define fields on response body types.
+type CohortMetricDataResponseBody struct {
+	CohortLabel  *string                              `form:"cohort_label,omitempty" json:"cohort_label,omitempty" xml:"cohort_label,omitempty"`
+	Periods      []*CohortPeriodPointDataResponseBody `form:"periods,omitempty" json:"periods,omitempty" xml:"periods,omitempty"`
+	RetentionPct *float64                             `form:"retention_pct,omitempty" json:"retention_pct,omitempty" xml:"retention_pct,omitempty"`
+}
+
+// CohortPeriodPointDataResponseBody is used to define fields on response body
+// types.
+type CohortPeriodPointDataResponseBody struct {
+	PeriodLabel *string  `form:"period_label,omitempty" json:"period_label,omitempty" xml:"period_label,omitempty"`
+	Value       *float64 `form:"value,omitempty" json:"value,omitempty" xml:"value,omitempty"`
 }
 
 // ColumnQualityDataResponseBody is used to define fields on response body
@@ -494,6 +536,26 @@ func ValidateNarrativeContentResponseBody(body *NarrativeContentResponseBody) (e
 	return
 }
 
+// ValidateMetricsDataResponseBody runs the validations defined on
+// MetricsDataResponseBody
+func ValidateMetricsDataResponseBody(body *MetricsDataResponseBody) (err error) {
+	for _, e := range body.Correlations {
+		if e != nil {
+			if err2 := ValidateCorrelationPairDataResponseBody(e); err2 != nil {
+				err = goa.MergeErrors(err, err2)
+			}
+		}
+	}
+	for _, e := range body.Cohorts {
+		if e != nil {
+			if err2 := ValidateCohortMetricDataResponseBody(e); err2 != nil {
+				err = goa.MergeErrors(err, err2)
+			}
+		}
+	}
+	return
+}
+
 // ValidateTopCategoryDataResponseBody runs the validations defined on
 // TopCategoryDataResponseBody
 func ValidateTopCategoryDataResponseBody(body *TopCategoryDataResponseBody) (err error) {
@@ -579,6 +641,52 @@ func ValidateTrendSummaryDataResponseBody(body *TrendSummaryDataResponseBody) (e
 	return
 }
 
+// ValidateCorrelationPairDataResponseBody runs the validations defined on
+// CorrelationPairDataResponseBody
+func ValidateCorrelationPairDataResponseBody(body *CorrelationPairDataResponseBody) (err error) {
+	if body.ColumnA == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("column_a", "body"))
+	}
+	if body.ColumnB == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("column_b", "body"))
+	}
+	if body.Pearson == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("pearson", "body"))
+	}
+	if body.Spearman == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("spearman", "body"))
+	}
+	return
+}
+
+// ValidateCohortMetricDataResponseBody runs the validations defined on
+// CohortMetricDataResponseBody
+func ValidateCohortMetricDataResponseBody(body *CohortMetricDataResponseBody) (err error) {
+	if body.CohortLabel == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("cohort_label", "body"))
+	}
+	for _, e := range body.Periods {
+		if e != nil {
+			if err2 := ValidateCohortPeriodPointDataResponseBody(e); err2 != nil {
+				err = goa.MergeErrors(err, err2)
+			}
+		}
+	}
+	return
+}
+
+// ValidateCohortPeriodPointDataResponseBody runs the validations defined on
+// CohortPeriodPointDataResponseBody
+func ValidateCohortPeriodPointDataResponseBody(body *CohortPeriodPointDataResponseBody) (err error) {
+	if body.PeriodLabel == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("period_label", "body"))
+	}
+	if body.Value == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("value", "body"))
+	}
+	return
+}
+
 // ValidateColumnQualityDataResponseBody runs the validations defined on
 // ColumnQualityDataResponseBody
 func ValidateColumnQualityDataResponseBody(body *ColumnQualityDataResponseBody) (err error) {
@@ -609,11 +717,6 @@ func ValidateChartSuggestionResponseBody(body *ChartSuggestionResponseBody) (err
 	if body.Reason == nil {
 		err = goa.MergeErrors(err, goa.MissingFieldError("reason", "body"))
 	}
-	return
-}
-
-// ValidateMetricsDataResponseBody runs the validations defined on MetricsDataResponseBody. Goa does not emit this for composite map types; no required fields.
-func ValidateMetricsDataResponseBody(body *MetricsDataResponseBody) (err error) {
 	return
 }
 

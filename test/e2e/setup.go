@@ -25,6 +25,7 @@ import (
 	schema "github.com/pgquerynarrative/pgquerynarrative/api/gen/schema"
 	suggestions "github.com/pgquerynarrative/pgquerynarrative/api/gen/suggestions"
 	"github.com/pgquerynarrative/pgquerynarrative/app/catalog"
+	"github.com/pgquerynarrative/pgquerynarrative/app/config"
 	"github.com/pgquerynarrative/pgquerynarrative/app/llm"
 	"github.com/pgquerynarrative/pgquerynarrative/app/queryrunner"
 	"github.com/pgquerynarrative/pgquerynarrative/app/service"
@@ -150,9 +151,9 @@ func BuildFullServer(t *testing.T, ctx context.Context, pool *pgxpool.Pool, cfg 
 	validator := queryrunner.NewValidator([]string{"demo"}, 10000)
 	runner := queryrunner.NewRunner(pool, validator, 1000, 30*time.Second)
 
-	queriesService := service.NewQueriesService(pool, pool, runner, 0)
+	queriesService := service.NewQueriesService(pool, pool, runner, config.MetricsConfig{})
 	llmClient := &e2eLLM{response: cfg.MockLLMResponse}
-	reportsService := service.NewReportsService(pool, pool, runner, llmClient, 0)
+	reportsService := service.NewReportsService(pool, pool, runner, llmClient, config.MetricsConfig{})
 	loader := catalog.NewLoader(pool, []string{"demo"})
 	schemaService := service.NewSchemaService(loader)
 	suggester := pkgsuggestions.NewSuggester(pool)

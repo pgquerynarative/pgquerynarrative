@@ -14,6 +14,7 @@ import (
 	"github.com/pgquerynarrative/pgquerynarrative/api/gen/reports"
 	"github.com/pgquerynarrative/pgquerynarrative/app/apilog"
 	"github.com/pgquerynarrative/pgquerynarrative/app/charts"
+	"github.com/pgquerynarrative/pgquerynarrative/app/config"
 	"github.com/pgquerynarrative/pgquerynarrative/app/debuglog"
 	"github.com/pgquerynarrative/pgquerynarrative/app/embedding"
 	"github.com/pgquerynarrative/pgquerynarrative/app/llm"
@@ -28,32 +29,34 @@ type ReportsService struct {
 	runner         *queryrunner.Runner
 	llmClient      llm.Client
 	generator      *story.Generator
-	trendThreshold float64 // Min absolute % change for up/down vs flat (0 = default 0.5)
+	metricsOpts    *metrics.Options
 	embedder       embedding.Embedder
 	embeddingStore *embedding.Store
 }
 
-func NewReportsService(readOnlyPool, appPool *pgxpool.Pool, runner *queryrunner.Runner, llmClient llm.Client, trendThresholdPercent float64) *ReportsService {
+func NewReportsService(readOnlyPool, appPool *pgxpool.Pool, runner *queryrunner.Runner, llmClient llm.Client, metricsCfg config.MetricsConfig) *ReportsService {
+	opts := metricsOptionsFromConfig(metricsCfg)
 	return &ReportsService{
-		readOnlyPool:   readOnlyPool,
-		appPool:        appPool,
-		runner:         runner,
-		llmClient:      llmClient,
-		generator:      story.NewGenerator(llmClient),
-		trendThreshold: trendThresholdPercent,
+		readOnlyPool: readOnlyPool,
+		appPool:      appPool,
+		runner:       runner,
+		llmClient:    llmClient,
+		generator:    story.NewGenerator(llmClient),
+		metricsOpts:  opts,
 	}
 }
 
 // NewReportsServiceWithRAG is like NewReportsService but enables RAG: similar past
 // queries are retrieved and added to the narrative prompt when generating reports.
-func NewReportsServiceWithRAG(readOnlyPool, appPool *pgxpool.Pool, runner *queryrunner.Runner, llmClient llm.Client, trendThresholdPercent float64, embedder embedding.Embedder, embeddingStore *embedding.Store) *ReportsService {
+func NewReportsServiceWithRAG(readOnlyPool, appPool *pgxpool.Pool, runner *queryrunner.Runner, llmClient llm.Client, metricsCfg config.MetricsConfig, embedder embedding.Embedder, embeddingStore *embedding.Store) *ReportsService {
+	opts := metricsOptionsFromConfig(metricsCfg)
 	return &ReportsService{
 		readOnlyPool:   readOnlyPool,
 		appPool:        appPool,
 		runner:         runner,
 		llmClient:      llmClient,
 		generator:      story.NewGenerator(llmClient),
-		trendThreshold: trendThresholdPercent,
+		metricsOpts:    opts,
 		embedder:       embedder,
 		embeddingStore: embeddingStore,
 	}
@@ -88,7 +91,7 @@ func (s *ReportsService) Generate(ctx context.Context, payload *reports.Generate
 	profiles := metrics.ProfileColumns(columnNames, queryResult.Rows)
 
 	// Calculate metrics
-	calcMetrics := metrics.CalculateMetrics(columnNames, queryResult.Rows, profiles, s.trendThreshold)
+	calcMetrics := metrics.CalculateMetrics(columnNames, queryResult.Rows, profiles, s.metricsOpts)
 	calcMetrics.PerfSuggestions = BuildPerfSuggestions(queryResult)
 
 	// Optional RAG: retrieve similar past queries and add to prompt context
@@ -416,10 +419,40 @@ func ConvertMetrics(m *metrics.Metrics) *reports.MetricsData {
 		if ts.NextPeriodForecast != nil {
 			tsData.NextPeriodForecast = ts.NextPeriodForecast
 		}
+		if ts.ForecastCILower != nil {
+			tsData.ForecastCiLower = ts.ForecastCILower
+		}
+		if ts.ForecastCIUpper != nil {
+			tsData.ForecastCiUpper = ts.ForecastCIUpper
+		}
 		if ts.PredictiveSummary != "" {
 			tsData.PredictiveSummary = &ts.PredictiveSummary
 		}
+		if ts.ExponentialSmoothForecast != nil {
+			tsData.ExponentialSmoothForecast = ts.ExponentialSmoothForecast
+		}
+		if ts.HoltForecast != nil {
+			tsData.HoltForecast = ts.HoltForecast
+		}
+		if ts.SeasonalPeriod != 0 {
+			sp := int32(ts.SeasonalPeriod)
+			tsData.SeasonalPeriod = &sp
+		}
+		if ts.SeasonallyAdjustedForecast != nil {
+			tsData.SeasonallyAdjustedForecast = ts.SeasonallyAdjustedForecast
+		}
 		timeSeries[col] = tsData
+	}
+
+	correlations := make([]*reports.CorrelationPairData, len(m.Correlations))
+	for i := range m.Correlations {
+		c := &m.Correlations[i]
+		correlations[i] = &reports.CorrelationPairData{
+			ColumnA:  c.ColumnA,
+			ColumnB:  c.ColumnB,
+			Pearson:  c.Pearson,
+			Spearman: c.Spearman,
+		}
 	}
 
 	dataQuality := make(map[string]*reports.ColumnQualityData, len(m.DataQuality))
@@ -432,10 +465,31 @@ func ConvertMetrics(m *metrics.Metrics) *reports.MetricsData {
 		}
 	}
 
+	cohorts := make([]*reports.CohortMetricData, 0)
+	if len(m.Cohorts) > 0 {
+		cohorts = make([]*reports.CohortMetricData, len(m.Cohorts))
+		for i := range m.Cohorts {
+			co := &m.Cohorts[i]
+			periods := make([]*reports.CohortPeriodPointData, len(co.Periods))
+			for j := range co.Periods {
+				periods[j] = &reports.CohortPeriodPointData{
+					PeriodLabel: co.Periods[j].PeriodLabel,
+					Value:       co.Periods[j].Value,
+				}
+			}
+			cohorts[i] = &reports.CohortMetricData{
+				CohortLabel:  co.CohortLabel,
+				Periods:      periods,
+				RetentionPct: co.RetentionPct,
+			}
+		}
+	}
 	out := &reports.MetricsData{
 		Aggregates:      aggregates,
 		TopCategories:   topCategories,
 		TimeSeries:      timeSeries,
+		Correlations:    correlations,
+		Cohorts:         cohorts,
 		DataQuality:     dataQuality,
 		PerfSuggestions: m.PerfSuggestions,
 	}

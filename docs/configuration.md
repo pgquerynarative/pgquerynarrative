@@ -99,9 +99,31 @@ For [LLM setup – MCP](getting-started/llm-setup.md#mcp-claude-desktop--cursor)
 
 ## Metrics
 
+Time-series and period-comparison behaviour. Values are shown read-only in **Settings → Analytics** in the web UI. Out-of-range values are clamped at load.
+
 | Variable | Default | Description |
 |---------|---------|-------------|
 | `PERIOD_TREND_THRESHOLD_PERCENT` | `0.5` | Min % change to label trend "up"/"down"; below = "flat". |
+| `METRICS_ANOMALY_SIGMA` | `2.0` | Z-score threshold for anomaly detection (1–5). |
+| `METRICS_ANOMALY_METHOD` | `zscore` | Anomaly method: `zscore` or `isolation_forest`. |
+| `METRICS_TREND_PERIODS` | `6` | Periods used for linear regression trend (2–24). |
+| `METRICS_MOVING_AVG_WINDOW` | `3` | Simple moving average window length (2–24). |
+| `METRICS_CONFIDENCE_LEVEL` | `0.95` | Confidence level for forecast intervals (0.5–0.99). |
+| `METRICS_CORRELATION_MIN_ROWS` | `10` | Minimum rows to compute Pearson/Spearman between numeric measures (2–1000). |
+| `METRICS_SMOOTHING_ALPHA` | `0.3` | Level smoothing factor for exponential smoothing (0–1). |
+| `METRICS_SMOOTHING_BETA` | `0.1` | Trend smoothing factor for Holt (0–1). |
+| `METRICS_MAX_SEASONAL_LAG` | `12` | Maximum seasonal period to try (2–24). |
+| `METRICS_MIN_PERIODS_FOR_SEASONALITY` | `12` | Minimum series length to detect seasonality. |
+
+### Cohort analysis {#cohort-analysis}
+
+Report metrics include **cohorts** when the query result has a cohort dimension. Expectation:
+
+- **Cohort column:** A dimension column whose name contains `cohort` (case-insensitive), e.g. `cohort_month`, `signup_cohort`.
+- **Period column:** A second dimension (e.g. `period_index`, `month`) or the time column. Values can be numeric (0, 1, 2…) or labels.
+- **Measures:** One or more numeric measure columns. Cohorts are aggregated by (cohort, period); the first measure is used for the cohort table and optional retention % (last period / first period × 100).
+
+Example query shape: `SELECT cohort_month, period_index, SUM(revenue) AS revenue FROM … GROUP BY cohort_month, period_index`. The report **Analytics** card and [API report payload](api/README.md#reports) will include `metrics.cohorts`.
 
 ---
 

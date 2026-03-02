@@ -1,56 +1,56 @@
 # PgQueryNarrative documentation
 
-PgQueryNarrative turns SQL query results into business narratives using an LLM. Run read-only SQL against PostgreSQL, compute metrics and chart suggestions, and generate narrative reports. The React SPA (built from `frontend/`) provides the web UI; the [REST API](api/README.md) and [CLI](usage/cli-usage.md) support automation.
+Run read-only SQL against PostgreSQL, compute metrics and chart suggestions, and generate narrative reports via a configurable LLM. Web UI: [React SPA](ui-overview.md); automation: [REST API](api/README.md) and [CLI](usage/cli-usage.md).
 
 **Recommended path:** [Quick start](getting-started/quickstart.md) → [LLM setup](getting-started/llm-setup.md) (for reports) → [Configuration](configuration.md).
 
 ---
 
-## Documentation index
+## Docs index
+
+| Section | Links |
+|--------|--------|
+| **Architecture** | [Project structure](../README.md#project-structure) (root README) — entrypoint, `app/`, API design, frontend, web handlers |
+| **API reference** | [API reference](api/README.md) — endpoints, request/response, errors · [Examples](api/examples.md) |
+| **UI overview** | [UI overview](ui-overview.md) — Query editor, saved queries, reports, Settings → Analytics |
+| **Configuration** | [Configuration](configuration.md) — Environment variables (server, DB, LLM, embeddings, metrics, security) |
+| **Analytics / Phases** | [Configuration – Metrics](configuration.md#metrics) — Trend, anomaly, forecast, correlation, smoothing; read-only in UI at Settings → Analytics |
+| **Deployment / Production** | [Deployment](reference/deployment.md) — Docker, Compose, Kubernetes, Helm · [Operations](reference/operations.md) — Health, monitoring |
+| **Troubleshooting** | [Troubleshooting](reference/troubleshooting.md) — Common issues and fixes |
+
+---
 
 ### Getting started
 
 | Document | Description |
 |----------|-------------|
-| [Installation](getting-started/installation.md) | Prerequisites, database setup, Docker and local run methods, verification |
-| [Quick start](getting-started/quickstart.md) | Minimal steps to run with Docker or local PostgreSQL |
-| [LLM setup](getting-started/llm-setup.md) | Configure LLM for report generation (Ollama, OpenAI, Claude, Gemini, Groq) and MCP |
-| [Embedded integration](getting-started/embedded.md) | Use as a Go library or mount HTTP endpoints in Chi, Gin, or Echo |
+| [Installation](getting-started/installation.md) | Prerequisites, Docker and local run, verification |
+| [Quick start](getting-started/quickstart.md) | Minimal steps to run |
+| [LLM setup](getting-started/llm-setup.md) | LLM providers (Ollama, Gemini, Claude, OpenAI, Groq) and MCP |
+| [Embedded integration](getting-started/embedded.md) | Go library and HTTP middleware (Chi, Gin, Echo) |
 
 ### User guides
 
 | Document | Description |
 |----------|-------------|
-| [Configuration](configuration.md) | Environment variables (server, database, LLM, embeddings, MCP, metrics) |
-| [CLI usage](usage/cli-usage.md) | Command-line interface for running queries, saved queries, and reports |
-
-### API
-
-| Document | Description |
-|----------|-------------|
-| [API reference](api/README.md) | REST endpoints, request/response shapes, error codes |
-| [API examples](api/examples.md) | cURL examples for run, ask, explain, save, and reports |
+| [CLI usage](usage/cli-usage.md) | Command-line interface for queries and reports |
 
 ### Reference
 
 | Document | Description |
 |----------|-------------|
-| [Deployment](reference/deployment.md) | Docker build, Docker Compose, Kubernetes, Helm |
-| [Operations](reference/operations.md) | Monitoring, health checks (`/health`, `/ready`), runbooks |
-| [Troubleshooting](reference/troubleshooting.md) | Common issues and fixes |
-| [PostgreSQL extension](reference/postgres-extension.md) | Call the API from SQL via `CREATE EXTENSION pgquerynarrative` |
-| [Semantic search (pgvector)](reference/semantic-search-pgvector.md) | Embeddings, similar-query search, RAG in report generation |
-| [Versioning and releases](reference/versioning-and-releases.md) | Version control, changelog, release build, and packaging |
+| [PostgreSQL extension](reference/postgres-extension.md) | Call the API from SQL |
+| [Semantic search (pgvector)](reference/semantic-search-pgvector.md) | Embeddings, similar-query search, RAG |
+| [Versioning and releases](reference/versioning-and-releases.md) | Versioning, changelog, release build |
 
 ### Development
 
 | Document | Description |
 |----------|-------------|
-| [Development setup](development/setup.md) | Build, test, codegen, workflow, frontend build |
-| [Testing](development/testing.md) | Unit, integration, and E2E tests |
+| [Development setup](development/setup.md) | Build, test, codegen, frontend |
+| [Testing](development/testing.md) | Unit, integration, E2E tests |
+| [Runbook](development/runbook.md) | Daily dev, before commit, tests, build & release |
 
 ---
 
-**Contributing & security:** [.github/CONTRIBUTING.md](../.github/CONTRIBUTING.md) · [.github/SECURITY.md](../.github/SECURITY.md).
-
-**Changelog:** [CHANGELOG.md](../CHANGELOG.md).
+**Contributing & security:** [.github/CONTRIBUTING.md](../.github/CONTRIBUTING.md) · [.github/SECURITY.md](../.github/SECURITY.md). **Changelog:** [CHANGELOG.md](../CHANGELOG.md).

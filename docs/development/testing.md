@@ -72,6 +72,29 @@ go test ./pkg/narrative/... -v
 
 Example API checks: [API examples](../api/examples.md).
 
+## Runbook: Testing analytics features
+
+Quick manual checks for configurable windows, confidence intervals, correlations, smoothing, seasonality, and anomalies.
+
+**Prerequisites:** App running (`make run`), DB with demo schema and data (`make migrate`; seed `tools/db/seed.sql` if needed).
+
+1. **Settings (config visible in UI)**  
+   `GET /settings` → JSON includes `analytics.confidence_level`, `analytics.smoothing_alpha`, `analytics.smoothing_beta`, `analytics.min_rows_for_correlation`, `analytics.anomaly_method`, etc. In the web UI, open Settings and confirm the Analytics card shows these values.
+
+2. **Time-series + forecast + CI**  
+   Run a time-series query (e.g. query 2 or 8 from `tools/db/testing-queries.sql`). `POST /api/v1/queries/run` with body `{"sql": "SELECT date_trunc('month', date)::date AS month, SUM(total_amount) AS monthly_total FROM demo.sales GROUP BY 1 ORDER BY 1", "limit": 100}`. In the response, `metrics.time_series[<measure_column>]` should include `next_period_forecast`, `forecast_ci_lower`, `forecast_ci_upper`, and when enough points: `exponential_smooth_forecast`, `holt_forecast`; optional `seasonal_period` and `seasonally_adjusted_forecast`.
+
+3. **Correlations**  
+   Run a query with at least two numeric measure columns and ≥10 rows (e.g. query 5 in testing-queries.sql). Response `metrics.correlations` should be a non-empty array of `{column_a, column_b, pearson, spearman}`; values in [-1, 1].
+
+4. **Anomalies**  
+   Run a time-series query that includes an obvious outlier (e.g. one period with value far from others). `metrics.time_series[<measure>].anomalies` should list at least one entry with `period_label` and `reason` (e.g. z-score).
+
+5. **Report export**  
+   Generate a report from a time-series query, then open `/web/reports/export?id=<report_id>`. Confirm the HTML shows “forecast interval” (or CI range), and if the query had correlations, a “Correlations” table with Pearson and Spearman columns.
+
+**Automated:** Unit tests for metrics live in `test/unit/app/metrics/`; run `go test ./test/unit/app/metrics/... -v`.
+
 ## Testing auth, rate limit, and audit
 
 You must start the server with auth and rate limiting enabled; otherwise unauthenticated requests succeed and rate limits never trigger. Defaults: `SECURITY_AUTH_ENABLED=false`, `SECURITY_RATE_LIMIT_RPM=0` (disabled).
@@ -109,4 +132,4 @@ psql -d pgquerynarrative -c "SELECT event_type, details, user_id, ip_address, cr
 
 ## See also
 
-- [Development setup](setup.md) · [API examples](../api/examples.md) · [Documentation index](../README.md)
+- [Development setup](setup.md) · [API example](../api/examples.md) · [Documentation index](../README.md)

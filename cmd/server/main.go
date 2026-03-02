@@ -134,6 +134,7 @@ func setupHTTPServer(
 	combinedMux.HandleFunc("/ready", readyHandler(client))
 	combinedMux.HandleFunc("/version", versionHandler())
 	combinedMux.HandleFunc("/metrics", metricsHandler(client))
+	combinedMux.HandleFunc("/api/v1/settings", settingsHandler(cfg))
 	combinedMux.Handle("/api/", mux)
 	combinedMux.HandleFunc("/web/reports/export", webHandlers.ExportReport)
 	combinedMux.HandleFunc("/web/reports/export/pdf", webHandlers.ExportReportPDF)
@@ -204,6 +205,29 @@ func metricsHandler(client *narrative.Client) http.HandlerFunc {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		_ = json.NewEncoder(w).Encode(out)
+	}
+}
+
+// settingsHandler returns read-only analytics and metrics configuration (env-driven). Used by Settings UI.
+func settingsHandler(cfg config.Config) http.HandlerFunc {
+	return func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"analytics": map[string]interface{}{
+				"anomaly_sigma":               cfg.Metrics.AnomalySigma,
+				"anomaly_method":              cfg.Metrics.AnomalyMethod,
+				"trend_periods":               cfg.Metrics.TrendPeriods,
+				"moving_avg_window":           cfg.Metrics.MovingAvgWindow,
+				"trend_threshold_percent":     cfg.Metrics.TrendThresholdPercent,
+				"confidence_level":            cfg.Metrics.ConfidenceLevel,
+				"min_rows_for_correlation":    cfg.Metrics.MinRowsForCorrelation,
+				"smoothing_alpha":             cfg.Metrics.SmoothingAlpha,
+				"smoothing_beta":              cfg.Metrics.SmoothingBeta,
+				"max_seasonal_lag":            cfg.Metrics.MaxSeasonalLag,
+				"min_periods_for_seasonality": cfg.Metrics.MinPeriodsForSeasonality,
+			},
+		})
 	}
 }
 

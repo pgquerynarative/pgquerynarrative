@@ -138,6 +138,40 @@ func BuildReportPDF(w io.Writer, report *reports.Report) error {
 		pdf.Ln(4)
 	}
 
+	// Cohorts
+	if report.Metrics != nil && len(report.Metrics.Cohorts) > 0 {
+		sectionTitle(pdf, "Cohorts")
+		for _, c := range report.Metrics.Cohorts {
+			if c == nil {
+				continue
+			}
+			pdf.CellFormat(12, 10, "", "", 0, "L", false, 0, "")
+			pdf.SetFont("Helvetica", "B", 10)
+			pdf.MultiCell(0, 10, safePDFString(c.CohortLabel), "", "L", false)
+			pdf.SetFont("Helvetica", "", 10)
+			if c.RetentionPct != nil {
+				pdf.CellFormat(20, 10, "", "", 0, "L", false, 0, "")
+				pdf.MultiCell(0, 10, fmt.Sprintf("Retention: %.1f%%", *c.RetentionPct), "", "L", false)
+			}
+			if len(c.Periods) > 0 {
+				w0, w1 := 60.0, 80.0
+				pdf.SetFont("Helvetica", "B", 9)
+				pdf.CellFormat(w0, 10, "Period", "1", 0, "L", true, 0, "")
+				pdf.CellFormat(w1, 10, "Value", "1", 1, "R", true, 0, "")
+				pdf.SetFont("Helvetica", "", 9)
+				for _, p := range c.Periods {
+					if p == nil {
+						continue
+					}
+					pdf.CellFormat(w0, 10, safePDFString(p.PeriodLabel), "1", 0, "L", false, 0, "")
+					pdf.CellFormat(w1, 10, fmt.Sprintf("%.2f", p.Value), "1", 1, "R", false, 0, "")
+				}
+				pdf.Ln(2)
+			}
+		}
+		pdf.Ln(4)
+	}
+
 	// Data quality table
 	if report.Metrics != nil && len(report.Metrics.DataQuality) > 0 {
 		sectionTitle(pdf, "Data quality")

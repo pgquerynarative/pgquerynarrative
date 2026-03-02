@@ -1,8 +1,16 @@
+import { useEffect, useState } from "react";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Database, Cpu, Settings2 } from "lucide-react";
+import { Database, Cpu, Settings2, BarChart3 } from "lucide-react";
+import { api, type AnalyticsSettings } from "@/api/client";
 
 export default function SettingsPage() {
+  const [analytics, setAnalytics] = useState<AnalyticsSettings | null>(null);
+
+  useEffect(() => {
+    api.getSettings().then((r) => setAnalytics(r.analytics)).catch(() => {});
+  }, []);
+
   return (
     <div className="space-y-6">
       <div>
@@ -43,6 +51,31 @@ export default function SettingsPage() {
             <Row label="API Key" value={envOrDefault("LLM_API_KEY", "—")} masked />
           </CardContent>
         </Card>
+
+        {analytics && (
+          <Card>
+            <CardHeader className="flex flex-row items-center gap-3">
+              <BarChart3 className="h-5 w-5 text-brand-blue" />
+              <div>
+                <CardTitle>Analytics</CardTitle>
+                <CardDescription>Time-series and anomaly detection windows</CardDescription>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm">
+              <Row label="Anomaly sigma (σ)" value={String(analytics.anomaly_sigma)} title="Z-score threshold for anomaly detection (1–5)" />
+              <Row label="Trend periods" value={String(analytics.trend_periods)} title="Periods used for linear regression (2–24)" />
+              <Row label="Moving avg window" value={String(analytics.moving_avg_window)} title="Simple moving average length (2–24)" />
+              <Row label="Trend threshold %" value={String(analytics.trend_threshold_percent)} title="Min % change for up/down vs flat" />
+              <Row label="Forecast confidence" value={String(analytics.confidence_level)} title="Confidence level for forecast interval (e.g. 0.95)" />
+              {analytics.anomaly_method != null && <Row label="Anomaly method" value={String(analytics.anomaly_method)} title="zscore or isolation_forest" />}
+              {analytics.min_rows_for_correlation != null && <Row label="Correlation min rows" value={String(analytics.min_rows_for_correlation)} title="Min rows for Pearson/Spearman" />}
+              {analytics.smoothing_alpha != null && <Row label="Smoothing α" value={String(analytics.smoothing_alpha)} title="Exponential smoothing level" />}
+              {analytics.smoothing_beta != null && <Row label="Smoothing β" value={String(analytics.smoothing_beta)} title="Holt trend smoothing" />}
+              {analytics.max_seasonal_lag != null && <Row label="Max seasonal lag" value={String(analytics.max_seasonal_lag)} title="Max period for seasonality" />}
+              {analytics.min_periods_for_seasonality != null && <Row label="Min periods (seasonality)" value={String(analytics.min_periods_for_seasonality)} title="Min series length for seasonality" />}
+            </CardContent>
+          </Card>
+        )}
 
         <Card className="md:col-span-2">
           <CardHeader className="flex flex-row items-center gap-3">

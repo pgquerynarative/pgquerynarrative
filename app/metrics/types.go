@@ -1,5 +1,69 @@
 package metrics
 
+// Options holds configurable parameters for metrics calculation (time-series windows and thresholds).
+// Zero values are replaced with defaults when passed to CalculateMetrics.
+type Options struct {
+	// TrendThresholdPercent is the minimum absolute % change to label as "up" or "down" (vs "flat"). Default 0.5.
+	TrendThresholdPercent float64
+	// AnomalySigma is the z-score threshold for anomaly detection. Default 2.0.
+	AnomalySigma float64
+	// AnomalyMethod is the anomaly detection method: "zscore" (default) or "isolation_forest".
+	AnomalyMethod string
+	// TrendPeriods is the number of periods used for linear regression. Default 6.
+	TrendPeriods int
+	// MovingAvgWindow is the simple moving average window length. Default 3.
+	MovingAvgWindow int
+	// ConfidenceLevel is the confidence level for forecast intervals (e.g. 0.95 for 95%). Default 0.95.
+	ConfidenceLevel float64
+	// MinRowsForCorrelation is the minimum number of rows to compute correlations (2+ numeric measures). Default 10.
+	MinRowsForCorrelation int
+	// SmoothingAlpha is the level smoothing factor for exponential smoothing (0–1). Default 0.3.
+	SmoothingAlpha float64
+	// SmoothingBeta is the trend smoothing factor for Holt (0–1). Default 0.1.
+	SmoothingBeta float64
+	// MaxSeasonalLag is the maximum seasonal period to try (2–24). Default 12.
+	MaxSeasonalLag int
+	// MinPeriodsForSeasonality is the minimum series length to detect seasonality. Default 12.
+	MinPeriodsForSeasonality int
+}
+
+// ApplyDefaults sets zero values to defaults. Idempotent for already-set values.
+func (o *Options) ApplyDefaults() {
+	if o.TrendThresholdPercent <= 0 {
+		o.TrendThresholdPercent = 0.5
+	}
+	if o.AnomalySigma <= 0 {
+		o.AnomalySigma = 2.0
+	}
+	if o.AnomalyMethod != "zscore" && o.AnomalyMethod != "isolation_forest" {
+		o.AnomalyMethod = "zscore"
+	}
+	if o.TrendPeriods <= 0 {
+		o.TrendPeriods = 6
+	}
+	if o.MovingAvgWindow <= 0 {
+		o.MovingAvgWindow = 3
+	}
+	if o.ConfidenceLevel <= 0 || o.ConfidenceLevel >= 1 {
+		o.ConfidenceLevel = 0.95
+	}
+	if o.MinRowsForCorrelation <= 0 {
+		o.MinRowsForCorrelation = 10
+	}
+	if o.SmoothingAlpha <= 0 || o.SmoothingAlpha > 1 {
+		o.SmoothingAlpha = 0.3
+	}
+	if o.SmoothingBeta < 0 || o.SmoothingBeta > 1 {
+		o.SmoothingBeta = 0.1
+	}
+	if o.MaxSeasonalLag <= 0 {
+		o.MaxSeasonalLag = 12
+	}
+	if o.MinPeriodsForSeasonality <= 0 {
+		o.MinPeriodsForSeasonality = 12
+	}
+}
+
 // ColumnType represents the type of a column in query results
 type ColumnType string
 
@@ -76,8 +140,19 @@ type TimeSeriesMetric struct {
 	TrendSummary *TrendSummary
 	// NextPeriodForecast is a simple predictive value: last period + slope (optional).
 	NextPeriodForecast *float64
+	// ForecastCILower and ForecastCIUpper are the confidence interval bounds for the next-period forecast (optional).
+	ForecastCILower *float64
+	ForecastCIUpper *float64
 	// PredictiveSummary is a short human-readable sentence for the narrative (e.g. "Next period forecast: 1,234 (linear trend over 6 periods)").
 	PredictiveSummary string
+	// ExponentialSmoothForecast is the one-step-ahead forecast from simple exponential smoothing (optional).
+	ExponentialSmoothForecast *float64
+	// HoltForecast is the one-step-ahead forecast from Holt's linear trend method (optional).
+	HoltForecast *float64
+	// SeasonalPeriod is the detected seasonal period (0 = none, 2–24 e.g. 4=quarterly, 12=monthly).
+	SeasonalPeriod int
+	// SeasonallyAdjustedForecast is the next-period forecast with seasonal component applied (optional).
+	SeasonallyAdjustedForecast *float64
 }
 
 // ColumnQuality holds data-quality metrics for a column (nulls, distinct ratio).
@@ -88,6 +163,27 @@ type ColumnQuality struct {
 	NullPct       float64 // Null percentage (0–100)
 }
 
+// CorrelationPair holds Pearson and Spearman correlation for a pair of numeric columns.
+type CorrelationPair struct {
+	ColumnA  string  // First column name
+	ColumnB  string  // Second column name (ColumnA < ColumnB for canonical order)
+	Pearson  float64 // Pearson correlation (-1 to 1)
+	Spearman float64 // Spearman rank correlation (-1 to 1)
+}
+
+// CohortMetric holds cohort-level metrics (e.g. retention or measure by cohort and period). Used when a cohort dimension is present.
+type CohortMetric struct {
+	CohortLabel  string              // Cohort identifier (e.g. "2025-01")
+	Periods      []CohortPeriodPoint // Value per period since cohort start
+	RetentionPct *float64            // Optional retention percentage
+}
+
+// CohortPeriodPoint is one period's value within a cohort.
+type CohortPeriodPoint struct {
+	PeriodLabel string // e.g. "0", "1", "2" (periods since start)
+	Value       float64
+}
+
 // Metrics contains all calculated metrics for query results.
 // PerfSuggestions is set by the service layer from query execution context (timing, row count).
 type Metrics struct {
@@ -95,6 +191,8 @@ type Metrics struct {
 	Aggregates          map[string]Aggregates       // Keyed by column name
 	TopCategories       map[string][]TopCategory    // Keyed by measure column, contains top categories
 	TimeSeries          map[string]TimeSeriesMetric // Keyed by measure column
+	Correlations        []CorrelationPair           // Pairwise correlations (only when ≥2 measures, ≥MinRowsForCorrelation rows)
+	Cohorts             []CohortMetric              // Cohort analysis (when cohort dimension detected)
 	CurrentPeriodLabel  string                      // Label for current period when time series present
 	PreviousPeriodLabel string                      // Label for previous period
 	DataQuality         map[string]ColumnQuality    // Per-column data quality (nulls, distinct)

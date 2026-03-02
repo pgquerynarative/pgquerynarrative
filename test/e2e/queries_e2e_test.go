@@ -13,6 +13,7 @@ import (
 
 	queriesServer "github.com/pgquerynarrative/pgquerynarrative/api/gen/http/queries/server"
 	"github.com/pgquerynarrative/pgquerynarrative/api/gen/queries"
+	"github.com/pgquerynarrative/pgquerynarrative/app/config"
 	"github.com/pgquerynarrative/pgquerynarrative/app/queryrunner"
 	"github.com/pgquerynarrative/pgquerynarrative/app/service"
 )
@@ -30,7 +31,7 @@ func TestQueriesE2E(t *testing.T) {
 
 	validator := queryrunner.NewValidator([]string{"demo"}, 10000)
 	runner := queryrunner.NewRunner(pool, validator, 1000, 30*time.Second)
-	queriesService := service.NewQueriesService(pool, pool, runner, 0)
+	queriesService := service.NewQueriesService(pool, pool, runner, config.MetricsConfig{})
 	endpoints := queries.NewEndpoints(queriesService)
 
 	mux := goahttp.NewMuxer()

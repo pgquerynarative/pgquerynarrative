@@ -5,8 +5,23 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api, type Report } from "@/api/client";
-import { FileText, Download, Clock, Cpu, ArrowLeft } from "lucide-react";
+import { FileText, Download, Clock, Cpu, ArrowLeft, BarChart3 } from "lucide-react";
 import { truncate } from "@/lib/utils";
+
+type TimeSeriesEntry = {
+  next_period_forecast?: number | null;
+  forecast_ci_lower?: number | null;
+  forecast_ci_upper?: number | null;
+  trend_summary?: { summary?: string } | null;
+  anomalies?: Array<{ period_label?: string; value?: number; reason?: string }> | null;
+};
+type CohortPeriodPoint = { period_label?: string; periodLabel?: string; value?: number };
+type CohortEntry = { cohort_label?: string; cohortLabel?: string; periods?: CohortPeriodPoint[]; retention_pct?: number | null; retentionPct?: number | null };
+type MetricsPayload = {
+  time_series?: Record<string, TimeSeriesEntry> | null;
+  correlations?: Array<{ column_a?: string; column_b?: string; pearson?: number; spearman?: number }> | null;
+  cohorts?: CohortEntry[] | null;
+};
 
 function ReportDetail() {
   const { id } = useParams<{ id: string }>();
@@ -72,7 +87,149 @@ function ReportDetail() {
           <CardContent><div className="flex flex-wrap gap-2">{report.chart_suggestions.map((s, i) => <Badge key={i} variant="outline">{s.label}</Badge>)}</div></CardContent>
         </Card>
       )}
+
+      <ReportMetricsCard metrics={report.metrics as MetricsPayload | undefined} />
     </div>
+  );
+}
+
+function ReportMetricsCard({ metrics }: { metrics?: MetricsPayload | null }) {
+  // Support both snake_case (API) and camelCase (some proxies)
+  const m = metrics as Record<string, unknown> | null | undefined;
+  if (!m || typeof m !== "object") return null;
+
+  const tsRaw = m.time_series ?? m.timeSeries;
+  const corrRaw = m.correlations;
+  const cohortsRaw = m.cohorts;
+  const ts = tsRaw && typeof tsRaw === "object" && !Array.isArray(tsRaw) && Object.keys(tsRaw as object).length > 0 ? (tsRaw as Record<string, TimeSeriesEntry>) : null;
+  const corr = Array.isArray(corrRaw) && corrRaw.length > 0 ? corrRaw as MetricsPayload["correlations"] : null;
+  const cohorts = Array.isArray(cohortsRaw) && cohortsRaw.length > 0 ? (cohortsRaw as CohortEntry[]) : null;
+
+  if (!ts && !corr && !cohorts) {
+    return (
+      <Card>
+        <CardHeader className="flex flex-row items-center gap-2">
+          <BarChart3 className="h-4 w-4 text-muted-foreground" />
+          <CardTitle className="text-sm">Analytics</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground">No time-series, correlation, or cohort metrics for this report. Run a query with a date column and numeric measures (or cohort + period columns), then generate a new report.</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const formatNum = (n: number | null | undefined) => n != null ? n.toLocaleString(undefined, { maximumFractionDigits: 2 }) : "—";
+  const val = (o: Record<string, unknown>, a: string, b: string) => o[a] ?? o[b];
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center gap-2">
+        <BarChart3 className="h-4 w-4 text-muted-foreground" />
+        <CardTitle className="text-sm">Analytics</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-5">
+        {ts && (
+          <div className="space-y-4">
+            <h4 className="text-xs font-semibold uppercase text-muted-foreground tracking-wide">Time series & forecast</h4>
+            {Object.entries(ts).map(([measure, data]) => {
+              const d = data as Record<string, unknown>;
+              const forecast = val(d, "next_period_forecast", "nextPeriodForecast") as number | null | undefined;
+              const ciLower = val(d, "forecast_ci_lower", "forecastCiLower") as number | null | undefined;
+              const ciUpper = val(d, "forecast_ci_upper", "forecastCiUpper") as number | null | undefined;
+              const trendSummary = (val(d, "trend_summary", "trendSummary") as { summary?: string } | null) ?? null;
+              const anomalies = (val(d, "anomalies", "anomalies") as Array<{ period_label?: string; value?: number; reason?: string }> | null) ?? null;
+              return (
+                <div key={measure} className="rounded-md border border-border bg-muted/30 p-3 space-y-1.5 text-sm">
+                  <p className="font-medium">{measure}</p>
+                  {forecast != null && (
+                    <p className="text-muted-foreground">Forecast (next period): {formatNum(forecast)}</p>
+                  )}
+                  {ciLower != null && ciUpper != null && (
+                    <p className="text-muted-foreground text-xs">Interval: {formatNum(ciLower)} – {formatNum(ciUpper)}</p>
+                  )}
+                  {trendSummary?.summary && <p className="text-xs">{trendSummary.summary}</p>}
+                  {anomalies && anomalies.length > 0 && (
+                    <div className="pt-1">
+                      <p className="text-xs font-medium text-muted-foreground mb-1">Anomalies</p>
+                      <ul className="list-disc list-inside text-xs space-y-0.5">
+                        {anomalies.map((a, i) => {
+                          const label = String((a as Record<string, unknown>).period_label ?? (a as Record<string, unknown>).periodLabel ?? "—");
+                          return <li key={i}>{label}: {formatNum(a.value)} — {a.reason ?? ""}</li>;
+                        })}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+        {corr && (
+          <div className="space-y-2">
+            <h4 className="text-xs font-semibold uppercase text-muted-foreground tracking-wide">Correlations</h4>
+            <div className="overflow-x-auto rounded-md border border-border">
+              <table className="w-full text-sm">
+                <thead><tr className="border-b bg-muted/50"><th className="text-left p-2">Column A</th><th className="text-left p-2">Column B</th><th className="text-right p-2">Pearson</th><th className="text-right p-2">Spearman</th></tr></thead>
+                <tbody>
+                  {corr.map((c, i) => {
+                    const row = c as Record<string, unknown>;
+                    return (
+                      <tr key={i} className="border-b last:border-0">
+                        <td className="p-2 font-mono text-xs">{String(row.column_a ?? row.columnA ?? "—")}</td>
+                        <td className="p-2 font-mono text-xs">{String(row.column_b ?? row.columnB ?? "—")}</td>
+                        <td className="p-2 text-right">{row.pearson != null ? Number(row.pearson).toFixed(3) : "—"}</td>
+                        <td className="p-2 text-right">{row.spearman != null ? Number(row.spearman).toFixed(3) : "—"}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+        {cohorts && (
+          <div className="space-y-2">
+            <h4 className="text-xs font-semibold uppercase text-muted-foreground tracking-wide">Cohorts</h4>
+            <div className="space-y-3">
+              {cohorts.map((c, i) => {
+                const label = String((c as Record<string, unknown>).cohort_label ?? (c as Record<string, unknown>).cohortLabel ?? "—");
+                const periods = Array.isArray(c.periods) ? c.periods : [];
+                const ret = (c as Record<string, unknown>).retention_pct ?? (c as Record<string, unknown>).retentionPct;
+                return (
+                  <div key={i} className="rounded-md border border-border bg-muted/30 p-3 space-y-2 text-sm">
+                    <div className="flex items-center justify-between">
+                      <p className="font-medium">{label}</p>
+                      {ret != null && typeof ret === "number" && (
+                        <span className="text-xs text-muted-foreground">Retention: {formatNum(ret)}%</span>
+                      )}
+                    </div>
+                    {periods.length > 0 && (
+                      <div className="overflow-x-auto">
+                        <table className="w-full min-w-[200px] text-xs">
+                          <thead><tr className="border-b bg-muted/50"><th className="text-left p-1.5">Period</th><th className="text-right p-1.5">Value</th></tr></thead>
+                          <tbody>
+                            {periods.map((p, j) => {
+                              const pl = String((p as Record<string, unknown>).period_label ?? (p as Record<string, unknown>).periodLabel ?? j);
+                              return (
+                                <tr key={j} className="border-b last:border-0">
+                                  <td className="p-1.5">{pl}</td>
+                                  <td className="p-1.5 text-right">{formatNum(p.value)}</td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

@@ -33,4 +33,4 @@ JSON output: `PGQUERYNARRATIVE_FORMAT=json make cli CMD='query "SELECT 1"'` (whe
 
 ## See also
 
-- [API examples](../api/examples.md) · [API reference](../api/README.md) · [Documentation index](../README.md)
+- [API example](../api/examples.md) · [API reference](../api/README.md) · [Documentation index](../README.md)

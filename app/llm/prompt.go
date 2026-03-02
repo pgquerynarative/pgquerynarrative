@@ -25,7 +25,8 @@ func BuildNarrativePrompt(sql string, columns []string, rows [][]interface{}, me
 	sb.WriteString("7. Only mention \"previous period\", \"prior period\", \"vs last period\", or \"same period last year\" if CALCULATED METRICS actually contain time_series with current_period and previous_period for that measure. If there is no such comparison in the metrics, do NOT invent one.\n")
 	sb.WriteString("8. When stating a rate (e.g. revenue per trip, average fare), use the correct scale: e.g. dollars per trip should be in the tens or low hundreds, not hundreds of thousands. Match the units in the data.\n")
 	sb.WriteString("9. When describing totals, use the scale from the data (e.g. if sample shows 1,234,567.89 then \"$1.2 million\" or \"$1,234,567.89\", not \"$1.2 billion\").\n")
-	sb.WriteString("10. If CALCULATED METRICS include time_series with period-over-period comparison, include at least one takeaway that mentions how key measures changed vs the previous period, using the numbers from the metrics.\n\n")
+	sb.WriteString("10. If CALCULATED METRICS include time_series with period-over-period comparison, include at least one takeaway that mentions how key measures changed vs the previous period, using the numbers from the metrics.\n")
+	sb.WriteString("11. When time_series includes forecast_ci_lower and forecast_ci_upper (confidence interval for the next-period forecast), mention the range in a takeaway (e.g. \"expected to be within X–Y\") to convey uncertainty.\n\n")
 	if !hasPeriodComparison {
 		sb.WriteString("NOTE: This result has no period-over-period comparison in the metrics. Do not mention \"previous period\", \"prior period\", \"same period last year\", or \"compared to last year\".\n\n")
 	}

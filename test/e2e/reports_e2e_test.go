@@ -13,6 +13,7 @@ import (
 
 	reportsServer "github.com/pgquerynarrative/pgquerynarrative/api/gen/http/reports/server"
 	"github.com/pgquerynarrative/pgquerynarrative/api/gen/reports"
+	"github.com/pgquerynarrative/pgquerynarrative/app/config"
 	"github.com/pgquerynarrative/pgquerynarrative/app/llm"
 	"github.com/pgquerynarrative/pgquerynarrative/app/queryrunner"
 	"github.com/pgquerynarrative/pgquerynarrative/app/service"
@@ -53,7 +54,7 @@ func TestReportsListAndGetE2E(t *testing.T) {
 
 	validator := queryrunner.NewValidator([]string{"demo"}, 10000)
 	runner := queryrunner.NewRunner(pool, validator, 1000, 30*time.Second)
-	reportsService := service.NewReportsService(pool, pool, runner, &mockLLMReports{}, 0)
+	reportsService := service.NewReportsService(pool, pool, runner, &mockLLMReports{}, config.MetricsConfig{})
 	endpoints := reports.NewEndpoints(reportsService)
 
 	mux := goahttp.NewMuxer()
@@ -230,6 +231,33 @@ func TestReportsGenerateE2E(t *testing.T) {
 		defer resp.Body.Close()
 		if resp.StatusCode != http.StatusBadRequest {
 			t.Errorf("generate disallowed schema: want 400, got %d", resp.StatusCode)
+		}
+	})
+
+	t.Run("Generate_Cohorts", func(t *testing.T) {
+		// Query with cohort dimension (column name contains "cohort") and period dimension -> metrics.cohorts populated.
+		// Use text for both so profiler marks them as dimensions; one measure.
+		payload := map[string]interface{}{
+			"sql": "SELECT to_char(date_trunc('month', date), 'YYYY-MM') AS cohort_month, '0' AS period_label, SUM(total_amount) AS revenue FROM demo.sales GROUP BY date_trunc('month', date) ORDER BY cohort_month",
+		}
+		body, _ := json.Marshal(payload)
+		resp, err := http.Post(base+"/api/v1/reports/generate", "application/json", bytes.NewReader(body))
+		if err != nil {
+			t.Fatalf("generate cohort: %v", err)
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("generate cohort status: %d", resp.StatusCode)
+		}
+		var report reports.Report
+		if err := json.NewDecoder(resp.Body).Decode(&report); err != nil {
+			t.Fatalf("decode cohort report: %v", err)
+		}
+		if report.Metrics == nil {
+			t.Fatal("generate cohort: expected metrics")
+		}
+		if len(report.Metrics.Cohorts) == 0 {
+			t.Error("generate cohort: expected at least one cohort in metrics.cohorts")
 		}
 	})
 }

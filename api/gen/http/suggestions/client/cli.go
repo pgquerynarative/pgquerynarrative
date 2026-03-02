@@ -99,7 +99,7 @@ func BuildAskPayload(suggestionsAskBody string) (*suggestions.AskPayload, error)
 	{
 		err = json.Unmarshal([]byte(suggestionsAskBody), &body)
 		if err != nil {
-			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"question\": \"lq\"\n   }'")
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"question\": \"e\"\n   }'")
 		}
 		if utf8.RuneCountInString(body.Question) < 1 {
 			err = goa.MergeErrors(err, goa.InvalidLengthError("body.question", body.Question, utf8.RuneCountInString(body.Question), 1, true))
@@ -126,7 +126,7 @@ func BuildExplainPayload(suggestionsExplainBody string) (*suggestions.ExplainPay
 	{
 		err = json.Unmarshal([]byte(suggestionsExplainBody), &body)
 		if err != nil {
-			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"sql\": \"vjn\"\n   }'")
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"sql\": \"3li\"\n   }'")
 		}
 		if utf8.RuneCountInString(body.SQL) < 1 {
 			err = goa.MergeErrors(err, goa.InvalidLengthError("body.sql", body.SQL, utf8.RuneCountInString(body.SQL), 1, true))

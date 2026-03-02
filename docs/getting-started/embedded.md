@@ -20,7 +20,7 @@ report, err := client.GenerateReport(ctx, sql)
 schema, err := client.GetSchema(ctx)
 ```
 
-See `examples/library-usage/basic.go`.
+Example: `examples/library-usage/basic.go`.
 
 ## HTTP middleware (Chi, Gin, Echo)
 
@@ -42,22 +42,6 @@ Mounted routes (with prefix `/api`):
 | GET | /api/suggestions/queries | Query: `intent`, `limit`. Suggested SQL. |
 
 Use empty prefix `""` to mount at root (e.g. `/query/run`).
-
-## Examples
-
-| Example | Description |
-|---------|-------------|
-| `examples/library-usage/basic.go` | Client only |
-| `examples/chi-integration/main.go` | Chi + middleware |
-| `examples/gin-integration/main.go` | Gin + middleware |
-| `examples/echo-integration/main.go` | Echo + middleware |
-
-Build and run (set `DATABASE_*` and `LLM_*` as needed):
-
-```bash
-go build -o bin/example-chi ./examples/chi-integration
-./bin/example-chi
-```
 
 ## See also
 

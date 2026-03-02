@@ -51,3 +51,6 @@ pgquerynarrative_data/
 # Documentation sites
 docs-site/
 site/
+
+# Release planning (local-only)
+release-2.md

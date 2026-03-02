@@ -62,12 +62,32 @@ type ChartSuggestion struct {
 	Reason string
 }
 
+type CohortMetricData struct {
+	CohortLabel  string
+	Periods      []*CohortPeriodPointData
+	RetentionPct *float64
+}
+
+type CohortPeriodPointData struct {
+	PeriodLabel string
+	Value       float64
+}
+
 type ColumnQualityData struct {
 	NullCount     int32
 	DistinctCount int32
 	TotalRows     int32
 	// Null percentage 0–100
 	NullPct float64
+}
+
+type CorrelationPairData struct {
+	ColumnA string
+	ColumnB string
+	// Pearson correlation -1 to 1
+	Pearson float64
+	// Spearman rank correlation -1 to 1
+	Spearman float64
 }
 
 // GenerateReportPayload is the payload type of the reports service generate
@@ -99,6 +119,11 @@ type MetricsData struct {
 	Aggregates    map[string]*AggregateData
 	TopCategories map[string][]*TopCategoryData
 	TimeSeries    map[string]*TimeSeriesData
+	// Pairwise Pearson and Spearman (when ≥2 numeric measures, enough rows)
+	Correlations []*CorrelationPairData
+	// Cohort analysis when cohort dimension present (inputs: cohort key, time
+	// grain)
+	Cohorts []*CohortMetricData
 	// Label for current period when time_series is present
 	PeriodCurrentLabel *string
 	// Label for previous period
@@ -165,8 +190,20 @@ type TimeSeriesData struct {
 	TrendSummary *TrendSummaryData
 	// Simple predictive: last value + trend slope
 	NextPeriodForecast *float64
+	// Lower bound of confidence interval for next-period forecast
+	ForecastCiLower *float64
+	// Upper bound of confidence interval for next-period forecast
+	ForecastCiUpper *float64
 	// Human-readable predictive sentence for the narrative
 	PredictiveSummary *string
+	// One-step-ahead forecast from simple exponential smoothing
+	ExponentialSmoothForecast *float64
+	// One-step-ahead forecast from Holt linear trend
+	HoltForecast *float64
+	// Detected seasonal period (0=none, e.g. 4=quarterly, 12=monthly)
+	SeasonalPeriod *int32
+	// Next-period forecast with seasonal component
+	SeasonallyAdjustedForecast *float64
 }
 
 type TopCategoryData struct {

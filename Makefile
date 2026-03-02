@@ -200,7 +200,7 @@ test: test-unit test-integration
 
 test-unit:
 	@echo "🧪 Running unit tests..."
-	$(GO) test ./test/unit/... ./cmd/server/... ./pkg/narrative/... ./app/embedding/... -v
+	$(GO) test ./test/unit/... ./cmd/server/... ./pkg/narrative/... ./app/embedding/... ./app/config/... -v
 
 # No-op target so "make test-unit # comment" does not fail when shell passes # as a target.
 \#:
@@ -211,7 +211,7 @@ test-features: test-unit
 
 test-integration:
 	@echo "🧪 Running integration tests..."
-	$(GO) test ./test/integration/... -v
+	DOCKER_API_VERSION=1.44 $(GO) test ./test/integration/... -v
 
 test-e2e:
 	@echo "🧪 Running E2E tests..."

@@ -13,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/pgquerynarrative/pgquerynarrative/api/gen/reports"
+	"github.com/pgquerynarrative/pgquerynarrative/app/config"
 	"github.com/pgquerynarrative/pgquerynarrative/app/llm"
 	"github.com/pgquerynarrative/pgquerynarrative/app/queryrunner"
 	"github.com/pgquerynarrative/pgquerynarrative/app/service"
@@ -87,7 +88,7 @@ func TestReportsServiceListAndGet(t *testing.T) {
 	validator := queryrunner.NewValidator([]string{"demo"}, 10000)
 	runner := queryrunner.NewRunner(pool, validator, 1000, 30*time.Second)
 	var client llm.Client = noopLLM{}
-	reportsSvc := service.NewReportsService(pool, pool, runner, client, 0)
+	reportsSvc := service.NewReportsService(pool, pool, runner, client, config.MetricsConfig{})
 
 	// List
 	listRes, err := reportsSvc.List(ctx, &reports.ListPayload{Limit: 10, Offset: 0})

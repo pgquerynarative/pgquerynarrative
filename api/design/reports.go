@@ -106,10 +106,33 @@ var NarrativeContent = Type("NarrativeContent", func() {
 	Required("headline", "takeaways")
 })
 
+var CorrelationPairData = Type("CorrelationPairData", func() {
+	Attribute("column_a", String)
+	Attribute("column_b", String)
+	Attribute("pearson", Float64, "Pearson correlation -1 to 1")
+	Attribute("spearman", Float64, "Spearman rank correlation -1 to 1")
+	Required("column_a", "column_b", "pearson", "spearman")
+})
+
+var CohortPeriodPointData = Type("CohortPeriodPointData", func() {
+	Attribute("period_label", String)
+	Attribute("value", Float64)
+	Required("period_label", "value")
+})
+
+var CohortMetricData = Type("CohortMetricData", func() {
+	Attribute("cohort_label", String)
+	Attribute("periods", ArrayOf(CohortPeriodPointData))
+	Attribute("retention_pct", Float64)
+	Required("cohort_label")
+})
+
 var MetricsData = Type("MetricsData", func() {
 	Attribute("aggregates", MapOf(String, AggregateData))
 	Attribute("top_categories", MapOf(String, ArrayOf(TopCategoryData)))
 	Attribute("time_series", MapOf(String, TimeSeriesData))
+	Attribute("correlations", ArrayOf(CorrelationPairData), "Pairwise Pearson and Spearman (when ≥2 numeric measures, enough rows)")
+	Attribute("cohorts", ArrayOf(CohortMetricData), "Cohort analysis when cohort dimension present (inputs: cohort key, time grain)")
 	Attribute("period_current_label", String, "Label for current period when time_series is present")
 	Attribute("period_previous_label", String, "Label for previous period")
 	Attribute("data_quality", MapOf(String, ColumnQualityData), "Per-column data quality (nulls, distinct)")
@@ -151,7 +174,13 @@ var TimeSeriesData = Type("TimeSeriesData", func() {
 	Attribute("anomalies", ArrayOf(AnomalyPointData), "Periods flagged as statistical anomalies (e.g. z-score)")
 	Attribute("trend_summary", TrendSummaryData, "Trend over multiple periods (direction, slope, summary)")
 	Attribute("next_period_forecast", Float64, "Simple predictive: last value + trend slope")
+	Attribute("forecast_ci_lower", Float64, "Lower bound of confidence interval for next-period forecast")
+	Attribute("forecast_ci_upper", Float64, "Upper bound of confidence interval for next-period forecast")
 	Attribute("predictive_summary", String, "Human-readable predictive sentence for the narrative")
+	Attribute("exponential_smooth_forecast", Float64, "One-step-ahead forecast from simple exponential smoothing")
+	Attribute("holt_forecast", Float64, "One-step-ahead forecast from Holt linear trend")
+	Attribute("seasonal_period", Int32, "Detected seasonal period (0=none, e.g. 4=quarterly, 12=monthly)")
+	Attribute("seasonally_adjusted_forecast", Float64, "Next-period forecast with seasonal component")
 	Required("current_period", "trend")
 })
 

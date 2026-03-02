@@ -115,9 +115,10 @@ func buildExportHTML(sql, createdAt, bodyHTML string) string {
 	if created == "" {
 		created = "—"
 	}
-	sqlEscaped := template.HTMLEscapeString(sql)
-	if len(sqlEscaped) > 500 {
-		sqlEscaped = sqlEscaped[:500] + "…"
+	// Truncate SQL for display; template will escape when rendering.
+	sqlDisplay := sql
+	if r := []rune(sql); len(r) > 500 {
+		sqlDisplay = string(r[:500]) + "…"
 	}
 	tmpl := template.Must(template.New("export").Parse(`<!DOCTYPE html>
 <html lang="en">
@@ -144,13 +145,14 @@ func buildExportHTML(sql, createdAt, bodyHTML string) string {
 	data := struct {
 		Styles  string
 		Created string
-		SQL     template.HTML
+		SQL     string
 		Body    template.HTML
 	}{
 		Styles:  reportExportStyles(),
 		Created: created,
-		SQL:     template.HTML(sqlEscaped),
-		Body:    template.HTML(bodyHTML),
+		SQL:     sqlDisplay,
+		// #nosec G203 -- bodyHTML is built only from template.HTMLEscapeString in FormatReportHTML
+		Body: template.HTML(bodyHTML),
 	}
 	var buf strings.Builder
 	if err := tmpl.Execute(&buf, data); err != nil {
@@ -181,7 +183,13 @@ body.export-body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', R
 .report-section-title:first-of-type { margin-top: 0; }
 .report-takeaways, .report-list { margin: 6px 0 0 0; padding-left: 20px; }
 .report-takeaways li, .report-list li { margin: 8px 0; line-height: 1.55; color: #0f172a; }
-.chart-suggestions, .period-comparison, .perf-suggestions, .data-quality { margin-top: 16px; padding: 16px 18px; background: #f1f5f9; border-radius: 6px; border: 1px solid #e2e8f0; }
+.chart-suggestions, .period-comparison, .correlations, .cohorts, .perf-suggestions, .data-quality { margin-top: 16px; padding: 16px 18px; background: #f1f5f9; border-radius: 6px; border: 1px solid #e2e8f0; }
+.report-hint { font-size: 0.8125rem; color: #64748b; margin: 0 0 8px 0; }
+.correlation-table, .cohort-period-table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+.correlation-table th, .correlation-table td, .cohort-period-table th, .cohort-period-table td { padding: 6px 10px; text-align: left; border-bottom: 1px solid #e2e8f0; }
+.correlation-table th, .cohort-period-table th { font-weight: 600; color: #64748b; }
+.cohort-block { margin-top: 12px; }
+.cohort-retention { margin: 4px 0 8px 0; font-size: 0.875rem; color: #64748b; }
 .period-comparison-hint { font-size: 0.8125rem; color: #64748b; margin: 0 0 8px 0; }
 .period-labels { font-weight: normal; }
 .period-comparison-list { margin: 8px 0 0 0; padding-left: 20px; }
@@ -329,6 +337,13 @@ func FormatReportHTML(report *reports.Report) string {
 			if ts.NextPeriodForecast != nil {
 				sb.WriteString("<p class=\"next-period-forecast\"><strong>Next period forecast:</strong> ")
 				sb.WriteString(formatFloatWithCommas(*ts.NextPeriodForecast))
+				if ts.ForecastCiLower != nil && ts.ForecastCiUpper != nil {
+					sb.WriteString(" <span class=\"forecast-ci\">(forecast interval: ")
+					sb.WriteString(formatFloatWithCommas(*ts.ForecastCiLower))
+					sb.WriteString("–")
+					sb.WriteString(formatFloatWithCommas(*ts.ForecastCiUpper))
+					sb.WriteString(")</span>")
+				}
 				sb.WriteString("</p>")
 			}
 
@@ -370,6 +385,58 @@ func FormatReportHTML(report *reports.Report) string {
 					sb.WriteString("</td></tr>")
 				}
 				sb.WriteString("</tbody></table></details>")
+			}
+			sb.WriteString("</div>")
+		}
+		sb.WriteString("</div>")
+	}
+
+	if report.Metrics != nil && len(report.Metrics.Correlations) > 0 {
+		sb.WriteString("<div class=\"correlations\"><h4 class=\"report-section-title\">Correlations</h4><p class=\"report-hint\">Pearson and Spearman between numeric measures.</p><table class=\"correlation-table\"><thead><tr><th>Column A</th><th>Column B</th><th>Pearson</th><th>Spearman</th></tr></thead><tbody>")
+		for _, c := range report.Metrics.Correlations {
+			if c == nil {
+				continue
+			}
+			sb.WriteString("<tr><td>")
+			sb.WriteString(template.HTMLEscapeString(c.ColumnA))
+			sb.WriteString("</td><td>")
+			sb.WriteString(template.HTMLEscapeString(c.ColumnB))
+			sb.WriteString("</td><td>")
+			sb.WriteString(fmt.Sprintf("%.3f", c.Pearson))
+			sb.WriteString("</td><td>")
+			sb.WriteString(fmt.Sprintf("%.3f", c.Spearman))
+			sb.WriteString("</td></tr>")
+		}
+		sb.WriteString("</tbody></table></div>")
+	}
+
+	if report.Metrics != nil && len(report.Metrics.Cohorts) > 0 {
+		sb.WriteString("<div class=\"cohorts\"><h4 class=\"report-section-title\">Cohorts</h4><p class=\"report-hint\">Measure by cohort and period.</p>")
+		for _, c := range report.Metrics.Cohorts {
+			if c == nil {
+				continue
+			}
+			sb.WriteString("<div class=\"cohort-block\"><h5 class=\"report-measure-title\">")
+			sb.WriteString(template.HTMLEscapeString(c.CohortLabel))
+			sb.WriteString("</h5>")
+			if c.RetentionPct != nil {
+				sb.WriteString("<p class=\"cohort-retention\">Retention: ")
+				sb.WriteString(template.HTMLEscapeString(fmt.Sprintf("%.1f", *c.RetentionPct)))
+				sb.WriteString("%</p>")
+			}
+			if len(c.Periods) > 0 {
+				sb.WriteString("<table class=\"cohort-period-table\"><thead><tr><th>Period</th><th>Value</th></tr></thead><tbody>")
+				for _, p := range c.Periods {
+					if p == nil {
+						continue
+					}
+					sb.WriteString("<tr><td>")
+					sb.WriteString(template.HTMLEscapeString(p.PeriodLabel))
+					sb.WriteString("</td><td>")
+					sb.WriteString(formatFloatWithCommas(p.Value))
+					sb.WriteString("</td></tr>")
+				}
+				sb.WriteString("</tbody></table>")
 			}
 			sb.WriteString("</div>")
 		}

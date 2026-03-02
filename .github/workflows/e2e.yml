@@ -29,8 +29,8 @@ jobs:
         ports:
           - 5432:5432
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
         with:
           go-version: '1.24'
           cache-dependency-path: go.sum
@@ -50,7 +50,7 @@ jobs:
           DATABASE_URL: postgres://postgres:postgres@localhost:5432/pgquerynarrative_test?sslmode=disable
         run: make test-e2e
       - name: Upload test results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
           name: e2e-results

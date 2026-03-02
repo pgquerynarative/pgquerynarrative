@@ -416,6 +416,26 @@ func marshalSuggestionsMetricsDataToMetricsDataResponseBody(v *suggestions.Metri
 			res.TimeSeries[tk] = marshalSuggestionsTimeSeriesDataToTimeSeriesDataResponseBody(val)
 		}
 	}
+	if v.Correlations != nil {
+		res.Correlations = make([]*CorrelationPairDataResponseBody, len(v.Correlations))
+		for i, val := range v.Correlations {
+			if val == nil {
+				res.Correlations[i] = nil
+				continue
+			}
+			res.Correlations[i] = marshalSuggestionsCorrelationPairDataToCorrelationPairDataResponseBody(val)
+		}
+	}
+	if v.Cohorts != nil {
+		res.Cohorts = make([]*CohortMetricDataResponseBody, len(v.Cohorts))
+		for i, val := range v.Cohorts {
+			if val == nil {
+				res.Cohorts[i] = nil
+				continue
+			}
+			res.Cohorts[i] = marshalSuggestionsCohortMetricDataToCohortMetricDataResponseBody(val)
+		}
+	}
 	if v.DataQuality != nil {
 		res.DataQuality = make(map[string]*ColumnQualityDataResponseBody, len(v.DataQuality))
 		for key, val := range v.DataQuality {
@@ -480,14 +500,20 @@ func marshalSuggestionsTimeSeriesDataToTimeSeriesDataResponseBody(v *suggestions
 		return nil
 	}
 	res := &TimeSeriesDataResponseBody{
-		CurrentPeriod:      v.CurrentPeriod,
-		PreviousPeriod:     v.PreviousPeriod,
-		Change:             v.Change,
-		ChangePercentage:   v.ChangePercentage,
-		Trend:              v.Trend,
-		MovingAverage:      v.MovingAverage,
-		NextPeriodForecast: v.NextPeriodForecast,
-		PredictiveSummary:  v.PredictiveSummary,
+		CurrentPeriod:              v.CurrentPeriod,
+		PreviousPeriod:             v.PreviousPeriod,
+		Change:                     v.Change,
+		ChangePercentage:           v.ChangePercentage,
+		Trend:                      v.Trend,
+		MovingAverage:              v.MovingAverage,
+		NextPeriodForecast:         v.NextPeriodForecast,
+		ForecastCiLower:            v.ForecastCiLower,
+		ForecastCiUpper:            v.ForecastCiUpper,
+		PredictiveSummary:          v.PredictiveSummary,
+		ExponentialSmoothForecast:  v.ExponentialSmoothForecast,
+		HoltForecast:               v.HoltForecast,
+		SeasonalPeriod:             v.SeasonalPeriod,
+		SeasonallyAdjustedForecast: v.SeasonallyAdjustedForecast,
 	}
 	if v.Periods != nil {
 		res.Periods = make([]*PeriodPointDataResponseBody, len(v.Periods))
@@ -559,6 +585,63 @@ func marshalSuggestionsTrendSummaryDataToTrendSummaryDataResponseBody(v *suggest
 		Slope:       v.Slope,
 		PeriodsUsed: v.PeriodsUsed,
 		Summary:     v.Summary,
+	}
+
+	return res
+}
+
+// marshalSuggestionsCorrelationPairDataToCorrelationPairDataResponseBody
+// builds a value of type *CorrelationPairDataResponseBody from a value of type
+// *suggestions.CorrelationPairData.
+func marshalSuggestionsCorrelationPairDataToCorrelationPairDataResponseBody(v *suggestions.CorrelationPairData) *CorrelationPairDataResponseBody {
+	if v == nil {
+		return nil
+	}
+	res := &CorrelationPairDataResponseBody{
+		ColumnA:  v.ColumnA,
+		ColumnB:  v.ColumnB,
+		Pearson:  v.Pearson,
+		Spearman: v.Spearman,
+	}
+
+	return res
+}
+
+// marshalSuggestionsCohortMetricDataToCohortMetricDataResponseBody builds a
+// value of type *CohortMetricDataResponseBody from a value of type
+// *suggestions.CohortMetricData.
+func marshalSuggestionsCohortMetricDataToCohortMetricDataResponseBody(v *suggestions.CohortMetricData) *CohortMetricDataResponseBody {
+	if v == nil {
+		return nil
+	}
+	res := &CohortMetricDataResponseBody{
+		CohortLabel:  v.CohortLabel,
+		RetentionPct: v.RetentionPct,
+	}
+	if v.Periods != nil {
+		res.Periods = make([]*CohortPeriodPointDataResponseBody, len(v.Periods))
+		for i, val := range v.Periods {
+			if val == nil {
+				res.Periods[i] = nil
+				continue
+			}
+			res.Periods[i] = marshalSuggestionsCohortPeriodPointDataToCohortPeriodPointDataResponseBody(val)
+		}
+	}
+
+	return res
+}
+
+// marshalSuggestionsCohortPeriodPointDataToCohortPeriodPointDataResponseBody
+// builds a value of type *CohortPeriodPointDataResponseBody from a value of
+// type *suggestions.CohortPeriodPointData.
+func marshalSuggestionsCohortPeriodPointDataToCohortPeriodPointDataResponseBody(v *suggestions.CohortPeriodPointData) *CohortPeriodPointDataResponseBody {
+	if v == nil {
+		return nil
+	}
+	res := &CohortPeriodPointDataResponseBody{
+		PeriodLabel: v.PeriodLabel,
+		Value:       v.Value,
 	}
 
 	return res

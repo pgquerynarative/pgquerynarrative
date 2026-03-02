@@ -12,8 +12,8 @@ func RunPostgresContainer(t *testing.T, ctx context.Context) *postgres.PostgresC
 	t.Helper()
 
 	if os.Getenv("DOCKER_API_VERSION") == "" {
-		// Default to a widely supported Docker API version.
-		_ = os.Setenv("DOCKER_API_VERSION", "1.41")
+		// Default to 1.44 so newer Docker daemons accept the client (daemon may require minimum 1.44).
+		_ = os.Setenv("DOCKER_API_VERSION", "1.44")
 	}
 
 	defer func() {

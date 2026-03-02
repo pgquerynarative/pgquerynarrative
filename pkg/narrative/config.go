@@ -58,7 +58,17 @@ type LLMConfig struct {
 
 // MetricsConfig holds metrics and period-comparison settings.
 type MetricsConfig struct {
-	TrendThresholdPercent float64
+	TrendThresholdPercent    float64
+	AnomalySigma             float64 // Z-score threshold for anomaly detection (1–5)
+	AnomalyMethod            string  // "zscore" or "isolation_forest"
+	TrendPeriods             int     // Periods for linear regression trend (2–24)
+	MovingAvgWindow          int     // Moving average window length (2–24)
+	ConfidenceLevel          float64 // Confidence level for forecast intervals (e.g. 0.95)
+	MinRowsForCorrelation    int     // Min rows to compute correlations (default 10)
+	SmoothingAlpha           float64 // Level smoothing for exponential smoothing (default 0.3)
+	SmoothingBeta            float64 // Trend smoothing for Holt (default 0.1)
+	MaxSeasonalLag           int     // Max seasonal period to try (default 12)
+	MinPeriodsForSeasonality int     // Min series length for seasonality (default 12)
 }
 
 // FromAppConfig converts app config into narrative config with default
@@ -85,7 +95,17 @@ func FromAppConfig(cfg config.Config) Config {
 			BaseURL:  cfg.LLM.BaseURL,
 		},
 		Metrics: MetricsConfig{
-			TrendThresholdPercent: cfg.Metrics.TrendThresholdPercent,
+			TrendThresholdPercent:    cfg.Metrics.TrendThresholdPercent,
+			AnomalySigma:             cfg.Metrics.AnomalySigma,
+			AnomalyMethod:            cfg.Metrics.AnomalyMethod,
+			TrendPeriods:             cfg.Metrics.TrendPeriods,
+			MovingAvgWindow:          cfg.Metrics.MovingAvgWindow,
+			ConfidenceLevel:          cfg.Metrics.ConfidenceLevel,
+			MinRowsForCorrelation:    cfg.Metrics.MinRowsForCorrelation,
+			SmoothingAlpha:           cfg.Metrics.SmoothingAlpha,
+			SmoothingBeta:            cfg.Metrics.SmoothingBeta,
+			MaxSeasonalLag:           cfg.Metrics.MaxSeasonalLag,
+			MinPeriodsForSeasonality: cfg.Metrics.MinPeriodsForSeasonality,
 		},
 		Embedding: EmbeddingConfig{
 			BaseURL: cfg.Embedding.BaseURL,

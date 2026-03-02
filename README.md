@@ -76,10 +76,10 @@ Full documentation in **[docs/](docs/README.md)**:
 | Section | Links |
 |---------|--------|
 | **Getting started** | [Installation](docs/getting-started/installation.md) · [Quick start](docs/getting-started/quickstart.md) · [LLM setup](docs/getting-started/llm-setup.md) · [Embedded integration](docs/getting-started/embedded.md) |
-| **User guides** | [Configuration](docs/configuration.md) · [CLI usage](docs/usage/cli-usage.md) |
-| **API** | [Reference](docs/api/README.md) · [Examples](docs/api/examples.md) |
+| **User guides** | [Configuration](docs/configuration.md) · [UI overview](docs/ui-overview.md) · [CLI usage](docs/usage/cli-usage.md) |
+| **API** | [Reference](docs/api/README.md) · [Example](docs/api/examples.md) |
 | **Reference** | [Deployment](docs/reference/deployment.md) · [Operations](docs/reference/operations.md) · [Troubleshooting](docs/reference/troubleshooting.md) · [PostgreSQL extension](docs/reference/postgres-extension.md) · [Semantic search (pgvector)](docs/reference/semantic-search-pgvector.md) |
-| **Development** | [Setup](docs/development/setup.md) · [Testing](docs/development/testing.md) |
+| **Development** | [Setup](docs/development/setup.md) · [Testing](docs/development/testing.md) · [Runbook](docs/development/runbook.md) |
 
 **Contributing & security:** [.github/CONTRIBUTING.md](.github/CONTRIBUTING.md) · [.github/SECURITY.md](.github/SECURITY.md). **Changelog:** [CHANGELOG.md](CHANGELOG.md).
 

@@ -72,6 +72,24 @@ export interface AskResult {
 
 export interface SchemaInfo { name: string; tables: { name: string; columns: Column[] }[]; }
 
+export interface AnalyticsSettings {
+  anomaly_sigma: number;
+  anomaly_method?: string;
+  trend_periods: number;
+  moving_avg_window: number;
+  trend_threshold_percent: number;
+  confidence_level: number;
+  min_rows_for_correlation?: number;
+  smoothing_alpha?: number;
+  smoothing_beta?: number;
+  max_seasonal_lag?: number;
+  min_periods_for_seasonality?: number;
+}
+
+export interface SettingsResponse {
+  analytics: AnalyticsSettings;
+}
+
 // Normalize SQL for API: trim and strip trailing semicolon (API rejects ";" in sql).
 function normalizeSql(sql: string): string {
   return sql.trim().replace(/;\s*$/, "");
@@ -106,6 +124,8 @@ export const api = {
   getReport: (id: string) => request<Report>(`/reports/${id}`),
 
   getSchema: () => request<{ schemas: SchemaInfo[] }>("/schema"),
+
+  getSettings: () => request<SettingsResponse>("/settings"),
 
   getSuggestions: (limit = 5) =>
     request<{ suggestions: { sql: string; title: string; source: string }[] }>(`/suggestions/queries?limit=${limit}`),

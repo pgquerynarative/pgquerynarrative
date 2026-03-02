@@ -30,6 +30,26 @@ type EmbeddingConfig struct {
 type MetricsConfig struct {
 	// TrendThresholdPercent is the minimum absolute % change to label as "up" or "down" (vs "flat"). Default 0.5.
 	TrendThresholdPercent float64
+	// AnomalySigma is the z-score threshold for anomaly detection (1–5). Default 2.0.
+	AnomalySigma float64
+	// AnomalyMethod is the anomaly detection method: "zscore" (default) or "isolation_forest".
+	AnomalyMethod string
+	// TrendPeriods is the number of periods used for linear regression trend (2–24). Default 6.
+	TrendPeriods int
+	// MovingAvgWindow is the simple moving average window length (2–24). Default 3.
+	MovingAvgWindow int
+	// ConfidenceLevel is the confidence level for forecast intervals (e.g. 0.95 for 95%). Clamped to 0.5–0.99.
+	ConfidenceLevel float64
+	// MinRowsForCorrelation is the minimum rows to compute correlations between numeric measures (2–1000). Default 10.
+	MinRowsForCorrelation int
+	// SmoothingAlpha is the level smoothing factor for exponential smoothing (0–1). Default 0.3.
+	SmoothingAlpha float64
+	// SmoothingBeta is the trend smoothing factor for Holt (0–1). Default 0.1.
+	SmoothingBeta float64
+	// MaxSeasonalLag is the maximum seasonal period to try (2–24). Default 12.
+	MaxSeasonalLag int
+	// MinPeriodsForSeasonality is the minimum series length to detect seasonality. Default 12.
+	MinPeriodsForSeasonality int
 }
 
 // ServerConfig contains HTTP server settings.
@@ -110,9 +130,19 @@ func Load() Config {
 			APIKey:   getEnv("LLM_API_KEY", ""),
 			BaseURL:  getEnv("LLM_BASE_URL", "http://localhost:11434"),
 		},
-		Metrics: MetricsConfig{
-			TrendThresholdPercent: getEnvFloat("PERIOD_TREND_THRESHOLD_PERCENT", 0.5),
-		},
+		Metrics: validateMetricsConfig(MetricsConfig{
+			TrendThresholdPercent:    getEnvFloat("PERIOD_TREND_THRESHOLD_PERCENT", 0.5),
+			AnomalySigma:             getEnvFloat("METRICS_ANOMALY_SIGMA", 2.0),
+			AnomalyMethod:            getEnv("METRICS_ANOMALY_METHOD", "zscore"),
+			TrendPeriods:             getEnvInt("METRICS_TREND_PERIODS", 6),
+			MovingAvgWindow:          getEnvInt("METRICS_MOVING_AVG_WINDOW", 3),
+			ConfidenceLevel:          getEnvFloat("METRICS_CONFIDENCE_LEVEL", 0.95),
+			MinRowsForCorrelation:    getEnvInt("METRICS_CORRELATION_MIN_ROWS", 10),
+			SmoothingAlpha:           getEnvFloat("METRICS_SMOOTHING_ALPHA", 0.3),
+			SmoothingBeta:            getEnvFloat("METRICS_SMOOTHING_BETA", 0.1),
+			MaxSeasonalLag:           getEnvInt("METRICS_MAX_SEASONAL_LAG", 12),
+			MinPeriodsForSeasonality: getEnvInt("METRICS_MIN_PERIODS_FOR_SEASONALITY", 12),
+		}),
 		Embedding: EmbeddingConfig{
 			BaseURL: getEnv("EMBEDDING_BASE_URL", ""),
 			Model:   getEnv("EMBEDDING_MODEL", "nomic-embed-text"),
@@ -122,6 +152,65 @@ func Load() Config {
 		cfg.Embedding.BaseURL = cfg.LLM.BaseURL
 	}
 	return cfg
+}
+
+// validateMetricsConfig clamps metrics config to valid ranges. Call after loading from env.
+func validateMetricsConfig(m MetricsConfig) MetricsConfig {
+	const (
+		minSigma = 1.0
+		maxSigma = 5.0
+		minWin   = 2
+		maxWin   = 24
+	)
+	if m.AnomalySigma < minSigma {
+		m.AnomalySigma = minSigma
+	}
+	if m.AnomalySigma > maxSigma {
+		m.AnomalySigma = maxSigma
+	}
+	if m.TrendPeriods < minWin {
+		m.TrendPeriods = minWin
+	}
+	if m.TrendPeriods > maxWin {
+		m.TrendPeriods = maxWin
+	}
+	if m.MovingAvgWindow < minWin {
+		m.MovingAvgWindow = minWin
+	}
+	if m.MovingAvgWindow > maxWin {
+		m.MovingAvgWindow = maxWin
+	}
+	if m.ConfidenceLevel < 0.5 {
+		m.ConfidenceLevel = 0.5
+	}
+	if m.ConfidenceLevel > 0.99 {
+		m.ConfidenceLevel = 0.99
+	}
+	if m.MinRowsForCorrelation < 2 {
+		m.MinRowsForCorrelation = 2
+	}
+	if m.MinRowsForCorrelation > 1000 {
+		m.MinRowsForCorrelation = 1000
+	}
+	if m.SmoothingAlpha <= 0 || m.SmoothingAlpha > 1 {
+		m.SmoothingAlpha = 0.3
+	}
+	if m.SmoothingBeta < 0 || m.SmoothingBeta > 1 {
+		m.SmoothingBeta = 0.1
+	}
+	if m.MaxSeasonalLag < 2 {
+		m.MaxSeasonalLag = 2
+	}
+	if m.MaxSeasonalLag > 24 {
+		m.MaxSeasonalLag = 24
+	}
+	if m.MinPeriodsForSeasonality < 2 {
+		m.MinPeriodsForSeasonality = 2
+	}
+	if m.AnomalyMethod != "zscore" && m.AnomalyMethod != "isolation_forest" {
+		m.AnomalyMethod = "zscore"
+	}
+	return m
 }
 
 // getEnvFloat retrieves a float environment variable or returns a default value.

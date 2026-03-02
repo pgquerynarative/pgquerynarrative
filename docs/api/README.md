@@ -32,7 +32,7 @@ REST API base: `http://localhost:8080/api/v1` (override with [Configuration](../
 | Method | Path | Description |
 |--------|------|-------------|
 | POST | `/reports/generate` | Body: `{"sql":"...", "saved_query_id": "uuid"}`. Generate report (requires [LLM](../getting-started/llm-setup.md)). Returns `narrative`, `metrics`. |
-| GET | `/reports/{id}` | Get report. Metrics: `time_series`, `data_quality`, `perf_suggestions`, `predictive_summary`, etc. |
+| GET | `/reports/{id}` | Get report. Metrics: `time_series`, `correlations`, `cohorts` (when [cohort shape](../configuration.md#cohort-analysis) present), `data_quality`, `perf_suggestions`, etc. |
 | GET | `/reports` | Query: `limit`, `offset`, `saved_query_id`. List reports. |
 
 ## Errors
@@ -41,7 +41,7 @@ Response JSON: `{"name","message","code"}`. Codes: `VALIDATION_ERROR`, `TIMEOUT_
 
 ## See also
 
-- [API examples](examples.md) — cURL for queries, suggestions (ask, explain), reports, saved queries
+- [API examples](examples.md) — Single run-query cURL example
 - [Configuration](../configuration.md) — Environment variables
 - [Deployment](../reference/deployment.md) — Running the API
 - [Embedded integration](../getting-started/embedded.md) — Library and middleware (different path prefix)
