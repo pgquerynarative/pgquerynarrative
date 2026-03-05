@@ -7,7 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { api, type RunQueryResult, type Report, ApiError } from "@/api/client";
 import { Play, FileText, AlertCircle, Clock, Rows3, Download, BarChart3, PieChart as PieChartIcon, LineChart as LineChartIcon, Table2, Sparkles, History, Lightbulb } from "lucide-react";
 import { SchemaBrowser } from "@/components/schema-browser";
-import { formatFloat } from "@/lib/utils";
+import { cn, formatFloat } from "@/lib/utils";
 import { ResultChart, type ChartType } from "@/components/result-chart";
 
 const QUERY_HISTORY_KEY = "pgquerynarrative_query_history";
@@ -226,8 +226,8 @@ export default function QueryRunner() {
         </Card>
       )}
 
-      {/* Editor */}
-      <Card>
+      {/* Editor container — glass panel with top + corner accents */}
+      <Card className="panel-accent-top panel-corner-accent">
         <CardContent className="p-6 space-y-4">
           <Textarea
             ref={editorRef}
@@ -345,7 +345,7 @@ export default function QueryRunner() {
             </Card>
           )}
 
-          <Card>
+          <Card className="panel-accent-top panel-corner-accent">
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>Results</CardTitle>
               <div className="flex items-center gap-3 text-xs text-muted-foreground">
@@ -357,9 +357,9 @@ export default function QueryRunner() {
               {(result.rows ?? []).length === 0 ? (
                 <p className="text-sm text-muted-foreground text-center py-8">No rows returned.</p>
               ) : (!result.chart_suggestions?.length || chartType === "table" || chartType === null) ? (
-                <div className="overflow-auto max-h-[400px]">
+                <div className="overflow-auto max-h-[400px] rounded-b-lg">
                   <table className="w-full text-sm">
-                    <thead className="sticky top-0 bg-surface border-b border-border">
+                    <thead className="sticky top-0 bg-surface/95 border-b border-border z-[1]">
                       <tr>
                         {(result.columns ?? []).map((c, i) => (
                           <th key={i} className="text-left text-xs font-semibold text-muted-foreground px-4 py-3 whitespace-nowrap">{c.name}</th>
@@ -368,7 +368,14 @@ export default function QueryRunner() {
                     </thead>
                     <tbody>
                       {(result.rows ?? []).map((row, ri) => (
-                        <tr key={ri} className="border-b border-border/50 hover:bg-secondary/30 transition-colors">
+                        <tr
+                          key={ri}
+                          className={cn(
+                            "border-b border-border/50 transition-colors",
+                            ri % 2 === 0 ? "bg-transparent" : "bg-muted/15",
+                            "hover:bg-primary/10"
+                          )}
+                        >
                           {row.map((cell, ci) => (
                             <td key={ci} className="px-4 py-2.5 whitespace-nowrap font-mono text-xs">{cell == null ? <span className="text-muted-foreground/50">NULL</span> : typeof cell === "number" ? formatFloat(cell) : String(cell)}</td>
                           ))}
@@ -387,9 +394,9 @@ export default function QueryRunner() {
         </div>
       )}
 
-      {/* Report narrative */}
+      {/* Report narrative — HUD accent: small top border gradient */}
       {report && (
-        <Card className="border-primary/20">
+        <Card className="border-primary/20 panel-accent-top">
           <CardHeader className="flex flex-row items-center justify-between">
             <div>
               <CardTitle className="text-brand-cyan">Narrative Report</CardTitle>

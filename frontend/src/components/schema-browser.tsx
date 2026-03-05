@@ -29,8 +29,13 @@ export function SchemaBrowser({ onInsert, className }: SchemaBrowserProps) {
 
   if (loading) {
     return (
-      <div className={cn("rounded-lg border-2 border-border bg-surface overflow-hidden min-w-[220px]", className)}>
-        <div className="flex items-center gap-2 px-3 py-2 border-b border-border bg-secondary/30">
+      <div
+        className={cn(
+          "rounded-lg overflow-hidden min-w-[220px] bg-surface/95 backdrop-blur-sm border border-primary/10 shadow-md shadow-black/15",
+          className
+        )}
+      >
+        <div className="flex items-center gap-2 px-3 py-2 border-b border-border/80 bg-secondary/30">
           <Skeleton className="h-4 w-4 rounded" />
           <Skeleton className="h-4 w-24" />
         </div>
@@ -54,15 +59,28 @@ export function SchemaBrowser({ onInsert, className }: SchemaBrowserProps) {
 
   if (schemas.length === 0) {
     return (
-      <div className={cn("rounded-lg border border-border bg-surface p-4 text-sm text-muted-foreground", className)}>
+      <div
+        className={cn(
+          "rounded-lg border border-primary/10 bg-surface/95 backdrop-blur-sm p-4 text-sm text-muted-foreground",
+          className
+        )}
+      >
         No schemas available.
       </div>
     );
   }
 
+  /* Schema panel: glassmorphism-lite, 1px cyan border, soft shadow */
   return (
-    <div className={cn("rounded-lg border-2 border-border bg-surface overflow-hidden min-w-[220px]", className)}>
-      <div className="flex items-center gap-2 px-3 py-2 border-b border-border bg-secondary/30">
+    <div
+      className={cn(
+        "rounded-lg overflow-hidden min-w-[220px]",
+        "bg-surface/95 backdrop-blur-sm border border-primary/10",
+        "shadow-md shadow-black/15 ring-1 ring-inset ring-white/[0.02]",
+        className
+      )}
+    >
+      <div className="flex items-center gap-2 px-3 py-2 border-b border-border/80 bg-secondary/30">
         <Database className="h-4 w-4 text-primary" />
         <span className="text-sm font-medium">Schema</span>
       </div>

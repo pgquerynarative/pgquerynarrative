@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api, type Report } from "@/api/client";
 import { FileText, Download, Clock, Cpu, ArrowLeft, BarChart3 } from "lucide-react";
-import { truncate } from "@/lib/utils";
+import { cn, truncate } from "@/lib/utils";
 
 type TimeSeriesEntry = {
   next_period_forecast?: number | null;
@@ -170,12 +170,12 @@ function ReportMetricsCard({ metrics }: { metrics?: MetricsPayload | null }) {
             <h4 className="text-xs font-semibold uppercase text-muted-foreground tracking-wide">Correlations</h4>
             <div className="overflow-x-auto rounded-md border border-border">
               <table className="w-full text-sm">
-                <thead><tr className="border-b bg-muted/50"><th className="text-left p-2">Column A</th><th className="text-left p-2">Column B</th><th className="text-right p-2">Pearson</th><th className="text-right p-2">Spearman</th></tr></thead>
+                <thead><tr className="border-b border-border bg-muted/50"><th className="text-left p-2">Column A</th><th className="text-left p-2">Column B</th><th className="text-right p-2">Pearson</th><th className="text-right p-2">Spearman</th></tr></thead>
                 <tbody>
                   {corr.map((c, i) => {
                     const row = c as Record<string, unknown>;
                     return (
-                      <tr key={i} className="border-b last:border-0">
+                      <tr key={i} className={cn("border-b border-border/50 last:border-0 transition-colors", i % 2 === 0 ? "bg-transparent" : "bg-muted/15", "hover:bg-primary/5")}>
                         <td className="p-2 font-mono text-xs">{String(row.column_a ?? row.columnA ?? "—")}</td>
                         <td className="p-2 font-mono text-xs">{String(row.column_b ?? row.columnB ?? "—")}</td>
                         <td className="p-2 text-right">{row.pearson != null ? Number(row.pearson).toFixed(3) : "—"}</td>
@@ -207,12 +207,12 @@ function ReportMetricsCard({ metrics }: { metrics?: MetricsPayload | null }) {
                     {periods.length > 0 && (
                       <div className="overflow-x-auto">
                         <table className="w-full min-w-[200px] text-xs">
-                          <thead><tr className="border-b bg-muted/50"><th className="text-left p-1.5">Period</th><th className="text-right p-1.5">Value</th></tr></thead>
+                          <thead><tr className="border-b border-border bg-muted/50"><th className="text-left p-1.5">Period</th><th className="text-right p-1.5">Value</th></tr></thead>
                           <tbody>
                             {periods.map((p, j) => {
                               const pl = String((p as Record<string, unknown>).period_label ?? (p as Record<string, unknown>).periodLabel ?? j);
                               return (
-                                <tr key={j} className="border-b last:border-0">
+                                <tr key={j} className={cn("border-b border-border/50 last:border-0 transition-colors", j % 2 === 0 ? "bg-transparent" : "bg-muted/15", "hover:bg-primary/5")}>
                                   <td className="p-1.5">{pl}</td>
                                   <td className="p-1.5 text-right">{formatNum(p.value)}</td>
                                 </tr>
