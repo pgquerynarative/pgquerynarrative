@@ -1,6 +1,8 @@
 // Package logger provides structured console logging with timestamp, level (INF/WRN/ERR),
 // message, and optional key=value pairs so all errors and events are visible in a consistent format.
 // When Color is true and the output is a TTY, level and status codes are colorized.
+// When created with NewFromConfig (LOG_LEVEL, LOG_PRETTY), uses zerolog for leveled, optional
+// colorful output; otherwise uses the built-in format.
 package logger
 
 import (
@@ -11,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/rs/zerolog"
 	"golang.org/x/term"
 )
 
@@ -35,9 +38,11 @@ const (
 
 // Logger writes structured log lines: "3:04AM LVL message key1=value1 key2=value2".
 // When Color is true, level and status codes are emitted with ANSI colors for TTYs.
+// When zerolog-backed (NewFromConfig), uses zerolog format with optional pretty/color output.
 type Logger struct {
 	w     io.Writer
 	Color bool
+	z     *zerolog.Logger // when set, use zerolog for all output
 }
 
 // Default returns a logger that writes to os.Stdout with color enabled when stdout is a TTY.
@@ -45,7 +50,7 @@ func Default() *Logger {
 	return &Logger{w: os.Stdout, Color: isTerminal(os.Stdout)}
 }
 
-// New returns a logger that writes to w (no color).
+// New returns a logger that writes to w with the built-in format (no color).
 func New(w io.Writer) *Logger {
 	return &Logger{w: w, Color: false}
 }
@@ -62,11 +67,67 @@ func isTerminal(w io.Writer) bool {
 	return false
 }
 
+// NewFromConfig builds a zerolog-backed logger from level (e.g. "info", "debug") and pretty (colorful console).
+// Invalid level falls back to info. Use for application logging when LOG_LEVEL and LOG_PRETTY are set.
+func NewFromConfig(level string, pretty bool) *Logger {
+	return newFromConfigOutput(level, pretty, os.Stdout)
+}
+
+// newFromConfigOutput builds a zerolog-backed logger writing to w. Used by NewFromConfig and tests.
+func newFromConfigOutput(level string, pretty bool, w io.Writer) *Logger {
+	lvl := zerolog.InfoLevel
+	if level != "" {
+		if p, err := zerolog.ParseLevel(level); err == nil {
+			lvl = p
+		}
+	}
+	out := io.Writer(w)
+	if pretty {
+		out = zerolog.ConsoleWriter{Out: w}
+	}
+	z := zerolog.New(out).With().Timestamp().Logger().Level(lvl)
+	return &Logger{z: &z}
+}
+
 // Log writes a line with the given level, message, and key-value pairs (alternating key, value).
 // Keys are quoted if they contain spaces; values are space-escaped for readability.
 func (l *Logger) Log(level Level, msg string, kv ...interface{}) {
+	if l.z != nil {
+		l.logZerolog(level, msg, kv)
+		return
+	}
 	line := l.format(level, msg, kv)
 	_, _ = fmt.Fprintln(l.w, line)
+}
+
+// attachFields maps the variadic key/value pairs into zerolog fields.
+// Values that are error type and key "error" are recorded with Err(); all others use Interface().
+// Odd-length kv slices leave the trailing key ignored.
+func attachFields(evt *zerolog.Event, kv []interface{}) *zerolog.Event {
+	for i := 0; i+1 < len(kv); i += 2 {
+		k := fmt.Sprint(kv[i])
+		v := kv[i+1]
+		if err, ok := v.(error); ok && k == "error" {
+			evt = evt.Err(err)
+		} else {
+			evt = evt.Interface(k, v)
+		}
+	}
+	return evt
+}
+
+func (l *Logger) logZerolog(level Level, msg string, kv []interface{}) {
+	var evt *zerolog.Event
+	switch level {
+	case LevelErr:
+		evt = l.z.Error()
+	case LevelWarn:
+		evt = l.z.Warn()
+	default:
+		evt = l.z.Info()
+	}
+	evt = attachFields(evt, kv)
+	evt.Msg(msg)
 }
 
 func (l *Logger) format(level Level, msg string, kv []interface{}) string {
@@ -144,6 +205,14 @@ func (l *Logger) colorStatus(pair, v string) string {
 		c = ansiYellow
 	}
 	return "status=" + c + v + ansiReset
+}
+
+// Debug logs at debug level (zerolog only; no-op when using built-in format).
+func (l *Logger) Debug(msg string, kv ...interface{}) {
+	if l.z != nil {
+		evt := attachFields(l.z.Debug(), kv)
+		evt.Msg(msg)
+	}
 }
 
 // Info logs at INF level.

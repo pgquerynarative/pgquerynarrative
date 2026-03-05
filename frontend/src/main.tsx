@@ -20,51 +20,51 @@ createRoot(document.getElementById("root")!).render(
       <ThemeProvider>
         <AnnounceProvider>
           <BrowserRouter>
-          <Routes>
-            <Route element={<Layout />}>
-              <Route index element={<Dashboard />} />
-              <Route
-                path="query"
-                element={
-                  <Suspense fallback={<RouteFallback />}>
-                    <QueryRunner />
-                  </Suspense>
-                }
-              />
-              <Route
-                path="saved"
-                element={
-                  <Suspense fallback={<RouteFallback />}>
-                    <SavedQueries />
-                  </Suspense>
-                }
-              />
-              <Route
-                path="reports"
-                element={
-                  <Suspense fallback={<RouteFallback />}>
-                    <Reports />
-                  </Suspense>
-                }
-              />
-              <Route
-                path="reports/:id"
-                element={
-                  <Suspense fallback={<RouteFallback />}>
-                    <Reports />
-                  </Suspense>
-                }
-              />
-              <Route
-                path="settings"
-                element={
-                  <Suspense fallback={<RouteFallback />}>
-                    <SettingsPage />
-                  </Suspense>
-                }
-              />
-            </Route>
-          </Routes>
+            <Routes>
+              <Route element={<Layout />}>
+                <Route index element={<Dashboard />} />
+                <Route
+                  path="query"
+                  element={
+                    <Suspense fallback={<RouteFallback />}>
+                      <QueryRunner />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="saved"
+                  element={
+                    <Suspense fallback={<RouteFallback />}>
+                      <SavedQueries />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="reports"
+                  element={
+                    <Suspense fallback={<RouteFallback />}>
+                      <Reports />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="reports/:id"
+                  element={
+                    <Suspense fallback={<RouteFallback />}>
+                      <Reports />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="settings"
+                  element={
+                    <Suspense fallback={<RouteFallback />}>
+                      <SettingsPage />
+                    </Suspense>
+                  }
+                />
+              </Route>
+            </Routes>
           </BrowserRouter>
         </AnnounceProvider>
       </ThemeProvider>

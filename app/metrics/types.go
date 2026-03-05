@@ -25,6 +25,8 @@ type Options struct {
 	MaxSeasonalLag int
 	// MinPeriodsForSeasonality is the minimum series length to detect seasonality. Default 12.
 	MinPeriodsForSeasonality int
+	// MaxTimeSeriesPeriods is the maximum number of periods to include in time-series Periods (last N for UI/charts). Default 24. Range 2–120.
+	MaxTimeSeriesPeriods int
 }
 
 // ApplyDefaults sets zero values to defaults. Idempotent for already-set values.
@@ -61,6 +63,9 @@ func (o *Options) ApplyDefaults() {
 	}
 	if o.MinPeriodsForSeasonality <= 0 {
 		o.MinPeriodsForSeasonality = 12
+	}
+	if o.MaxTimeSeriesPeriods <= 0 {
+		o.MaxTimeSeriesPeriods = 24
 	}
 }
 

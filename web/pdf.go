@@ -15,6 +15,9 @@ import (
 // BuildReportPDF writes a structured PDF report to w. Uses Helvetica (ASCII-safe).
 func BuildReportPDF(w io.Writer, report *reports.Report) error {
 	pdf := gofpdf.New("P", "pt", "A4", "")
+	pdf.SetCreator("PgQueryNarrative", false)
+	pdf.SetProducer("PgQueryNarrative", false)
+	pdf.SetTitle("PgQueryNarrative Report", false)
 	pdf.SetMargins(40, 40, 40)
 	pdf.SetAutoPageBreak(true, 28)
 	pdf.AddPage()

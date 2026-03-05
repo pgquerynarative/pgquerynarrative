@@ -17,6 +17,14 @@ type Config struct {
 	LLM       LLMConfig       // LLM provider configuration
 	Metrics   MetricsConfig   // Metrics and period-comparison settings
 	Embedding EmbeddingConfig // Optional embeddings for RAG and similar-query retrieval
+	Logging   LoggingConfig   // Log level and pretty (colorful) console output
+}
+
+// LoggingConfig holds logging behavior. Level is parsed by zerolog (debug, info, warn, error).
+// Pretty enables human-readable colorful output for local dev; when false, logs are plain text.
+type LoggingConfig struct {
+	Level  string // LOG_LEVEL: debug, info, warn, error (default info)
+	Pretty bool   // LOG_PRETTY: true = colorful console output
 }
 
 // EmbeddingConfig holds settings for embedding models (RAG, similar-query).
@@ -50,6 +58,8 @@ type MetricsConfig struct {
 	MaxSeasonalLag int
 	// MinPeriodsForSeasonality is the minimum series length to detect seasonality. Default 12.
 	MinPeriodsForSeasonality int
+	// MaxTimeSeriesPeriods is the maximum number of periods to include in time-series Periods (e.g. "last N" for charts). Default 24. Range 2–120.
+	MaxTimeSeriesPeriods int
 }
 
 // ServerConfig contains HTTP server settings.
@@ -142,10 +152,15 @@ func Load() Config {
 			SmoothingBeta:            getEnvFloat("METRICS_SMOOTHING_BETA", 0.1),
 			MaxSeasonalLag:           getEnvInt("METRICS_MAX_SEASONAL_LAG", 12),
 			MinPeriodsForSeasonality: getEnvInt("METRICS_MIN_PERIODS_FOR_SEASONALITY", 12),
+			MaxTimeSeriesPeriods:     getEnvInt("METRICS_MAX_TIMESERIES_PERIODS", 24),
 		}),
 		Embedding: EmbeddingConfig{
 			BaseURL: getEnv("EMBEDDING_BASE_URL", ""),
 			Model:   getEnv("EMBEDDING_MODEL", "nomic-embed-text"),
+		},
+		Logging: LoggingConfig{
+			Level:  getEnv("LOG_LEVEL", "info"),
+			Pretty: getLogPrettyDefault(),
 		},
 	}
 	if cfg.Embedding.BaseURL == "" && cfg.LLM.Provider == "ollama" && cfg.LLM.BaseURL != "" {
@@ -210,6 +225,12 @@ func validateMetricsConfig(m MetricsConfig) MetricsConfig {
 	if m.AnomalyMethod != "zscore" && m.AnomalyMethod != "isolation_forest" {
 		m.AnomalyMethod = "zscore"
 	}
+	if m.MaxTimeSeriesPeriods < 2 {
+		m.MaxTimeSeriesPeriods = 2
+	}
+	if m.MaxTimeSeriesPeriods > 120 {
+		m.MaxTimeSeriesPeriods = 120
+	}
 	return m
 }
 
@@ -243,7 +264,7 @@ func getEnvInt(key string, fallback int) int {
 }
 
 // getEnvBool retrieves a boolean environment variable or returns a default value.
-// Accepts: "true", "1", "yes", "on" (case-insensitive) for true.
+// Accepts: "true", "1", "yes", "on" (case-insensitive) for true; "false", "0", "no", "off" for false.
 func getEnvBool(key string, fallback bool) bool {
 	if value := os.Getenv(key); value != "" {
 		if parsed, err := strconv.ParseBool(value); err == nil {
@@ -251,6 +272,15 @@ func getEnvBool(key string, fallback bool) bool {
 		}
 	}
 	return fallback
+}
+
+// getLogPrettyDefault returns true when LOG_PRETTY is unset so local runs get readable output;
+// when set, uses the env value (e.g. LOG_PRETTY=false for JSON in production).
+func getLogPrettyDefault() bool {
+	if os.Getenv("LOG_PRETTY") == "" {
+		return true
+	}
+	return getEnvBool("LOG_PRETTY", false)
 }
 
 // getEnvDuration retrieves a duration environment variable or returns a default value.

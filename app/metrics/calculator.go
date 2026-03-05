@@ -285,7 +285,10 @@ func (m *Metrics) calculateTimeSeries(columns []string, rows [][]interface{}, pr
 	m.CurrentPeriodLabel = currentPeriod
 	m.PreviousPeriodLabel = previousPeriod
 
-	const maxPeriods = 24
+	maxPeriods := opts.MaxTimeSeriesPeriods
+	if maxPeriods <= 0 {
+		maxPeriods = 24
+	}
 	movingAvgWindow := opts.MovingAvgWindow
 	anomalySigma := opts.AnomalySigma
 	trendPeriods := opts.TrendPeriods

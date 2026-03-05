@@ -69,12 +69,12 @@ docker-start:
 	@$(MAKE) db-init || true
 	@echo ""
 	@echo "Step 3: Running migrations..."
-	@export DB_URL="postgres://postgres:postgres@localhost:5432/pgquerynarrative?sslmode=disable"; \
-	$(MAKE) migrate || true
+	@docker compose run --rm app /app/bin/migrate -path /app/app/db/migrations -database "postgres://postgres:postgres@postgres:5432/pgquerynarrative?sslmode=disable" up || true
+	@docker compose exec -T postgres psql -U postgres -d pgquerynarrative -c "ALTER ROLE pgquerynarrative_readonly SET default_transaction_read_only = on;" 2>/dev/null || true
+	@docker compose exec -T postgres psql -U postgres -d pgquerynarrative -c "UPDATE schema_migrations SET version = 11, dirty = false;" 2>/dev/null || true
 	@echo ""
 	@echo "Step 4: Seeding demo data..."
-	@export DB_URL="postgres://postgres:postgres@localhost:5432/pgquerynarrative?sslmode=disable"; \
-	$(MAKE) seed || true
+	@docker compose exec -T postgres psql -U postgres -d pgquerynarrative -f - < tools/db/seed.sql || echo "⚠️  Seed data already exists or database not accessible"
 	@echo ""
 	@echo "Step 5: Building application..."
 	@$(MAKE) generate build

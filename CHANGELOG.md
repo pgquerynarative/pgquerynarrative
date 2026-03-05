@@ -15,13 +15,13 @@ Entries: edit `changelog/unreleased.md` then run `make changelog`.
 
 ### Planned (Release 2)
 
-Additional analytics: further cohort metrics, configurable windows, and seasonal adjustments.
+Additional analytics: further cohort metrics and seasonal adjustments.
 
 ## [1.0.0]
 
 ### Planned (Release 2)
 
-Additional analytics: further cohort metrics, configurable windows, and seasonal adjustments.
+Additional analytics: further cohort metrics and seasonal adjustments.
 
 ### Added
 - **Isolation Forest anomaly detection:** `METRICS_ANOMALY_METHOD=isolation_forest` now supported; calculator branches on method and uses Isolation Forest (random trees, median split, anomaly score) when set; z-score remains default

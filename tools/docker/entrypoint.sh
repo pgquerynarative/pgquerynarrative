@@ -24,7 +24,7 @@ if [ $attempts -eq 0 ]; then
 fi
 
 export DB_URL="postgres://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}?sslmode=${DATABASE_SSL_MODE:-disable}"
-sh ./tools/db/migrate.sh up "${DB_URL}"
+/app/bin/migrate -path /app/app/db/migrations -database "${DB_URL}" up
 
 if [ "${PGQUERYNARRATIVE_SEED:-false}" = "true" ]; then
   psql "${DB_URL}" -f ./tools/db/seed.sql

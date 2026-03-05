@@ -73,6 +73,7 @@ export default function SettingsPage() {
               {analytics.smoothing_beta != null && <Row label="Smoothing β" value={String(analytics.smoothing_beta)} title="Holt trend smoothing" />}
               {analytics.max_seasonal_lag != null && <Row label="Max seasonal lag" value={String(analytics.max_seasonal_lag)} title="Max period for seasonality" />}
               {analytics.min_periods_for_seasonality != null && <Row label="Min periods (seasonality)" value={String(analytics.min_periods_for_seasonality)} title="Min series length for seasonality" />}
+              {analytics.max_timeseries_periods != null && <Row label="Max time-series periods" value={String(analytics.max_timeseries_periods)} title="Max periods in time-series (last N for charts)" />}
             </CardContent>
           </Card>
         )}
