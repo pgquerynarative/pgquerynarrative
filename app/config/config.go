@@ -74,7 +74,7 @@ type DatabaseConfig struct {
 	ReadOnlyPassword string        // Read-only user password
 	SSLMode          string        // SSL mode (disable, require, etc.)
 	QueryTimeout     time.Duration // Maximum query execution time
-	AllowedSchemas   []string      // Schemas queries may access (e.g. demo, public). Default: demo.
+	AllowedSchemas   []string      // Schemas queries may access (e.g. demo, public). Default: public,demo.
 }
 
 // SecurityConfig contains security-related settings.

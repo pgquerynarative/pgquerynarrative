@@ -1,0 +1,1 @@
+ALTER ROLE pgquerynarrative_readonly RESET default_transaction_read_only;
