@@ -61,7 +61,8 @@ func main() {
 	}
 	defer client.Close()
 
-	appLogger := logger.Default()
+	appLogger := logger.NewFromConfig(cfg.Logging.Level, cfg.Logging.Pretty)
+	logger.SetDefault(appLogger)
 
 	queriesEndpoints := queries.NewEndpoints(client.QueriesService())
 	reportsEndpoints := reports.NewEndpoints(client.ReportsService())
@@ -355,11 +356,18 @@ func requestLoggingMiddleware(next http.Handler, appLogger *logger.Logger, audit
 		next.ServeHTTP(wrapped, r)
 
 		duration := time.Since(start).Round(time.Millisecond)
-		kvs := []interface{}{"component", "http", "client_ip", clientIP, "method", method, "path", path, "status", wrapped.statusCode, "duration_ms", duration.Milliseconds()}
+		kvs := []interface{}{"component", "http", "client_ip", clientIP, "method", method, "path", path, "http.status_code", wrapped.statusCode, "duration_ms", duration.Milliseconds()}
 		if reqID, ok := r.Context().Value(requestIDContextKey).(string); ok && reqID != "" {
 			kvs = append(kvs, "request_id", reqID)
 		}
-		appLogger.Info("request", kvs...)
+		switch {
+		case wrapped.statusCode >= 400:
+			appLogger.Err("http request", kvs...)
+		case path == "/health" || path == "/ready" || path == "/version":
+			appLogger.Debug("http request", kvs...)
+		default:
+			appLogger.Info("http request", kvs...)
+		}
 		wrapped.logErrorIfAny()
 
 		if auditStore != nil && (strings.HasPrefix(path, "/api/") || path == "/web/reports/export" || path == "/web/reports/export/pdf") {

@@ -16,7 +16,9 @@ PgQueryNarrative is configured via **environment variables** only. Sensible defa
 
 | Variable | Default | Description |
 |---------|---------|-------------|
-| `LOG_DEBUG` | (empty) | `1` or `true` = verbose logging (query execution, report generation). |
+| `LOG_LEVEL` | `info` | Log level: `debug`, `info`, `warn`, `error`. Uses zerolog; all app logs are leveled. |
+| `LOG_PRETTY` | (unset → pretty) | When **unset** or set to a truthy value (e.g. `true`, `1`), logs are human-readable and colorful (ideal for local dev). Set to `false` or `0` for one-JSON-line-per-log (e.g. production, aggregators). |
+| `LOG_DEBUG` | (empty) | `1` or `true` = extra verbose logging (query execution, report generation). Independent of `LOG_LEVEL`. |
 
 ---
 

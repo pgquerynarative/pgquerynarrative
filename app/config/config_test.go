@@ -1,6 +1,7 @@
 package config
 
 import (
+	"os"
 	"testing"
 )
 
@@ -52,5 +53,30 @@ func TestValidateMetricsConfig_MaxTimeSeriesPeriods(t *testing.T) {
 		if got.MaxTimeSeriesPeriods != tt.want {
 			t.Errorf("MaxTimeSeriesPeriods(%d) = %d, want %d", tt.in, got.MaxTimeSeriesPeriods, tt.want)
 		}
+	}
+}
+
+func TestLoad_Logging_LogPrettyDefault(t *testing.T) {
+	save := os.Getenv("LOG_PRETTY")
+	defer func() { _ = os.Setenv("LOG_PRETTY", save) }()
+
+	// Unset → default pretty true (readable local output)
+	_ = os.Unsetenv("LOG_PRETTY")
+	cfg := Load()
+	if !cfg.Logging.Pretty {
+		t.Errorf("when LOG_PRETTY unset, Logging.Pretty should be true, got false")
+	}
+
+	// Explicit false → JSON-style output
+	_ = os.Setenv("LOG_PRETTY", "false")
+	cfg = Load()
+	if cfg.Logging.Pretty {
+		t.Errorf("when LOG_PRETTY=false, Logging.Pretty should be false, got true")
+	}
+
+	_ = os.Setenv("LOG_PRETTY", "1")
+	cfg = Load()
+	if !cfg.Logging.Pretty {
+		t.Errorf("when LOG_PRETTY=1, Logging.Pretty should be true, got false")
 	}
 }
