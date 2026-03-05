@@ -84,6 +84,7 @@ export interface AnalyticsSettings {
   smoothing_beta?: number;
   max_seasonal_lag?: number;
   min_periods_for_seasonality?: number;
+  max_timeseries_periods?: number;
 }
 
 export interface SettingsResponse {

@@ -154,6 +154,7 @@ func metricsOptionsFromConfig(c config.MetricsConfig) *metrics.Options {
 		SmoothingBeta:            c.SmoothingBeta,
 		MaxSeasonalLag:           c.MaxSeasonalLag,
 		MinPeriodsForSeasonality: c.MinPeriodsForSeasonality,
+		MaxTimeSeriesPeriods:     c.MaxTimeSeriesPeriods,
 	}
 	o.ApplyDefaults()
 	return o

@@ -50,6 +50,8 @@ type MetricsConfig struct {
 	MaxSeasonalLag int
 	// MinPeriodsForSeasonality is the minimum series length to detect seasonality. Default 12.
 	MinPeriodsForSeasonality int
+	// MaxTimeSeriesPeriods is the maximum number of periods to include in time-series Periods (e.g. "last N" for charts). Default 24. Range 2–120.
+	MaxTimeSeriesPeriods int
 }
 
 // ServerConfig contains HTTP server settings.
@@ -142,6 +144,7 @@ func Load() Config {
 			SmoothingBeta:            getEnvFloat("METRICS_SMOOTHING_BETA", 0.1),
 			MaxSeasonalLag:           getEnvInt("METRICS_MAX_SEASONAL_LAG", 12),
 			MinPeriodsForSeasonality: getEnvInt("METRICS_MIN_PERIODS_FOR_SEASONALITY", 12),
+			MaxTimeSeriesPeriods:     getEnvInt("METRICS_MAX_TIMESERIES_PERIODS", 24),
 		}),
 		Embedding: EmbeddingConfig{
 			BaseURL: getEnv("EMBEDDING_BASE_URL", ""),
@@ -209,6 +212,12 @@ func validateMetricsConfig(m MetricsConfig) MetricsConfig {
 	}
 	if m.AnomalyMethod != "zscore" && m.AnomalyMethod != "isolation_forest" {
 		m.AnomalyMethod = "zscore"
+	}
+	if m.MaxTimeSeriesPeriods < 2 {
+		m.MaxTimeSeriesPeriods = 2
+	}
+	if m.MaxTimeSeriesPeriods > 120 {
+		m.MaxTimeSeriesPeriods = 120
 	}
 	return m
 }

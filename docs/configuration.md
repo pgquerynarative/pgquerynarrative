@@ -101,19 +101,40 @@ For [LLM setup – MCP](getting-started/llm-setup.md#mcp-claude-desktop--cursor)
 
 Time-series and period-comparison behaviour. Values are shown read-only in **Settings → Analytics** in the web UI. Out-of-range values are clamped at load.
 
+### Configurable windows {#configurable-windows}
+
+These variables control the **time/period windows** used for analytics (trend, moving average, time-series length, seasonality). You can tune them for shorter or longer lookbacks.
+
+| Variable | Default | Description |
+|---------|---------|-------------|
+| `METRICS_TREND_PERIODS` | `6` | Number of periods used for linear regression trend (2–24). Affects the trend sentence in the narrative (e.g. "increasing over the last 6 periods"). |
+| `METRICS_MOVING_AVG_WINDOW` | `3` | Simple moving average window length (2–24). Used for the moving average value in time-series metrics. |
+| `METRICS_MAX_TIMESERIES_PERIODS` | `24` | Maximum number of periods kept in the time-series **period list** sent to the UI and API. Range 2–120. See [How time-series windowing works](#how-time-series-windowing-works) below. |
+| `METRICS_MAX_SEASONAL_LAG` | `12` | Maximum seasonal period to try (2–24). |
+| `METRICS_MIN_PERIODS_FOR_SEASONALITY` | `12` | Minimum series length to detect seasonality. |
+
+#### How time-series windowing works {#how-time-series-windowing-works}
+
+When a query returns **time-series data** (one date/time column plus one or more numeric measure columns), the metrics calculator:
+
+1. **Aggregates** by period (e.g. by day or month) and sorts periods by time.
+2. **Compares last two periods** for the narrative: "current period" vs "previous period" (e.g. revenue change %). This comparison is **not** limited by `METRICS_MAX_TIMESERIES_PERIODS`.
+3. **Builds the period list** for charts and the API: from the full sorted list of periods, only the **last N** are kept, where **N = METRICS_MAX_TIMESERIES_PERIODS** (default 24, clamped to 2–120). So if the query returns 100 days, the report gets the most recent 24 (or your configured N) in `metrics.time_series.<measure>.periods`.
+4. **Trend and forecast** use the full series for their calculations (all periods in the result); only the **displayed** period list is capped at N.
+
+**Summary:** `METRICS_MAX_TIMESERIES_PERIODS` caps how many periods appear in the time-series **period list** (charts, API). It does **not** change the "current vs prior period" comparison, the trend period count (`METRICS_TREND_PERIODS`), or the narrative headline.
+
+### Other metrics
+
 | Variable | Default | Description |
 |---------|---------|-------------|
 | `PERIOD_TREND_THRESHOLD_PERCENT` | `0.5` | Min % change to label trend "up"/"down"; below = "flat". |
 | `METRICS_ANOMALY_SIGMA` | `2.0` | Z-score threshold for anomaly detection (1–5). |
 | `METRICS_ANOMALY_METHOD` | `zscore` | Anomaly method: `zscore` or `isolation_forest`. |
-| `METRICS_TREND_PERIODS` | `6` | Periods used for linear regression trend (2–24). |
-| `METRICS_MOVING_AVG_WINDOW` | `3` | Simple moving average window length (2–24). |
 | `METRICS_CONFIDENCE_LEVEL` | `0.95` | Confidence level for forecast intervals (0.5–0.99). |
 | `METRICS_CORRELATION_MIN_ROWS` | `10` | Minimum rows to compute Pearson/Spearman between numeric measures (2–1000). |
 | `METRICS_SMOOTHING_ALPHA` | `0.3` | Level smoothing factor for exponential smoothing (0–1). |
 | `METRICS_SMOOTHING_BETA` | `0.1` | Trend smoothing factor for Holt (0–1). |
-| `METRICS_MAX_SEASONAL_LAG` | `12` | Maximum seasonal period to try (2–24). |
-| `METRICS_MIN_PERIODS_FOR_SEASONALITY` | `12` | Minimum series length to detect seasonality. |
 
 ### Cohort analysis {#cohort-analysis}
 

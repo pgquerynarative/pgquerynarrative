@@ -226,6 +226,7 @@ func settingsHandler(cfg config.Config) http.HandlerFunc {
 				"smoothing_beta":              cfg.Metrics.SmoothingBeta,
 				"max_seasonal_lag":            cfg.Metrics.MaxSeasonalLag,
 				"min_periods_for_seasonality": cfg.Metrics.MinPeriodsForSeasonality,
+				"max_timeseries_periods":      cfg.Metrics.MaxTimeSeriesPeriods,
 			},
 		})
 	}

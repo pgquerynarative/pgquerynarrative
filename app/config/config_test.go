@@ -35,3 +35,22 @@ func TestValidateMetricsConfig_ClampsToRange(t *testing.T) {
 		})
 	}
 }
+
+func TestValidateMetricsConfig_MaxTimeSeriesPeriods(t *testing.T) {
+	tests := []struct {
+		in   int
+		want int
+	}{
+		{0, 2},
+		{1, 2},
+		{24, 24},
+		{120, 120},
+		{200, 120},
+	}
+	for _, tt := range tests {
+		got := validateMetricsConfig(MetricsConfig{MaxTimeSeriesPeriods: tt.in})
+		if got.MaxTimeSeriesPeriods != tt.want {
+			t.Errorf("MaxTimeSeriesPeriods(%d) = %d, want %d", tt.in, got.MaxTimeSeriesPeriods, tt.want)
+		}
+	}
+}
