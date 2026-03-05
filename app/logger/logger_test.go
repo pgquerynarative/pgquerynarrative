@@ -2,14 +2,30 @@ package logger
 
 import (
 	"bytes"
+	"errors"
 	"strings"
 	"testing"
+
+	"github.com/rs/zerolog"
 )
 
 func TestNewFromConfig_invalidLevel_fallsBackToInfo(t *testing.T) {
 	l := NewFromConfig("invalid", false)
 	if l.z == nil {
-		t.Error("NewFromConfig should produce zerolog backend")
+		t.Fatal("NewFromConfig should produce zerolog backend")
+	}
+	if got := l.z.GetLevel(); got != zerolog.InfoLevel {
+		t.Errorf("expected fallback level %v for invalid level, got %v", zerolog.InfoLevel, got)
+	}
+}
+
+func TestNewFromConfig_emptyLevel_defaultsToInfo(t *testing.T) {
+	l := NewFromConfig("", false)
+	if l.z == nil {
+		t.Fatal("NewFromConfig should produce zerolog backend for empty level")
+	}
+	if got := l.z.GetLevel(); got != zerolog.InfoLevel {
+		t.Errorf("expected default level %v for empty level, got %v", zerolog.InfoLevel, got)
 	}
 }
 
@@ -33,6 +49,33 @@ func TestNewFromConfig_zerologErrLevel(t *testing.T) {
 	out := buf.String()
 	if !strings.Contains(out, "error response") || !strings.Contains(out, "500") {
 		t.Errorf("Err should log message and fields: %s", out)
+	}
+}
+
+func TestNewFromConfig_zerologLogsErrorField(t *testing.T) {
+	buf := new(bytes.Buffer)
+	l := newFromConfigOutput("info", false, buf)
+	err := errors.New("boom")
+	l.Info("failed to do something", "error", err)
+	out := buf.String()
+	if !strings.Contains(out, "error") {
+		t.Errorf("log should contain error key: %s", out)
+	}
+	if !strings.Contains(out, "boom") {
+		t.Errorf("log should contain error value: %s", out)
+	}
+}
+
+func TestNewFromConfig_zerologOddKeyValueArgsAreIgnored(t *testing.T) {
+	buf := new(bytes.Buffer)
+	l := newFromConfigOutput("info", false, buf)
+	l.Info("with fields", "key1", "value1", "dangling")
+	out := buf.String()
+	if !strings.Contains(out, "key1") || !strings.Contains(out, "value1") {
+		t.Errorf("log should contain complete key/value pair: %s", out)
+	}
+	if strings.Contains(out, "dangling") {
+		t.Errorf("log should ignore dangling key without value: %s", out)
 	}
 }
 

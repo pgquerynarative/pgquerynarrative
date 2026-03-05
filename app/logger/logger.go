@@ -73,6 +73,22 @@ func (l *Logger) Log(level Level, msg string, kv ...interface{}) {
 	_, _ = fmt.Fprintln(l.w, line)
 }
 
+// attachFields maps the variadic key/value pairs into zerolog fields.
+// Values that are error type and key "error" are recorded with Err(); all others use Interface().
+// Odd-length kv slices leave the trailing key ignored.
+func attachFields(evt *zerolog.Event, kv []interface{}) *zerolog.Event {
+	for i := 0; i+1 < len(kv); i += 2 {
+		k := fmt.Sprint(kv[i])
+		v := kv[i+1]
+		if err, ok := v.(error); ok && k == "error" {
+			evt = evt.Err(err)
+		} else {
+			evt = evt.Interface(k, v)
+		}
+	}
+	return evt
+}
+
 func (l *Logger) logZerolog(level Level, msg string, kv []interface{}) {
 	var evt *zerolog.Event
 	switch level {
@@ -83,15 +99,7 @@ func (l *Logger) logZerolog(level Level, msg string, kv []interface{}) {
 	default:
 		evt = l.z.Info()
 	}
-	for i := 0; i+1 < len(kv); i += 2 {
-		k := fmt.Sprint(kv[i])
-		v := kv[i+1]
-		if err, ok := v.(error); ok && k == "error" {
-			evt = evt.Err(err)
-		} else {
-			evt = evt.Interface(k, v)
-		}
-	}
+	evt = attachFields(evt, kv)
 	evt.Msg(msg)
 }
 
@@ -120,16 +128,7 @@ func (l *Logger) format(level Level, msg string, kv []interface{}) string {
 // Debug logs at debug level (zerolog only; no-op when using built-in format).
 func (l *Logger) Debug(msg string, kv ...interface{}) {
 	if l.z != nil {
-		evt := l.z.Debug()
-		for i := 0; i+1 < len(kv); i += 2 {
-			k := fmt.Sprint(kv[i])
-			v := kv[i+1]
-			if err, ok := v.(error); ok && k == "error" {
-				evt = evt.Err(err)
-			} else {
-				evt = evt.Interface(k, v)
-			}
-		}
+		evt := attachFields(l.z.Debug(), kv)
 		evt.Msg(msg)
 	}
 }

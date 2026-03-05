@@ -10,6 +10,7 @@ require (
 	github.com/jung-kurt/gofpdf/v2 v2.17.3
 	github.com/labstack/echo/v4 v4.15.0
 	github.com/modelcontextprotocol/go-sdk v1.3.1
+	github.com/rs/zerolog v1.34.0
 	github.com/testcontainers/testcontainers-go/modules/postgres v0.40.0
 	goa.design/goa/v3 v3.24.1
 )
@@ -82,7 +83,6 @@ require (
 	github.com/power-devops/perfstat v0.0.0-20210106213030-5aafc221ea8c // indirect
 	github.com/quic-go/qpack v0.6.0 // indirect
 	github.com/quic-go/quic-go v0.57.0 // indirect
-	github.com/rs/zerolog v1.34.0 // indirect
 	github.com/segmentio/asm v1.1.3 // indirect
 	github.com/segmentio/encoding v0.5.3 // indirect
 	github.com/shirou/gopsutil/v4 v4.25.6 // indirect
