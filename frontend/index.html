@@ -6,7 +6,11 @@
   <title>PgQueryNarrative</title>
   <link rel="icon" type="image/png" href="/logo.png" />
   <script>
-    (function(){var t=localStorage.getItem("pgquerynarrative-theme");document.documentElement.classList.add(t==="light"?"light":"dark");})();
+    (function(){
+      var t=localStorage.getItem("pgquerynarrative-theme");
+      if(t==="light"||t==="dark"){document.documentElement.classList.add(t);}
+      else{var dark=window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches;document.documentElement.classList.add(dark?"dark":"light");}
+    })();
   </script>
 </head>
 <body class="bg-background text-foreground antialiased">
