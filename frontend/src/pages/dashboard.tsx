@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api, type Report, type SavedQuery } from "@/api/client";
 import { Terminal, FileText, Bookmark, Database, Zap, Clock } from "lucide-react";
-import { truncate } from "@/lib/utils";
+import { buttonVariants } from "@/components/ui/button";
+import { cn, truncate } from "@/lib/utils";
 
 export default function Dashboard() {
   const [reports, setReports] = useState<Report[]>([]);
@@ -93,7 +94,10 @@ export default function Dashboard() {
             {loading ? (
               <div className="space-y-3">{[1,2,3].map(i => <Skeleton key={i} className="h-12 w-full" />)}</div>
             ) : reports.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-4 text-center">No reports yet. <Link to="/query" className="text-primary hover:underline">Run a query</Link> to generate one.</p>
+              <div className="flex flex-col items-center gap-3 py-4 text-center">
+                <p className="text-sm text-muted-foreground">No reports yet.</p>
+                <Link to="/query" className={cn(buttonVariants({ size: "sm" }))}>Run a query</Link>
+              </div>
             ) : (
               <div className="space-y-3">
                 {reports.map(r => (
@@ -123,7 +127,10 @@ export default function Dashboard() {
             {loading ? (
               <div className="space-y-3">{[1,2,3].map(i => <Skeleton key={i} className="h-12 w-full" />)}</div>
             ) : saved.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-4 text-center">No saved queries yet.</p>
+              <div className="flex flex-col items-center gap-3 py-4 text-center">
+                <p className="text-sm text-muted-foreground">No saved queries yet.</p>
+                <Link to="/query" className={cn(buttonVariants({ size: "sm" }))}>Go to Query Runner</Link>
+              </div>
             ) : (
               <div className="space-y-3">
                 {saved.map(q => (

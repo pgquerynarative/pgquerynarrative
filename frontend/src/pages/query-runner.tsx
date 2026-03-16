@@ -7,6 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { api, type RunQueryResult, type Report, ApiError } from "@/api/client";
 import { Play, FileText, AlertCircle, Clock, Rows3, Download, BarChart3, PieChart as PieChartIcon, LineChart as LineChartIcon, Table2, Sparkles, History, Lightbulb } from "lucide-react";
 import { SchemaBrowser } from "@/components/schema-browser";
+import { useAnnounce } from "@/contexts/announce-context";
 import { cn, formatFloat } from "@/lib/utils";
 import { ResultChart, type ChartType } from "@/components/result-chart";
 
@@ -49,6 +50,7 @@ export default function QueryRunner() {
   const [suggestionsLoading, setSuggestionsLoading] = useState(true);
   const resultsRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<HTMLTextAreaElement>(null);
+  const announce = useAnnounce();
 
   useEffect(() => {
     saveHistory(history);
@@ -94,12 +96,15 @@ export default function QueryRunner() {
         const rest = prev.filter((h) => h.trim() !== toRun);
         return [toRun, ...rest];
       });
+      announce(`Query completed. ${r.row_count ?? 0} rows returned.`, "polite");
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "Query failed");
+      const msg = e instanceof ApiError ? e.message : "Query failed";
+      setError(msg);
+      announce(`Error: ${msg}`, "assertive");
     } finally {
       setLoading(false);
     }
-  }, [sql, limit]);
+  }, [sql, limit, announce]);
 
   const generateReport = useCallback(async () => {
     if (!sql.trim()) return;
@@ -107,16 +112,17 @@ export default function QueryRunner() {
     try {
       const r = await api.generateReport(sql);
       setReport(r);
+      announce("Report generated.", "polite");
     } catch (e) {
-      if (e instanceof ApiError) {
-        setError(e.status === 500 ? `${e.message} Check that the LLM is running (e.g. Ollama) and configured.` : e.message);
-      } else {
-        setError("Report generation failed.");
-      }
+      const msg = e instanceof ApiError
+        ? (e.status === 500 ? `${e.message} Check that the LLM is running (e.g. Ollama) and configured.` : e.message)
+        : "Report generation failed.";
+      setError(msg);
+      announce(`Error: ${msg}`, "assertive");
     } finally {
       setGenLoading(false);
     }
-  }, [sql]);
+  }, [sql, announce]);
 
   const ask = useCallback(async () => {
     if (!question.trim()) {
@@ -132,19 +138,17 @@ export default function QueryRunner() {
       const r = await api.ask(question.trim());
       setSql(r.sql);
       setReport(r.report);
+      announce("Answer and report generated.", "polite");
     } catch (e) {
-      if (e instanceof ApiError) {
-        const msg = e.status === 500
-          ? `${e.message} Check that the LLM is running (e.g. Ollama) and configured.`
-          : e.message;
-        setError(msg);
-      } else {
-        setError("Ask failed. Check the console for details.");
-      }
+      const msg = e instanceof ApiError
+        ? (e.status === 500 ? `${e.message} Check that the LLM is running (e.g. Ollama) and configured.` : e.message)
+        : "Ask failed. Check the console for details.";
+      setError(msg);
+      announce(`Error: ${msg}`, "assertive");
     } finally {
       setAskLoading(false);
     }
-  }, [question]);
+  }, [question, announce]);
 
   const insertIntoEditor = useCallback((text: string) => {
     setSql((prev) => {
@@ -286,19 +290,25 @@ export default function QueryRunner() {
         </Card>
       )}
 
-      {/* Error */}
+      {/* Error: prominent alert with border and ring so it stands out */}
       {error && (
-        <div className="flex items-start gap-3 p-4 rounded-lg border border-destructive/30 bg-destructive/10 text-destructive text-sm">
-          <AlertCircle className="h-5 w-5 flex-shrink-0 mt-0.5" />
-          <div>{error}</div>
+        <div
+          role="alert"
+          className="flex items-start gap-3 p-4 rounded-lg border border-destructive/40 bg-destructive/10 text-destructive text-sm shadow-sm ring-1 ring-destructive/20"
+        >
+          <AlertCircle className="h-5 w-5 flex-shrink-0 mt-0.5" aria-hidden />
+          <div className="min-w-0">{error}</div>
         </div>
       )}
 
-      {/* Loading skeleton */}
+      {/* Loading skeleton with accent */}
       {loading && (
-        <Card><CardContent className="p-6 space-y-3">
-          <Skeleton className="h-6 w-48" /><Skeleton className="h-48 w-full" />
-        </CardContent></Card>
+        <Card className="panel-accent-top">
+          <CardContent className="p-6 space-y-3">
+            <Skeleton className="h-6 w-48" />
+            <Skeleton className="h-48 w-full" />
+          </CardContent>
+        </Card>
       )}
 
       {/* Results: chart view or table */}

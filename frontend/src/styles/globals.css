@@ -220,3 +220,11 @@ body::after {
   border-top-color: rgba(8, 145, 178, 0.25);
   border-right-color: rgba(8, 145, 178, 0.25);
 }
+
+/* Visible focus ring for keyboard users (links and buttons that may not have one) */
+a:focus-visible,
+button:focus-visible,
+[role="button"]:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--color-background), 0 0 0 4px var(--color-ring);
+}

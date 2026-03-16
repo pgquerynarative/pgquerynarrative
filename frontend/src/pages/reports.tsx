@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api, type Report } from "@/api/client";
 import { FileText, Download, Clock, Cpu, ArrowLeft, BarChart3 } from "lucide-react";
+import { buttonVariants } from "@/components/ui/button";
 import { cn, truncate } from "@/lib/utils";
 
 type TimeSeriesEntry = {
@@ -268,9 +269,10 @@ function ReportList() {
         <div className="space-y-3">{[1,2,3].map(i => <Skeleton key={i} className="h-20 w-full" />)}</div>
       ) : reports.length === 0 ? (
         <Card>
-          <CardContent className="py-16 text-center">
+          <CardContent className="py-16 text-center space-y-4">
             <FileText className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
-            <p className="text-sm text-muted-foreground">No reports yet. <Link to="/query" className="text-primary hover:underline">Run a query</Link> and click Generate Report.</p>
+            <p className="text-sm text-muted-foreground">No reports yet. Run a query and click Generate Report.</p>
+            <Link to="/query" className={cn(buttonVariants())}>Run a query</Link>
           </CardContent>
         </Card>
       ) : (
