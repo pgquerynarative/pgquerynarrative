@@ -1,4 +1,4 @@
-import { NavLink, Outlet, useLocation } from "react-router-dom";
+import { NavLink, Outlet } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { useTheme } from "@/contexts/theme-context";
 import { LayoutDashboard, Terminal, Bookmark, FileText, Settings, PanelLeftClose, PanelLeft, Moon, Sun } from "lucide-react";
@@ -15,21 +15,17 @@ const navItems = [
 export default function Layout() {
   const [collapsed, setCollapsed] = useState(false);
   const { theme, setTheme } = useTheme();
-  const location = useLocation();
-
-  const pageLabel =
-    location.pathname.startsWith("/query")
-      ? "Query Runner"
-      : location.pathname.startsWith("/saved")
-        ? "Saved Queries"
-        : location.pathname.startsWith("/reports")
-          ? "Reports"
-          : location.pathname.startsWith("/settings")
-            ? "Settings"
-            : "Dashboard";
 
   return (
     <div className="flex h-screen overflow-hidden relative z-10 text-foreground">
+      {/* Skip to main content for keyboard/screen reader users */}
+      <a
+        href="#main-content"
+        className="sr-only focus-visible:not-sr-only focus-visible:fixed focus-visible:left-4 focus-visible:top-4 focus-visible:z-50 focus-visible:rounded-md focus-visible:bg-primary focus-visible:px-4 focus-visible:py-2 focus-visible:text-primary-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        Skip to main content
+      </a>
+      {/* Sidebar: glassmorphism-lite, theme-aware */}
       <aside
         className={cn(
           "flex flex-col border-r transition-all duration-200",
@@ -92,14 +88,9 @@ export default function Layout() {
         </div>
       </aside>
 
-      <main className="flex-1 overflow-auto min-h-0">
-        <div className="sticky top-0 z-20 border-b border-border/60 bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-          <div className="max-w-7xl mx-auto px-5 md:px-8 py-2.5 flex items-center justify-between">
-            <p className="text-xs font-medium tracking-wide uppercase text-muted-foreground">{pageLabel}</p>
-            <p className="text-xs text-muted-foreground">PgQueryNarrative</p>
-          </div>
-        </div>
-        <div className="max-w-7xl mx-auto px-5 md:px-8 py-6 md:py-8">
+      {/* Main: content above background layers; id for skip link target */}
+      <main id="main-content" className="flex-1 overflow-auto min-h-0 border-l border-transparent dark:border-border/30" tabIndex={-1}>
+        <div className="max-w-6xl mx-auto px-6 py-8">
           <Outlet />
         </div>
       </main>
