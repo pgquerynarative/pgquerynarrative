@@ -1,17 +1,15 @@
 import { forwardRef, type HTMLAttributes } from "react";
 import { cn } from "@/lib/utils";
 
-/* Glassmorphism-lite: theme-aware surface, border, shadow; hover lift + subtle glow in dark */
 const Card = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(({ className, ...props }, ref) => (
   <div
     ref={ref}
     className={cn(
-      "rounded-lg text-card-foreground transition-all duration-200",
-      "bg-card/90 dark:bg-card/90 backdrop-blur-sm",
-      "border border-primary/10 shadow-md dark:shadow-md dark:shadow-black/20",
+      "rounded-xl text-card-foreground transition-colors duration-150",
+      "bg-card/90 backdrop-blur supports-[backdrop-filter]:bg-card/75",
+      "border border-border/70 shadow-sm",
       "ring-1 ring-inset ring-black/[0.02] dark:ring-white/[0.03]",
-      "hover:shadow-lg dark:hover:shadow-[0_0_28px_rgba(0,0,0,0.25)] hover:border-primary/15",
-      "hover:translate-y-px",
+      "hover:border-border",
       className
     )}
     {...props}

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"strconv"
 	"strings"
 	"time"
 
@@ -123,12 +124,9 @@ func (s *ReportsService) Generate(ctx context.Context, payload *reports.Generate
 	if err != nil {
 		llmMsg := err.Error()
 		apilog.LLMError(llmMsg)
-		userMsg := "Narrative generation failed. Check your LLM configuration and try again."
-		return nil, &reports.LLMError{
-			Name:    "llm_error",
-			Message: userMsg,
-			Code:    strPtr("LLM_ERROR"),
-		}
+		// Fallback keeps report generation and Ask usable even when the model is slow
+		// or temporarily unavailable.
+		narrative = buildFallbackNarrative(queryResult.RowCount, calcMetrics.PerfSuggestions)
 	}
 
 	// Convert metrics to API format
@@ -162,6 +160,22 @@ func (s *ReportsService) Generate(ctx context.Context, payload *reports.Generate
 		LlmModel:         s.llmClient.Name(),
 		LlmProvider:      s.llmClient.Name(),
 	}, nil
+}
+
+func buildFallbackNarrative(rowCount int, perfSuggestions []string) *story.NarrativeContent {
+	n := &story.NarrativeContent{
+		Headline: "Report generated without LLM narrative",
+		Takeaways: []string{
+			"Query executed successfully and returned " + strconv.Itoa(rowCount) + " rows.",
+		},
+		Limitations: []string{
+			"Natural-language narrative is unavailable right now; showing metrics and raw results instead.",
+		},
+	}
+	if len(perfSuggestions) > 0 {
+		n.Recommendations = append(n.Recommendations, perfSuggestions...)
+	}
+	return n
 }
 
 // suggestToReports converts charts.Suggestion slice to reports API type.

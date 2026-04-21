@@ -51,10 +51,13 @@ services:
       DATABASE_READONLY_PASSWORD: ${DATABASE_READONLY_PASSWORD:-pgquerynarrative_readonly}
       DATABASE_SSL_MODE: disable
       DATABASE_MAX_CONNECTIONS: 5
-      LLM_PROVIDER: ollama
-      LLM_MODEL: ${LLM_MODEL:-llama3.2}
+      LLM_PROVIDER: ${LLM_PROVIDER:-ollama}
+      LLM_MODEL: ${LLM_MODEL:-llama2}
+      LLM_API_KEY: ${LLM_API_KEY:-}
       LLM_BASE_URL: ${LLM_BASE_URL:-http://host.docker.internal:11434}
       LOG_DEBUG: ${LOG_DEBUG:-}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "8080:8080"
     depends_on:

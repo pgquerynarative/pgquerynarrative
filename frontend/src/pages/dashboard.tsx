@@ -35,8 +35,18 @@ export default function Dashboard() {
     <div className="space-y-8">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
-        <p className="text-muted-foreground mt-1">Overview of your PgQueryNarrative instance.</p>
+        <p className="text-muted-foreground mt-1">Overview of system health, activity, and quick actions.</p>
       </div>
+
+      <Card className="panel-accent-top">
+        <CardContent className="p-5 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div>
+            <p className="text-sm font-medium">System status</p>
+            <p className="text-xs text-muted-foreground mt-1">App and API are running. Use Query Runner for execution and Reports for narratives.</p>
+          </div>
+          <Badge variant="success">Operational</Badge>
+        </CardContent>
+      </Card>
 
       {/* Status cards */}
       <div className="grid gap-4 md:grid-cols-3">

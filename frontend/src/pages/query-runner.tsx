@@ -5,7 +5,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api, type RunQueryResult, type Report, ApiError } from "@/api/client";
-import { Play, FileText, AlertCircle, Clock, Rows3, Download, BarChart3, PieChart as PieChartIcon, LineChart as LineChartIcon, Table2, Sparkles, History, Lightbulb } from "lucide-react";
+import { Play, FileText, AlertCircle, Clock, Rows3, Download, BarChart3, PieChart as PieChartIcon, LineChart as LineChartIcon, Table2, Sparkles, History, Lightbulb, BookmarkPlus } from "lucide-react";
 import { SchemaBrowser } from "@/components/schema-browser";
 import { useAnnounce } from "@/contexts/announce-context";
 import { cn, formatFloat } from "@/lib/utils";
@@ -48,6 +48,10 @@ export default function QueryRunner() {
   const [history, setHistory] = useState<string[]>(loadHistory);
   const [suggestions, setSuggestions] = useState<{ sql: string; title: string; source: string }[]>([]);
   const [suggestionsLoading, setSuggestionsLoading] = useState(true);
+  const [saveName, setSaveName] = useState("");
+  const [saveTags, setSaveTags] = useState("");
+  const [saveLoading, setSaveLoading] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState("");
   const resultsRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<HTMLTextAreaElement>(null);
   const announce = useAnnounce();
@@ -124,6 +128,37 @@ export default function QueryRunner() {
     }
   }, [sql, announce]);
 
+  const saveQuery = useCallback(async () => {
+    const normalizedSQL = sql.trim().replace(/;\s*$/, "");
+    if (!normalizedSQL) {
+      setError("Write a SQL query before saving.");
+      return;
+    }
+    if (!saveName.trim()) {
+      setError("Enter a name for the saved query.");
+      return;
+    }
+
+    const tags = saveTags
+      .split(",")
+      .map((t) => t.trim())
+      .filter((t) => t.length > 0);
+
+    setError("");
+    setSaveSuccess("");
+    setSaveLoading(true);
+    try {
+      await api.saveQuery(saveName.trim(), normalizedSQL, tags);
+      setSaveSuccess(`Saved "${saveName.trim()}" to Saved Queries.`);
+      setSaveName("");
+      setSaveTags("");
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Failed to save query.");
+    } finally {
+      setSaveLoading(false);
+    }
+  }, [sql, saveName, saveTags]);
+
   const ask = useCallback(async () => {
     if (!question.trim()) {
       setError("Enter a question.");
@@ -161,7 +196,7 @@ export default function QueryRunner() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Query Runner</h1>
-        <p className="text-muted-foreground mt-1">Execute SQL queries and generate narrative reports.</p>
+        <p className="text-muted-foreground mt-1">Run read-only SQL, visualize results, and save reusable queries.</p>
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-[260px_1fr] gap-4 xl:gap-6">
@@ -232,6 +267,10 @@ export default function QueryRunner() {
 
       {/* Editor container — glass panel with top + corner accents */}
       <Card className="panel-accent-top panel-corner-accent">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm">Compose SQL</CardTitle>
+          <p className="text-xs text-muted-foreground">Use schema click-insert and keep queries in allowed schemas only.</p>
+        </CardHeader>
         <CardContent className="p-6 space-y-4">
           <Textarea
             ref={editorRef}
@@ -257,6 +296,29 @@ export default function QueryRunner() {
               <Input type="number" value={limit} onChange={(e) => setLimit(e.target.value)} className="w-20 h-10 text-xs" min={1} max={1000} />
             </div>
           </div>
+          <div className="grid grid-cols-1 md:grid-cols-[minmax(220px,1fr)_minmax(220px,1fr)_auto] gap-2">
+            <Input
+              aria-label="Saved query name"
+              placeholder="Saved query name"
+              value={saveName}
+              onChange={(e) => setSaveName(e.target.value)}
+              maxLength={200}
+              className="h-10"
+            />
+            <Input
+              aria-label="Optional saved query tags"
+              placeholder="Tags (optional, comma-separated)"
+              value={saveTags}
+              onChange={(e) => setSaveTags(e.target.value)}
+              className="h-10"
+            />
+            <Button variant="outline" onClick={saveQuery} disabled={saveLoading || !sql.trim()}>
+              {saveLoading ? <span className="animate-spin h-4 w-4 border-2 border-current border-t-transparent rounded-full" /> : <BookmarkPlus className="h-4 w-4" />}
+              Save Query
+            </Button>
+          </div>
+          {saveSuccess && <p className="text-xs text-emerald-600">{saveSuccess}</p>}
+          <p className="text-[11px] text-muted-foreground">Tip: Save stable, business-friendly queries so teammates can reuse them from Saved Queries.</p>
           <p className="text-[11px] text-muted-foreground">Ctrl+Enter run. Ctrl+E focus editor. Click schema items to insert. Only SELECT/WITH on allowed schemas.</p>
         </CardContent>
       </Card>
@@ -355,24 +417,29 @@ export default function QueryRunner() {
             </Card>
           )}
 
-          <Card className="panel-accent-top panel-corner-accent">
+          <Card className="panel-accent-top panel-corner-accent border-primary/20">
             <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle>Results</CardTitle>
-              <div className="flex items-center gap-3 text-xs text-muted-foreground">
+              <CardTitle className="text-base">Results</CardTitle>
+              <div className="flex items-center gap-3 text-xs text-foreground/85">
                 <span className="flex items-center gap-1"><Rows3 className="h-3 w-3" />{result.row_count} rows</span>
                 <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{result.execution_time_ms}ms</span>
               </div>
             </CardHeader>
             <CardContent className="p-0">
               {(result.rows ?? []).length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-8">No rows returned.</p>
+                <p className="text-sm text-muted-foreground text-center py-10">No rows returned.</p>
               ) : (!result.chart_suggestions?.length || chartType === "table" || chartType === null) ? (
-                <div className="overflow-auto max-h-[400px] rounded-b-lg">
-                  <table className="w-full text-sm">
-                    <thead className="sticky top-0 bg-surface/95 border-b border-border z-[1]">
+                <div className="overflow-auto max-h-[460px] rounded-b-lg border-t border-border/70 bg-background/45">
+                  <table className="w-full text-[13px] leading-relaxed">
+                    <thead className="sticky top-0 bg-secondary/95 border-b border-border z-[1] backdrop-blur">
                       <tr>
                         {(result.columns ?? []).map((c, i) => (
-                          <th key={i} className="text-left text-xs font-semibold text-muted-foreground px-4 py-3 whitespace-nowrap">{c.name}</th>
+                          <th
+                            key={i}
+                            className="text-left text-[11px] uppercase tracking-wide font-semibold text-foreground/90 px-4 py-3.5 whitespace-nowrap"
+                          >
+                            {c.name}
+                          </th>
                         ))}
                       </tr>
                     </thead>
@@ -381,13 +448,27 @@ export default function QueryRunner() {
                         <tr
                           key={ri}
                           className={cn(
-                            "border-b border-border/50 transition-colors",
-                            ri % 2 === 0 ? "bg-transparent" : "bg-muted/15",
-                            "hover:bg-primary/10"
+                            "border-b border-border/60 transition-colors",
+                            ri % 2 === 0 ? "bg-background/10" : "bg-muted/35",
+                            "hover:bg-primary/12"
                           )}
                         >
                           {row.map((cell, ci) => (
-                            <td key={ci} className="px-4 py-2.5 whitespace-nowrap font-mono text-xs">{cell == null ? <span className="text-muted-foreground/50">NULL</span> : typeof cell === "number" ? formatFloat(cell) : String(cell)}</td>
+                            <td
+                              key={ci}
+                              className={cn(
+                                "px-4 py-2.5 whitespace-nowrap font-mono text-[12px] text-foreground/95",
+                                ci === 0 && "font-medium text-foreground"
+                              )}
+                            >
+                              {cell == null ? (
+                                <span className="text-muted-foreground/80">NULL</span>
+                              ) : typeof cell === "number" ? (
+                                formatFloat(cell)
+                              ) : (
+                                String(cell)
+                              )}
+                            </td>
                           ))}
                         </tr>
                       ))}

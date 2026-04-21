@@ -28,7 +28,8 @@ func NewOllamaClient(baseURL, model string) *OllamaClient {
 		baseURL: baseURL,
 		model:   model,
 		client: &http.Client{
-			Timeout: 120 * time.Second,
+			// CPU-backed Ollama can take longer to return first token on cold start.
+			Timeout: 300 * time.Second,
 		},
 	}
 }
@@ -46,7 +47,8 @@ func (c *OllamaClient) Generate(ctx context.Context, prompt string) (string, err
 		"stream": false,
 		"options": map[string]interface{}{
 			"temperature": 0.7,
-			"num_predict": 2048, // enough tokens for full narrative JSON
+			// Keep response size bounded to reduce end-to-end latency for Ask/Explain.
+			"num_predict": 768,
 		},
 	}
 

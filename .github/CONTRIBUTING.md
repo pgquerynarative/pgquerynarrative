@@ -83,7 +83,7 @@ git push origin feature/your-feature-name
 
 Then create a PR on GitHub with:
 - Clear title and description
-- Reference related issues
+- Link the issue in PR body using `Closes #<issue-id>`
 - Screenshots (if UI changes)
 - Test results
 
@@ -117,6 +117,7 @@ Then create a PR on GitHub with:
 4. **Check Linting**: Code must pass linting
 5. **Update CHANGELOG**: Document your changes (if applicable)
 6. **Request Review**: Assign reviewers
+7. **Wait for checks**: Merge only after all required checks pass
 
 ### PR Checklist
 - [ ] Code follows style guidelines

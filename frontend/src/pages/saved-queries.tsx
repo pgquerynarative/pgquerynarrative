@@ -83,20 +83,38 @@ export default function SavedQueries() {
               </CardContent>
             </Card>
           ) : filtered.map((q) => (
-            <button
+            <div
               key={q.id}
-              onClick={() => setSelected(q)}
-              className={`w-full text-left p-4 rounded-lg border transition-colors cursor-pointer ${selected?.id === q.id ? "border-primary/50 bg-primary/5" : "border-border hover:bg-secondary/30"}`}
+              className={`w-full p-4 rounded-lg border transition-colors ${selected?.id === q.id ? "border-primary/50 bg-primary/5" : "border-border hover:bg-secondary/30"}`}
             >
-              <div className="flex items-center justify-between">
-                <p className="text-sm font-medium truncate">{q.name}</p>
-                <span className="text-[10px] text-muted-foreground">{new Date(q.created_at).toLocaleDateString()}</span>
+              <button
+                onClick={() => setSelected(q)}
+                className="w-full text-left cursor-pointer"
+              >
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium truncate">{q.name}</p>
+                  <span className="text-[10px] text-muted-foreground">{new Date(q.created_at).toLocaleDateString()}</span>
+                </div>
+                <p className="text-xs text-muted-foreground font-mono mt-1 truncate">{truncate(q.sql, 80)}</p>
+              </button>
+              <div className="mt-2 flex items-center justify-between gap-2">
+                {q.tags && q.tags.length > 0 ? (
+                  <div className="flex gap-1.5 flex-wrap">{q.tags.map((t) => <Badge key={t} variant="outline" className="text-[10px]">{t}</Badge>)}</div>
+                ) : (
+                  <span className="text-[10px] text-muted-foreground">No tags</span>
+                )}
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => handleDelete(q.id)}
+                  className="h-7 w-7 p-0 rounded-full"
+                  title="Delete saved query"
+                  aria-label={`Delete saved query ${q.name}`}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
               </div>
-              <p className="text-xs text-muted-foreground font-mono mt-1 truncate">{truncate(q.sql, 80)}</p>
-              {q.tags && q.tags.length > 0 && (
-                <div className="flex gap-1.5 mt-2">{q.tags.map((t) => <Badge key={t} variant="outline" className="text-[10px]">{t}</Badge>)}</div>
-              )}
-            </button>
+            </div>
           ))}
         </div>
 
@@ -117,7 +135,16 @@ export default function SavedQueries() {
                 <div className="flex gap-2 pt-2">
                   <Button size="sm" onClick={() => nav("/query", { state: { sql: selected.sql } })}><Play className="h-3.5 w-3.5" /> Run</Button>
                   <Button variant="ghost" size="sm" onClick={() => navigator.clipboard.writeText(selected.sql)}><Copy className="h-3.5 w-3.5" /> Copy SQL</Button>
-                  <Button variant="destructive" size="sm" onClick={() => handleDelete(selected.id)} className="ml-auto"><Trash2 className="h-3.5 w-3.5" /> Delete</Button>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => handleDelete(selected.id)}
+                    className="ml-auto h-7 w-7 p-0 rounded-full"
+                    title="Delete saved query"
+                    aria-label={`Delete saved query ${selected.name}`}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
                 </div>
               </CardContent>
             </>
