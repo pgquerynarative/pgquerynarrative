@@ -3,10 +3,10 @@
 package queryrunner
 
 import (
+	"encoding/json"
 	"strings"
 
-	"github.com/auxten/postgresql-parser/pkg/sql/parser"
-	"github.com/auxten/postgresql-parser/pkg/sql/sem/tree"
+	pg_query "github.com/pganalyze/pg_query_go/v5"
 	"github.com/pgquerynarrative/pgquerynarrative/app/errors"
 )
 
@@ -42,7 +42,25 @@ func NewValidator(allowedSchemas []string, maxQueryLength int) *Validator {
 }
 
 // Validate checks if a SQL query is safe to execute.
-//
+type parseTree struct {
+	Stmts []struct {
+		Stmt map[string]interface{} `json:"stmt"`
+	} `json:"stmts"`
+}
+
+var disallowedASTNodes = map[string]struct{}{
+	"InsertStmt":        {},
+	"UpdateStmt":        {},
+	"DeleteStmt":        {},
+	"MergeStmt":         {},
+	"TruncateStmt":      {},
+	"CopyStmt":          {},
+	"DoStmt":            {},
+	"CallStmt":          {},
+	"ExecuteStmt":       {},
+	"DeclareCursorStmt": {},
+}
+
 // Validation rules:
 //   - Query length must not exceed maxQueryLength
 //   - Must be a single statement
@@ -68,145 +86,100 @@ func (v *Validator) Validate(sql string) error {
 		return errors.ErrOnlySelectAllowed
 	}
 
-	stmts, err := parser.Parse(trimmed)
+	treeJSON, err := pg_query.ParseToJSON(trimmed)
 	if err != nil {
 		return errors.ErrOnlySelectAllowed
 	}
-	if len(stmts) != 1 {
-		return errors.ErrMultipleStatements
-	}
-	if stmts[0].AST == nil {
+
+	var tree parseTree
+	if err := json.Unmarshal([]byte(treeJSON), &tree); err != nil {
 		return errors.ErrOnlySelectAllowed
 	}
 
-	if err := v.validateReadOnlyStatement(stmts[0].AST, true); err != nil {
-		return err
+	if len(tree.Stmts) != 1 {
+		return errors.ErrMultipleStatements
+	}
+	if len(tree.Stmts[0].Stmt) == 0 {
+		return errors.ErrOnlySelectAllowed
+	}
+
+	// Must be SELECT (WITH ... SELECT is still SelectStmt in PostgreSQL AST).
+	rootStmt := tree.Stmts[0].Stmt
+	rootSelect, ok := rootStmt["SelectStmt"]
+	if !ok {
+		// Any non-SELECT top-level statements are blocked.
+		return errors.ErrOnlySelectAllowed
+	}
+
+	// Reject writes/unsafe statements that can be nested inside CTEs/subqueries.
+	if containsDisallowedNodes(rootSelect) {
+		return errors.ErrDisallowedKeyword
+	}
+
+	// Check schema access (if schema restrictions are configured)
+	if len(v.allowedSchemas) > 0 {
+		for _, schemaName := range collectSchemaNames(rootSelect) {
+			if !v.allowedSchemas[schemaName] {
+				return errors.ErrSchemaNotAllowed
+			}
+		}
 	}
 
 	return nil
 }
 
-func (v *Validator) validateReadOnlyStatement(stmt tree.Statement, topLevel bool) error {
-	switch s := stmt.(type) {
-	case *tree.Select:
-		return v.validateSelect(s, topLevel)
-	case *tree.ParenSelect:
-		if s.Select == nil {
-			return errors.ErrOnlySelectAllowed
+func containsDisallowedNodes(node interface{}) bool {
+	switch n := node.(type) {
+	case map[string]interface{}:
+		for key, value := range n {
+			if _, blocked := disallowedASTNodes[key]; blocked {
+				return true
+			}
+			if containsDisallowedNodes(value) {
+				return true
+			}
 		}
-		return v.validateSelect(s.Select, topLevel)
-	default:
-		if topLevel {
-			return errors.ErrOnlySelectAllowed
+	case []interface{}:
+		for _, item := range n {
+			if containsDisallowedNodes(item) {
+				return true
+			}
 		}
-		return errors.ErrDisallowedKeyword
 	}
+	return false
 }
 
-func (v *Validator) validateSelect(stmt *tree.Select, topLevel bool) error {
-	if stmt == nil {
-		if topLevel {
-			return errors.ErrOnlySelectAllowed
-		}
-		return errors.ErrDisallowedKeyword
-	}
+func collectSchemaNames(node interface{}) []string {
+	schemaSet := make(map[string]struct{})
+	collectSchemaNamesInto(node, schemaSet)
 
-	if len(stmt.Locking) > 0 {
-		return errors.ErrDisallowedKeyword
+	out := make([]string, 0, len(schemaSet))
+	for schema := range schemaSet {
+		out = append(out, schema)
 	}
-
-	if stmt.With != nil {
-		for _, cte := range stmt.With.CTEList {
-			if cte == nil || cte.Stmt == nil {
-				return errors.ErrDisallowedKeyword
-			}
-			if err := v.validateReadOnlyStatement(cte.Stmt, false); err != nil {
-				return err
-			}
-		}
-	}
-
-	return v.validateSelectStatement(stmt.Select, topLevel)
+	return out
 }
 
-func (v *Validator) validateSelectStatement(stmt tree.SelectStatement, topLevel bool) error {
-	switch s := stmt.(type) {
-	case *tree.SelectClause:
-		for _, tableExpr := range s.From.Tables {
-			if err := v.validateTableExpr(tableExpr); err != nil {
-				return err
+func collectSchemaNamesInto(node interface{}, out map[string]struct{}) {
+	switch n := node.(type) {
+	case map[string]interface{}:
+		for key, value := range n {
+			if key == "RangeVar" {
+				if rangeVar, ok := value.(map[string]interface{}); ok {
+					if schemaVal, ok := rangeVar["schemaname"].(string); ok {
+						schema := strings.ToLower(strings.TrimSpace(schemaVal))
+						if schema != "" {
+							out[schema] = struct{}{}
+						}
+					}
+				}
+				continue
 			}
+			collectSchemaNamesInto(value, out)
 		}
-		return nil
-	case *tree.UnionClause:
-		if s.Left != nil {
-			if err := v.validateSelect(s.Left, false); err != nil {
-				return err
-			}
+	case []interface{}:
+		for _, item := range n {
+			collectSchemaNamesInto(item, out)
 		}
-		if s.Right != nil {
-			if err := v.validateSelect(s.Right, false); err != nil {
-				return err
-			}
-		}
-		return nil
-	case *tree.ParenSelect:
-		if s.Select == nil {
-			return errors.ErrDisallowedKeyword
-		}
-		return v.validateSelect(s.Select, false)
-	case *tree.ValuesClause:
-		// Keep the previous policy: only SELECT/WITH-style statements.
-		if topLevel {
-			return errors.ErrOnlySelectAllowed
-		}
-		return nil
-	default:
-		if topLevel {
-			return errors.ErrOnlySelectAllowed
-		}
-		return errors.ErrDisallowedKeyword
 	}
-}
-
-func (v *Validator) validateTableExpr(expr tree.TableExpr) error {
-	switch t := expr.(type) {
-	case *tree.AliasedTableExpr:
-		return v.validateTableExpr(t.Expr)
-	case *tree.ParenTableExpr:
-		return v.validateTableExpr(t.Expr)
-	case *tree.JoinTableExpr:
-		if err := v.validateTableExpr(t.Left); err != nil {
-			return err
-		}
-		return v.validateTableExpr(t.Right)
-	case *tree.Subquery:
-		if t.Select == nil {
-			return errors.ErrDisallowedKeyword
-		}
-		return v.validateSelectStatement(t.Select, false)
-	case *tree.StatementSource:
-		if t.Statement == nil {
-			return errors.ErrDisallowedKeyword
-		}
-		return v.validateReadOnlyStatement(t.Statement, false)
-	case *tree.TableName:
-		return v.validateSchemaName(t.Schema(), t.ExplicitSchema)
-	default:
-		return nil
-	}
-}
-
-func (v *Validator) validateSchemaName(schemaName string, isExplicit bool) error {
-	if !isExplicit || len(v.allowedSchemas) == 0 {
-		return nil
-	}
-	schema := strings.ToLower(strings.TrimSpace(schemaName))
-	if schema == "" {
-		return nil
-	}
-	if !v.allowedSchemas[schema] {
-		return errors.ErrSchemaNotAllowed
-	}
-	return nil
 }
