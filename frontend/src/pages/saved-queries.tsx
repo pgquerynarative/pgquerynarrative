@@ -1,6 +1,8 @@
 import { useEffect, useState, useCallback } from "react";
+import { Link } from "react-router-dom";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -53,8 +55,12 @@ export default function SavedQueries() {
       </div>
 
       {error && (
-        <div className="flex items-start gap-3 p-4 rounded-lg border border-destructive/30 bg-destructive/10 text-destructive text-sm">
-          <AlertCircle className="h-5 w-5 flex-shrink-0" />{error}
+        <div
+          role="alert"
+          className="flex items-start gap-3 p-4 rounded-lg border border-destructive/40 bg-destructive/10 text-destructive text-sm shadow-sm ring-1 ring-destructive/20"
+        >
+          <AlertCircle className="h-5 w-5 flex-shrink-0" aria-hidden />
+          <span className="min-w-0">{error}</span>
         </div>
       )}
 
@@ -68,9 +74,12 @@ export default function SavedQueries() {
         <div className="space-y-2">
           {loading ? [1,2,3,4].map((i) => <Skeleton key={i} className="h-20 w-full" />) : filtered.length === 0 ? (
             <Card>
-              <CardContent className="py-12 text-center">
+              <CardContent className="py-12 text-center space-y-4">
                 <Bookmark className="h-8 w-8 text-muted-foreground mx-auto mb-3" />
                 <p className="text-sm text-muted-foreground">{search ? "No queries match your search." : "No saved queries yet. Save one from the Query Runner."}</p>
+                {!search && (
+                  <Link to="/query" className={cn(buttonVariants())}>Go to Query Runner</Link>
+                )}
               </CardContent>
             </Card>
           ) : filtered.map((q) => (

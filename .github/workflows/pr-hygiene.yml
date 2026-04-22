@@ -1,0 +1,23 @@
+name: PR Hygiene
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+jobs:
+  require-linked-issue:
+    name: Require linked issue in PR body
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate issue linkage
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          set -euo pipefail
+          BODY="$(printf '%s' "${PR_BODY:-}" | tr '[:upper:]' '[:lower:]')"
+          if printf '%s' "$BODY" | grep -Eq '(close[sd]?|fix(e[sd])?|resolve[sd]?)\s+#([0-9]+)'; then
+            echo "Issue link found in PR body."
+            exit 0
+          fi
+          echo "PR body must link an issue (e.g., 'Closes #123')."
+          exit 1
