@@ -159,6 +159,37 @@ export default function QueryRunner() {
     }
   }, [sql, saveName, saveTags]);
 
+  const saveQuery = useCallback(async () => {
+    const normalizedSQL = sql.trim().replace(/;\s*$/, "");
+    if (!normalizedSQL) {
+      setError("Write a SQL query before saving.");
+      return;
+    }
+    if (!saveName.trim()) {
+      setError("Enter a name for the saved query.");
+      return;
+    }
+
+    const tags = saveTags
+      .split(",")
+      .map((t) => t.trim())
+      .filter((t) => t.length > 0);
+
+    setError("");
+    setSaveSuccess("");
+    setSaveLoading(true);
+    try {
+      await api.saveQuery(saveName.trim(), normalizedSQL, tags);
+      setSaveSuccess(`Saved "${saveName.trim()}" to Saved Queries.`);
+      setSaveName("");
+      setSaveTags("");
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Failed to save query.");
+    } finally {
+      setSaveLoading(false);
+    }
+  }, [sql, saveName, saveTags]);
+
   const ask = useCallback(async () => {
     if (!question.trim()) {
       setError("Enter a question.");
