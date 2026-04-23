@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { api, type RunQueryResult, type Report, type ConnectionInfo, ApiError } from "@/api/client";
+import { api, type RunQueryResult, type Report, type ConnectionInfo, type ChatTurn, ApiError } from "@/api/client";
 import { Play, FileText, AlertCircle, Clock, Rows3, Download, BarChart3, PieChart as PieChartIcon, LineChart as LineChartIcon, Table2, Sparkles, History, Lightbulb, BookmarkPlus } from "lucide-react";
 import { SchemaBrowser } from "@/components/schema-browser";
 import { useAnnounce } from "@/contexts/announce-context";
@@ -49,6 +49,9 @@ export default function QueryRunner() {
   const [suggestions, setSuggestions] = useState<{ sql: string; title: string; source: string }[]>([]);
   const [suggestionsLoading, setSuggestionsLoading] = useState(true);
   const [questionSuggestions, setQuestionSuggestions] = useState<string[]>([]);
+  const [chatSessionId, setChatSessionId] = useState("");
+  const [chatTurns, setChatTurns] = useState<ChatTurn[]>([]);
+  const [chatFollowUps, setChatFollowUps] = useState<string[]>([]);
   const [saveName, setSaveName] = useState("");
   const [saveTags, setSaveTags] = useState("");
   const [saveLoading, setSaveLoading] = useState(false);
@@ -186,10 +189,13 @@ export default function QueryRunner() {
     setReport(null);
     setChartType(null);
     try {
-      const r = await api.ask(text, connectionId || undefined);
+      const r = await api.askChat(text, chatSessionId || undefined, connectionId || undefined);
       setSql(r.sql);
       setReport(r.report);
       setQuestion(text);
+      setChatSessionId(r.session_id || chatSessionId);
+      setChatTurns(r.history || []);
+      setChatFollowUps(r.follow_ups || []);
       announce("Answer and report generated.", "polite");
     } catch (e) {
       const msg = e instanceof ApiError
@@ -268,6 +274,36 @@ export default function QueryRunner() {
           </CardContent>
         )}
       </Card>
+
+      {/* Ask conversation history */}
+      {(chatTurns.length > 0 || chatFollowUps.length > 0) && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm">Ask conversation</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {chatTurns.length > 0 && (
+              <div className="space-y-2">
+                {chatTurns.map((t, i) => (
+                  <div key={i} className="rounded-md border border-border p-2 text-xs">
+                    <p className="font-medium">Q: {t.question}</p>
+                    <p className="text-muted-foreground font-mono mt-1 truncate">SQL: {t.sql}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+            {chatFollowUps.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {chatFollowUps.map((f, i) => (
+                  <Button key={i} variant="outline" size="sm" onClick={() => { void ask(f); }}>
+                    {f}
+                  </Button>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Query suggestions */}
       {(suggestionsLoading || suggestions.length > 0) && (

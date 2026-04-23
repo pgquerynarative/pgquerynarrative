@@ -124,7 +124,7 @@ func NewClient(ctx context.Context, cfg Config) (*Client, error) {
 		suggester = pkgsuggestions.NewSuggester(pools.App)
 	}
 	schemaService := service.NewSchemaServiceMultiConnection(loaders, defaultConnectionID)
-	askService := service.NewAskServiceMultiConnection(loaders, llmClient, validator, reportsService, defaultConnectionID)
+	askService := service.NewAskServiceMultiConnection(pools.App, loaders, llmClient, validator, reportsService, defaultConnectionID)
 	suggestionsService := &service.SuggestionsServiceWrapper{Suggester: suggester, AskSvc: askService}
 	connectionsService := service.NewConnectionsService(connectionItems)
 	dashboardsService := service.NewDashboardsService(pools.App, reportsService, queriesService)

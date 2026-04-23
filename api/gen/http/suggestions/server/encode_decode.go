@@ -261,6 +261,89 @@ func EncodeAskError(encoder func(context.Context, http.ResponseWriter) goahttp.E
 	}
 }
 
+// EncodeChatResponse returns an encoder for responses returned by the
+// suggestions chat endpoint.
+func EncodeChatResponse(encoder func(context.Context, http.ResponseWriter) goahttp.Encoder) func(context.Context, http.ResponseWriter, any) error {
+	return func(ctx context.Context, w http.ResponseWriter, v any) error {
+		res, _ := v.(*suggestions.ChatResult)
+		enc := encoder(ctx, w)
+		body := NewChatResponseBody(res)
+		w.WriteHeader(http.StatusOK)
+		return enc.Encode(body)
+	}
+}
+
+// DecodeChatRequest returns a decoder for requests sent to the suggestions
+// chat endpoint.
+func DecodeChatRequest(mux goahttp.Muxer, decoder func(*http.Request) goahttp.Decoder) func(*http.Request) (*suggestions.ChatPayload, error) {
+	return func(r *http.Request) (*suggestions.ChatPayload, error) {
+		var (
+			body ChatRequestBody
+			err  error
+		)
+		err = decoder(r).Decode(&body)
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				return nil, goa.MissingPayloadError()
+			}
+			var gerr *goa.ServiceError
+			if errors.As(err, &gerr) {
+				return nil, gerr
+			}
+			return nil, goa.DecodePayloadError(err.Error())
+		}
+		err = ValidateChatRequestBody(&body)
+		if err != nil {
+			return nil, err
+		}
+		payload := NewChatPayload(&body)
+
+		return payload, nil
+	}
+}
+
+// EncodeChatError returns an encoder for errors returned by the chat
+// suggestions endpoint.
+func EncodeChatError(encoder func(context.Context, http.ResponseWriter) goahttp.Encoder, formatter func(ctx context.Context, err error) goahttp.Statuser) func(context.Context, http.ResponseWriter, error) error {
+	encodeError := goahttp.ErrorEncoder(encoder, formatter)
+	return func(ctx context.Context, w http.ResponseWriter, v error) error {
+		var en goa.GoaErrorNamer
+		if !errors.As(v, &en) {
+			return encodeError(ctx, w, v)
+		}
+		switch en.GoaErrorName() {
+		case "llm_error":
+			var res *suggestions.LLMError
+			errors.As(v, &res)
+			enc := encoder(ctx, w)
+			var body any
+			if formatter != nil {
+				body = formatter(ctx, res)
+			} else {
+				body = NewChatLlmErrorResponseBody(res)
+			}
+			w.Header().Set("goa-error", res.GoaErrorName())
+			w.WriteHeader(http.StatusInternalServerError)
+			return enc.Encode(body)
+		case "validation_error":
+			var res *suggestions.ValidationError
+			errors.As(v, &res)
+			enc := encoder(ctx, w)
+			var body any
+			if formatter != nil {
+				body = formatter(ctx, res)
+			} else {
+				body = NewChatValidationErrorResponseBody(res)
+			}
+			w.Header().Set("goa-error", res.GoaErrorName())
+			w.WriteHeader(http.StatusBadRequest)
+			return enc.Encode(body)
+		default:
+			return encodeError(ctx, w, v)
+		}
+	}
+}
+
 // EncodeExplainResponse returns an encoder for responses returned by the
 // suggestions explain endpoint.
 func EncodeExplainResponse(encoder func(context.Context, http.ResponseWriter) goahttp.Encoder) func(context.Context, http.ResponseWriter, any) error {
@@ -731,6 +814,18 @@ func marshalSuggestionsChartSuggestionToChartSuggestionResponseBody(v *suggestio
 		ChartType: v.ChartType,
 		Label:     v.Label,
 		Reason:    v.Reason,
+	}
+
+	return res
+}
+
+// marshalSuggestionsChatTurnToChatTurnResponseBody builds a value of type
+// *ChatTurnResponseBody from a value of type *suggestions.ChatTurn.
+func marshalSuggestionsChatTurnToChatTurnResponseBody(v *suggestions.ChatTurn) *ChatTurnResponseBody {
+	res := &ChatTurnResponseBody{
+		Question:  v.Question,
+		SQL:       v.SQL,
+		CreatedAt: v.CreatedAt,
 	}
 
 	return res

@@ -22,6 +22,15 @@ type AskRequestBody struct {
 	ConnectionID *string `form:"connection_id,omitempty" json:"connection_id,omitempty" xml:"connection_id,omitempty"`
 }
 
+// ChatRequestBody is the type of the "suggestions" service "chat" endpoint
+// HTTP request body.
+type ChatRequestBody struct {
+	Question  string  `form:"question" json:"question" xml:"question"`
+	SessionID *string `form:"session_id,omitempty" json:"session_id,omitempty" xml:"session_id,omitempty"`
+	// Optional connection ID; defaults to server default connection
+	ConnectionID *string `form:"connection_id,omitempty" json:"connection_id,omitempty" xml:"connection_id,omitempty"`
+}
+
 // ExplainRequestBody is the type of the "suggestions" service "explain"
 // endpoint HTTP request body.
 type ExplainRequestBody struct {
@@ -60,6 +69,17 @@ type AskResponseBody struct {
 	Report *ReportResponseBody `form:"report,omitempty" json:"report,omitempty" xml:"report,omitempty"`
 }
 
+// ChatResponseBody is the type of the "suggestions" service "chat" endpoint
+// HTTP response body.
+type ChatResponseBody struct {
+	SessionID *string                 `form:"session_id,omitempty" json:"session_id,omitempty" xml:"session_id,omitempty"`
+	Question  *string                 `form:"question,omitempty" json:"question,omitempty" xml:"question,omitempty"`
+	SQL       *string                 `form:"sql,omitempty" json:"sql,omitempty" xml:"sql,omitempty"`
+	Report    *ReportResponseBody     `form:"report,omitempty" json:"report,omitempty" xml:"report,omitempty"`
+	History   []*ChatTurnResponseBody `form:"history,omitempty" json:"history,omitempty" xml:"history,omitempty"`
+	FollowUps []string                `form:"follow_ups,omitempty" json:"follow_ups,omitempty" xml:"follow_ups,omitempty"`
+}
+
 // ExplainResponseBody is the type of the "suggestions" service "explain"
 // endpoint HTTP response body.
 type ExplainResponseBody struct {
@@ -80,6 +100,22 @@ type AskLlmErrorResponseBody struct {
 // AskValidationErrorResponseBody is the type of the "suggestions" service
 // "ask" endpoint HTTP response body for the "validation_error" error.
 type AskValidationErrorResponseBody struct {
+	Name    *string `form:"name,omitempty" json:"name,omitempty" xml:"name,omitempty"`
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+	Code    *string `form:"code,omitempty" json:"code,omitempty" xml:"code,omitempty"`
+}
+
+// ChatLlmErrorResponseBody is the type of the "suggestions" service "chat"
+// endpoint HTTP response body for the "llm_error" error.
+type ChatLlmErrorResponseBody struct {
+	Name    *string `form:"name,omitempty" json:"name,omitempty" xml:"name,omitempty"`
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+	Code    *string `form:"code,omitempty" json:"code,omitempty" xml:"code,omitempty"`
+}
+
+// ChatValidationErrorResponseBody is the type of the "suggestions" service
+// "chat" endpoint HTTP response body for the "validation_error" error.
+type ChatValidationErrorResponseBody struct {
 	Name    *string `form:"name,omitempty" json:"name,omitempty" xml:"name,omitempty"`
 	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
 	Code    *string `form:"code,omitempty" json:"code,omitempty" xml:"code,omitempty"`
@@ -279,11 +315,29 @@ type ChartSuggestionResponseBody struct {
 	Reason *string `form:"reason,omitempty" json:"reason,omitempty" xml:"reason,omitempty"`
 }
 
+// ChatTurnResponseBody is used to define fields on response body types.
+type ChatTurnResponseBody struct {
+	Question  *string `form:"question,omitempty" json:"question,omitempty" xml:"question,omitempty"`
+	SQL       *string `form:"sql,omitempty" json:"sql,omitempty" xml:"sql,omitempty"`
+	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
+}
+
 // NewAskRequestBody builds the HTTP request body from the payload of the "ask"
 // endpoint of the "suggestions" service.
 func NewAskRequestBody(p *suggestions.AskPayload) *AskRequestBody {
 	body := &AskRequestBody{
 		Question:     p.Question,
+		ConnectionID: p.ConnectionID,
+	}
+	return body
+}
+
+// NewChatRequestBody builds the HTTP request body from the payload of the
+// "chat" endpoint of the "suggestions" service.
+func NewChatRequestBody(p *suggestions.ChatPayload) *ChatRequestBody {
+	body := &ChatRequestBody{
+		Question:     p.Question,
+		SessionID:    p.SessionID,
 		ConnectionID: p.ConnectionID,
 	}
 	return body
@@ -368,6 +422,54 @@ func NewAskLlmError(body *AskLlmErrorResponseBody) *suggestions.LLMError {
 // NewAskValidationError builds a suggestions service ask endpoint
 // validation_error error.
 func NewAskValidationError(body *AskValidationErrorResponseBody) *suggestions.ValidationError {
+	v := &suggestions.ValidationError{
+		Name:    *body.Name,
+		Message: *body.Message,
+		Code:    body.Code,
+	}
+
+	return v
+}
+
+// NewChatResultOK builds a "suggestions" service "chat" endpoint result from a
+// HTTP "OK" response.
+func NewChatResultOK(body *ChatResponseBody) *suggestions.ChatResult {
+	v := &suggestions.ChatResult{
+		SessionID: *body.SessionID,
+		Question:  *body.Question,
+		SQL:       *body.SQL,
+	}
+	v.Report = unmarshalReportResponseBodyToSuggestionsReport(body.Report)
+	v.History = make([]*suggestions.ChatTurn, len(body.History))
+	for i, val := range body.History {
+		if val == nil {
+			v.History[i] = nil
+			continue
+		}
+		v.History[i] = unmarshalChatTurnResponseBodyToSuggestionsChatTurn(val)
+	}
+	v.FollowUps = make([]string, len(body.FollowUps))
+	for i, val := range body.FollowUps {
+		v.FollowUps[i] = val
+	}
+
+	return v
+}
+
+// NewChatLlmError builds a suggestions service chat endpoint llm_error error.
+func NewChatLlmError(body *ChatLlmErrorResponseBody) *suggestions.LLMError {
+	v := &suggestions.LLMError{
+		Name:    *body.Name,
+		Message: *body.Message,
+		Code:    body.Code,
+	}
+
+	return v
+}
+
+// NewChatValidationError builds a suggestions service chat endpoint
+// validation_error error.
+func NewChatValidationError(body *ChatValidationErrorResponseBody) *suggestions.ValidationError {
 	v := &suggestions.ValidationError{
 		Name:    *body.Name,
 		Message: *body.Message,
@@ -472,6 +574,41 @@ func ValidateAskResponseBody(body *AskResponseBody) (err error) {
 	return
 }
 
+// ValidateChatResponseBody runs the validations defined on ChatResponseBody
+func ValidateChatResponseBody(body *ChatResponseBody) (err error) {
+	if body.SessionID == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("session_id", "body"))
+	}
+	if body.Question == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("question", "body"))
+	}
+	if body.SQL == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("sql", "body"))
+	}
+	if body.Report == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("report", "body"))
+	}
+	if body.History == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("history", "body"))
+	}
+	if body.FollowUps == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("follow_ups", "body"))
+	}
+	if body.Report != nil {
+		if err2 := ValidateReportResponseBody(body.Report); err2 != nil {
+			err = goa.MergeErrors(err, err2)
+		}
+	}
+	for _, e := range body.History {
+		if e != nil {
+			if err2 := ValidateChatTurnResponseBody(e); err2 != nil {
+				err = goa.MergeErrors(err, err2)
+			}
+		}
+	}
+	return
+}
+
 // ValidateExplainResponseBody runs the validations defined on
 // ExplainResponseBody
 func ValidateExplainResponseBody(body *ExplainResponseBody) (err error) {
@@ -499,6 +636,30 @@ func ValidateAskLlmErrorResponseBody(body *AskLlmErrorResponseBody) (err error) 
 // ValidateAskValidationErrorResponseBody runs the validations defined on
 // ask_validation_error_response_body
 func ValidateAskValidationErrorResponseBody(body *AskValidationErrorResponseBody) (err error) {
+	if body.Name == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("name", "body"))
+	}
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
+// ValidateChatLlmErrorResponseBody runs the validations defined on
+// chat_llm_error_response_body
+func ValidateChatLlmErrorResponseBody(body *ChatLlmErrorResponseBody) (err error) {
+	if body.Name == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("name", "body"))
+	}
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
+// ValidateChatValidationErrorResponseBody runs the validations defined on
+// chat_validation_error_response_body
+func ValidateChatValidationErrorResponseBody(body *ChatValidationErrorResponseBody) (err error) {
 	if body.Name == nil {
 		err = goa.MergeErrors(err, goa.MissingFieldError("name", "body"))
 	}
@@ -794,6 +955,24 @@ func ValidateChartSuggestionResponseBody(body *ChartSuggestionResponseBody) (err
 	}
 	if body.Reason == nil {
 		err = goa.MergeErrors(err, goa.MissingFieldError("reason", "body"))
+	}
+	return
+}
+
+// ValidateChatTurnResponseBody runs the validations defined on
+// ChatTurnResponseBody
+func ValidateChatTurnResponseBody(body *ChatTurnResponseBody) (err error) {
+	if body.Question == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("question", "body"))
+	}
+	if body.SQL == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("sql", "body"))
+	}
+	if body.CreatedAt == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("created_at", "body"))
+	}
+	if body.CreatedAt != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.created_at", *body.CreatedAt, goa.FormatDateTime))
 	}
 	return
 }

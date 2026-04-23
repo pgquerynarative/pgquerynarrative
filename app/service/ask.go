@@ -2,9 +2,12 @@ package service
 
 import (
 	"context"
+	"database/sql"
 	"strconv"
 	"strings"
+	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pgquerynarrative/pgquerynarrative/api/gen/reports"
 	suggestions "github.com/pgquerynarrative/pgquerynarrative/api/gen/suggestions"
 	"github.com/pgquerynarrative/pgquerynarrative/app/catalog"
@@ -20,11 +23,13 @@ type AskService struct {
 	llmClient     llm.Client
 	validator     *queryrunner.Validator
 	reportsSvc    *ReportsService
+	appPool       *pgxpool.Pool
 	connectionResolver
 }
 
 // NewAskService creates an AskService with the given dependencies.
 func NewAskService(
+	appPool *pgxpool.Pool,
 	catalogLoader *catalog.Loader,
 	llmClient llm.Client,
 	validator *queryrunner.Validator,
@@ -35,6 +40,7 @@ func NewAskService(
 		llmClient:     llmClient,
 		validator:     validator,
 		reportsSvc:    reportsSvc,
+		appPool:       appPool,
 		connectionResolver: newConnectionResolver("default", map[string]*queryrunner.Runner{
 			"default": reportsSvc.runner,
 		}, map[string]*catalog.Loader{
@@ -45,6 +51,7 @@ func NewAskService(
 
 // NewAskServiceMultiConnection creates AskService with connection-aware schema loading and report generation.
 func NewAskServiceMultiConnection(
+	appPool *pgxpool.Pool,
 	loaders map[string]*catalog.Loader,
 	llmClient llm.Client,
 	validator *queryrunner.Validator,
@@ -65,6 +72,7 @@ func NewAskServiceMultiConnection(
 		llmClient:          llmClient,
 		validator:          validator,
 		reportsSvc:         reportsSvc,
+		appPool:            appPool,
 		connectionResolver: newConnectionResolver(defaultConnectionID, reportsSvc.runners, loaders),
 	}
 }
@@ -114,6 +122,198 @@ func (s *AskService) Ask(ctx context.Context, payload *suggestions.AskPayload) (
 		SQL:      sql,
 		Report:   reportToSuggestions(report),
 	}, nil
+}
+
+// Chat runs conversational Ask with short in-session context memory.
+func (s *AskService) Chat(ctx context.Context, payload *suggestions.ChatPayload) (*suggestions.ChatResult, error) {
+	question := strings.TrimSpace(payload.Question)
+	if question == "" {
+		return nil, &suggestions.ValidationError{Name: "validation_error", Message: "question is required", Code: strPtr("VALIDATION_ERROR")}
+	}
+	sessionID, historyCtx, err := s.ensureSessionAndHistory(ctx, payload.SessionID, payload.ConnectionID)
+	if err != nil {
+		return nil, &suggestions.LLMError{Name: "llm_error", Message: "failed to prepare chat session: " + err.Error(), Code: strPtr("SESSION_ERROR")}
+	}
+	schemaResult, err := s.connectionResolver.loaderFor(payload.ConnectionID).Load(ctx)
+	if err != nil {
+		return nil, &suggestions.LLMError{Name: "llm_error", Message: "failed to load schema: " + err.Error(), Code: strPtr("SCHEMA_ERROR")}
+	}
+	schemaText := llm.FormatSchemaForPrompt(schemaResult)
+	prompt := llm.BuildNL2SQLPrompt(question, schemaText)
+	if historyCtx != "" {
+		prompt += "\n\nConversation context:\n" + historyCtx + "\nUse this context to refine the next SQL."
+	}
+	response, err := s.llmClient.Generate(ctx, prompt)
+	if err != nil {
+		return nil, &suggestions.LLMError{Name: "llm_error", Message: err.Error(), Code: strPtr("LLM_ERROR")}
+	}
+	sqlText := strings.TrimSpace(llm.ParseSQLFromResponse(response))
+	if sqlText == "" {
+		return nil, &suggestions.LLMError{Name: "llm_error", Message: "LLM did not return any SQL", Code: strPtr("LLM_ERROR")}
+	}
+	if err := s.validator.Validate(sqlText); err != nil {
+		return nil, &suggestions.ValidationError{Name: "validation_error", Message: err.Error(), Code: strPtr("VALIDATION_ERROR")}
+	}
+	report, err := s.reportsSvc.Generate(ctx, &reports.GenerateReportPayload{SQL: sqlText, ConnectionID: payload.ConnectionID})
+	if err != nil {
+		if ve, ok := err.(*reports.ValidationError); ok {
+			return nil, &suggestions.ValidationError{Name: ve.Name, Message: ve.Message, Code: ve.Code}
+		}
+		if le, ok := err.(*reports.LLMError); ok {
+			return nil, &suggestions.LLMError{Name: le.Name, Message: le.Message, Code: le.Code}
+		}
+		return nil, &suggestions.LLMError{Name: "llm_error", Message: err.Error(), Code: strPtr("REPORT_ERROR")}
+	}
+	if err := s.appendChatMessage(ctx, sessionID, question, sqlText, report.ID); err != nil {
+		return nil, &suggestions.LLMError{Name: "llm_error", Message: "failed to persist chat message: " + err.Error(), Code: strPtr("SESSION_ERROR")}
+	}
+	history, err := s.loadChatHistory(ctx, sessionID, 8)
+	if err != nil {
+		return nil, &suggestions.LLMError{Name: "llm_error", Message: "failed to load chat history: " + err.Error(), Code: strPtr("SESSION_ERROR")}
+	}
+	followUps := s.buildFollowUps(ctx, history, question)
+	return &suggestions.ChatResult{
+		SessionID: sessionID,
+		Question:  question,
+		SQL:       sqlText,
+		Report:    reportToSuggestions(report),
+		History:   history,
+		FollowUps: followUps,
+	}, nil
+}
+
+func (s *AskService) ensureSessionAndHistory(ctx context.Context, sessionID *string, connectionID *string) (string, string, error) {
+	if s.appPool == nil {
+		return "", "", sql.ErrConnDone
+	}
+	if sessionID != nil && strings.TrimSpace(*sessionID) != "" {
+		history, err := s.loadChatHistory(ctx, strings.TrimSpace(*sessionID), 6)
+		if err != nil {
+			return "", "", err
+		}
+		return strings.TrimSpace(*sessionID), summarizeChatHistory(history), nil
+	}
+	id, err := s.createChatSession(ctx, s.connectionResolver.normalizedConnectionID(connectionID))
+	if err != nil {
+		return "", "", err
+	}
+	return id, "", nil
+}
+
+func (s *AskService) createChatSession(ctx context.Context, connectionID string) (string, error) {
+	var id string
+	err := s.appPool.QueryRow(ctx, `
+		INSERT INTO app.ask_sessions (connection_id)
+		VALUES ($1)
+		RETURNING id
+	`, connectionID).Scan(&id)
+	return id, err
+}
+
+func (s *AskService) appendChatMessage(ctx context.Context, sessionID, question, sqlText, reportID string) error {
+	_, err := s.appPool.Exec(ctx, `
+		INSERT INTO app.ask_messages (session_id, question, sql, report_id)
+		VALUES ($1, $2, $3, NULLIF($4, '')::uuid)
+	`, sessionID, question, sqlText, reportID)
+	if err != nil {
+		return err
+	}
+	_, err = s.appPool.Exec(ctx, `UPDATE app.ask_sessions SET updated_at = NOW() WHERE id = $1`, sessionID)
+	return err
+}
+
+func (s *AskService) loadChatHistory(ctx context.Context, sessionID string, limit int) ([]*suggestions.ChatTurn, error) {
+	rows, err := s.appPool.Query(ctx, `
+		SELECT question, sql, created_at
+		FROM app.ask_messages
+		WHERE session_id = $1
+		ORDER BY created_at DESC
+		LIMIT $2
+	`, sessionID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	tmp := make([]*suggestions.ChatTurn, 0, limit)
+	for rows.Next() {
+		var question, sqlText string
+		var createdAt time.Time
+		if err := rows.Scan(&question, &sqlText, &createdAt); err != nil {
+			return nil, err
+		}
+		tmp = append(tmp, &suggestions.ChatTurn{
+			Question:  question,
+			SQL:       sqlText,
+			CreatedAt: createdAt.Format(time.RFC3339),
+		})
+	}
+	// reverse to chronological
+	history := make([]*suggestions.ChatTurn, 0, len(tmp))
+	for i := len(tmp) - 1; i >= 0; i-- {
+		history = append(history, tmp[i])
+	}
+	return history, rows.Err()
+}
+
+func summarizeChatHistory(history []*suggestions.ChatTurn) string {
+	if len(history) == 0 {
+		return ""
+	}
+	var b strings.Builder
+	for _, h := range history {
+		if h == nil {
+			continue
+		}
+		b.WriteString("- Q: ")
+		b.WriteString(h.Question)
+		b.WriteString("\n  SQL: ")
+		b.WriteString(h.SQL)
+		b.WriteString("\n")
+	}
+	return strings.TrimSpace(b.String())
+}
+
+func (s *AskService) buildFollowUps(ctx context.Context, history []*suggestions.ChatTurn, latestQuestion string) []string {
+	if len(history) == 0 || s.llmClient == nil {
+		return defaultFollowUps(latestQuestion)
+	}
+	var b strings.Builder
+	b.WriteString("Suggest 3 short follow-up analytics questions for this conversation.\n")
+	b.WriteString("Return one question per line, no numbering.\n\n")
+	b.WriteString("Conversation:\n")
+	b.WriteString(summarizeChatHistory(history))
+	raw, err := s.llmClient.Generate(ctx, b.String())
+	if err != nil {
+		return defaultFollowUps(latestQuestion)
+	}
+	lines := strings.Split(raw, "\n")
+	out := make([]string, 0, 3)
+	for _, l := range lines {
+		t := strings.TrimSpace(strings.TrimPrefix(l, "- "))
+		t = strings.TrimLeft(t, "0123456789.) ")
+		if t == "" {
+			continue
+		}
+		if !strings.HasSuffix(t, "?") {
+			t += "?"
+		}
+		out = append(out, t)
+		if len(out) == 3 {
+			break
+		}
+	}
+	if len(out) == 0 {
+		return defaultFollowUps(latestQuestion)
+	}
+	return out
+}
+
+func defaultFollowUps(_ string) []string {
+	return []string{
+		"Can you break this down by region?",
+		"What changed compared to the previous period?",
+		"Show only the top 5 contributors.",
+	}
 }
 
 // Explain implements the suggestions service Explain method: SQL → plain-English explanation.
@@ -402,4 +602,9 @@ func (w *SuggestionsServiceWrapper) Explain(ctx context.Context, p *suggestions.
 // Questions delegates schema-driven discovery prompts to AskService.
 func (w *SuggestionsServiceWrapper) Questions(ctx context.Context, p *suggestions.QuestionsPayload) (*suggestions.SuggestedQuestionsResult, error) {
 	return w.AskSvc.Questions(ctx, p)
+}
+
+// Chat delegates conversational ask to AskService.
+func (w *SuggestionsServiceWrapper) Chat(ctx context.Context, p *suggestions.ChatPayload) (*suggestions.ChatResult, error) {
+	return w.AskSvc.Chat(ctx, p)
 }
