@@ -79,6 +79,40 @@ export interface ReportShareLink {
   url: string;
   expires_at?: string;
 }
+export interface DashboardWidgetInput {
+  widget_type: "report" | "saved_query";
+  title?: string;
+  report_id?: string;
+  saved_query_id?: string;
+  refresh_seconds?: number;
+  position?: number;
+}
+export interface DashboardWidget extends DashboardWidgetInput {
+  id: string;
+  refresh_seconds: number;
+  position: number;
+}
+export interface Dashboard {
+  id: string;
+  name: string;
+  widgets: DashboardWidget[];
+  created_at: string;
+  updated_at: string;
+}
+export interface DashboardResolvedWidget {
+  id: string;
+  widget_type: "report" | "saved_query";
+  title?: string;
+  refresh_seconds: number;
+  position: number;
+  report?: Report;
+  saved_query?: SavedQuery;
+}
+export interface DashboardResolved {
+  id: string;
+  name: string;
+  widgets: DashboardResolvedWidget[];
+}
 
 export interface AskResult {
   question: string;
@@ -170,4 +204,13 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ question: question.trim(), connection_id: connectionId }),
     }),
+
+  listDashboards: () => request<{ items: Dashboard[] }>("/dashboards"),
+  createDashboard: (name: string) =>
+    request<Dashboard>("/dashboards", { method: "POST", body: JSON.stringify({ name }) }),
+  getDashboard: (id: string) => request<Dashboard>(`/dashboards/${id}`),
+  updateDashboard: (id: string, name: string, widgets: DashboardWidgetInput[]) =>
+    request<Dashboard>(`/dashboards/${id}`, { method: "PUT", body: JSON.stringify({ name, widgets }) }),
+  deleteDashboard: (id: string) => request<void>(`/dashboards/${id}`, { method: "DELETE" }),
+  resolveDashboard: (id: string) => request<DashboardResolved>(`/dashboards/${id}/resolve`),
 };
