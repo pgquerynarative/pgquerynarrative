@@ -19,6 +19,7 @@ type Endpoints struct {
 	Questions goa.Endpoint
 	Similar   goa.Endpoint
 	Ask       goa.Endpoint
+	Chat      goa.Endpoint
 	Explain   goa.Endpoint
 }
 
@@ -29,6 +30,7 @@ func NewEndpoints(s Service) *Endpoints {
 		Questions: NewQuestionsEndpoint(s),
 		Similar:   NewSimilarEndpoint(s),
 		Ask:       NewAskEndpoint(s),
+		Chat:      NewChatEndpoint(s),
 		Explain:   NewExplainEndpoint(s),
 	}
 }
@@ -39,6 +41,7 @@ func (e *Endpoints) Use(m func(goa.Endpoint) goa.Endpoint) {
 	e.Questions = m(e.Questions)
 	e.Similar = m(e.Similar)
 	e.Ask = m(e.Ask)
+	e.Chat = m(e.Chat)
 	e.Explain = m(e.Explain)
 }
 
@@ -75,6 +78,15 @@ func NewAskEndpoint(s Service) goa.Endpoint {
 	return func(ctx context.Context, req any) (any, error) {
 		p := req.(*AskPayload)
 		return s.Ask(ctx, p)
+	}
+}
+
+// NewChatEndpoint returns an endpoint function that calls the method "chat" of
+// service "suggestions".
+func NewChatEndpoint(s Service) goa.Endpoint {
+	return func(ctx context.Context, req any) (any, error) {
+		p := req.(*ChatPayload)
+		return s.Chat(ctx, p)
 	}
 }
 

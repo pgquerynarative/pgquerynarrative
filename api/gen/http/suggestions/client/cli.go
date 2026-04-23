@@ -136,7 +136,7 @@ func BuildAskPayload(suggestionsAskBody string) (*suggestions.AskPayload, error)
 	{
 		err = json.Unmarshal([]byte(suggestionsAskBody), &body)
 		if err != nil {
-			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"connection_id\": \"Doloremque accusantium ut.\",\n      \"question\": \"6nq\"\n   }'")
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"connection_id\": \"Eos in exercitationem sunt.\",\n      \"question\": \"2kq\"\n   }'")
 		}
 		if utf8.RuneCountInString(body.Question) < 1 {
 			err = goa.MergeErrors(err, goa.InvalidLengthError("body.question", body.Question, utf8.RuneCountInString(body.Question), 1, true))
@@ -156,6 +156,35 @@ func BuildAskPayload(suggestionsAskBody string) (*suggestions.AskPayload, error)
 	return v, nil
 }
 
+// BuildChatPayload builds the payload for the suggestions chat endpoint from
+// CLI flags.
+func BuildChatPayload(suggestionsChatBody string) (*suggestions.ChatPayload, error) {
+	var err error
+	var body ChatRequestBody
+	{
+		err = json.Unmarshal([]byte(suggestionsChatBody), &body)
+		if err != nil {
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"connection_id\": \"Ex nihil harum tenetur eaque.\",\n      \"question\": \"c\",\n      \"session_id\": \"Inventore est dolorem sed laboriosam rerum et.\"\n   }'")
+		}
+		if utf8.RuneCountInString(body.Question) < 1 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.question", body.Question, utf8.RuneCountInString(body.Question), 1, true))
+		}
+		if utf8.RuneCountInString(body.Question) > 1000 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.question", body.Question, utf8.RuneCountInString(body.Question), 1000, false))
+		}
+		if err != nil {
+			return nil, err
+		}
+	}
+	v := &suggestions.ChatPayload{
+		Question:     body.Question,
+		SessionID:    body.SessionID,
+		ConnectionID: body.ConnectionID,
+	}
+
+	return v, nil
+}
+
 // BuildExplainPayload builds the payload for the suggestions explain endpoint
 // from CLI flags.
 func BuildExplainPayload(suggestionsExplainBody string) (*suggestions.ExplainPayload, error) {
@@ -164,7 +193,7 @@ func BuildExplainPayload(suggestionsExplainBody string) (*suggestions.ExplainPay
 	{
 		err = json.Unmarshal([]byte(suggestionsExplainBody), &body)
 		if err != nil {
-			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"sql\": \"swt\"\n   }'")
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"sql\": \"2j\"\n   }'")
 		}
 		if utf8.RuneCountInString(body.SQL) < 1 {
 			err = goa.MergeErrors(err, goa.InvalidLengthError("body.sql", body.SQL, utf8.RuneCountInString(body.SQL), 1, true))

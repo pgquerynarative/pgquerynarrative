@@ -26,6 +26,9 @@ type Service interface {
 	// Natural language to SQL and report in one step: ask a question, get a
 	// generated SELECT, run it, and return the narrative report. Requires LLM.
 	Ask(context.Context, *AskPayload) (res *AskResult, err error)
+	// Multi-turn Ask conversation with short context memory and optional follow-up
+	// suggestions.
+	Chat(context.Context, *ChatPayload) (res *ChatResult, err error)
 	// Explain a SQL query in plain English (one or two sentences). Requires LLM.
 	Explain(context.Context, *ExplainPayload) (res *ExplainResult, err error)
 }
@@ -44,7 +47,7 @@ const ServiceName = "suggestions"
 // MethodNames lists the service method names as defined in the design. These
 // are the same values that are set in the endpoint request contexts under the
 // MethodKey key.
-var MethodNames = [5]string{"queries", "questions", "similar", "ask", "explain"}
+var MethodNames = [6]string{"queries", "questions", "similar", "ask", "chat", "explain"}
 
 type AggregateData struct {
 	Sum   *float64
@@ -90,6 +93,30 @@ type ChartSuggestion struct {
 	Label string
 	// Why this chart fits the data
 	Reason string
+}
+
+// ChatPayload is the payload type of the suggestions service chat method.
+type ChatPayload struct {
+	Question  string
+	SessionID *string
+	// Optional connection ID; defaults to server default connection
+	ConnectionID *string
+}
+
+// ChatResult is the result type of the suggestions service chat method.
+type ChatResult struct {
+	SessionID string
+	Question  string
+	SQL       string
+	Report    *Report
+	History   []*ChatTurn
+	FollowUps []string
+}
+
+type ChatTurn struct {
+	Question  string
+	SQL       string
+	CreatedAt string
 }
 
 type CohortMetricData struct {

@@ -341,6 +341,109 @@ func DecodeAskResponse(decoder func(*http.Response) goahttp.Decoder, restoreBody
 	}
 }
 
+// BuildChatRequest instantiates a HTTP request object with method and path set
+// to call the "suggestions" service "chat" endpoint
+func (c *Client) BuildChatRequest(ctx context.Context, v any) (*http.Request, error) {
+	u := &url.URL{Scheme: c.scheme, Host: c.host, Path: ChatSuggestionsPath()}
+	req, err := http.NewRequest("POST", u.String(), nil)
+	if err != nil {
+		return nil, goahttp.ErrInvalidURL("suggestions", "chat", u.String(), err)
+	}
+	if ctx != nil {
+		req = req.WithContext(ctx)
+	}
+
+	return req, nil
+}
+
+// EncodeChatRequest returns an encoder for requests sent to the suggestions
+// chat server.
+func EncodeChatRequest(encoder func(*http.Request) goahttp.Encoder) func(*http.Request, any) error {
+	return func(req *http.Request, v any) error {
+		p, ok := v.(*suggestions.ChatPayload)
+		if !ok {
+			return goahttp.ErrInvalidType("suggestions", "chat", "*suggestions.ChatPayload", v)
+		}
+		body := NewChatRequestBody(p)
+		if err := encoder(req).Encode(&body); err != nil {
+			return goahttp.ErrEncodingError("suggestions", "chat", err)
+		}
+		return nil
+	}
+}
+
+// DecodeChatResponse returns a decoder for responses returned by the
+// suggestions chat endpoint. restoreBody controls whether the response body
+// should be restored after having been read.
+// DecodeChatResponse may return the following errors:
+//   - "llm_error" (type *suggestions.LLMError): http.StatusInternalServerError
+//   - "validation_error" (type *suggestions.ValidationError): http.StatusBadRequest
+//   - error: internal error
+func DecodeChatResponse(decoder func(*http.Response) goahttp.Decoder, restoreBody bool) func(*http.Response) (any, error) {
+	return func(resp *http.Response) (any, error) {
+		if restoreBody {
+			b, err := io.ReadAll(resp.Body)
+			if err != nil {
+				return nil, err
+			}
+			resp.Body = io.NopCloser(bytes.NewBuffer(b))
+			defer func() {
+				resp.Body = io.NopCloser(bytes.NewBuffer(b))
+			}()
+		} else {
+			defer resp.Body.Close()
+		}
+		switch resp.StatusCode {
+		case http.StatusOK:
+			var (
+				body ChatResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("suggestions", "chat", err)
+			}
+			err = ValidateChatResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("suggestions", "chat", err)
+			}
+			res := NewChatResultOK(&body)
+			return res, nil
+		case http.StatusInternalServerError:
+			var (
+				body ChatLlmErrorResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("suggestions", "chat", err)
+			}
+			err = ValidateChatLlmErrorResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("suggestions", "chat", err)
+			}
+			return nil, NewChatLlmError(&body)
+		case http.StatusBadRequest:
+			var (
+				body ChatValidationErrorResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("suggestions", "chat", err)
+			}
+			err = ValidateChatValidationErrorResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("suggestions", "chat", err)
+			}
+			return nil, NewChatValidationError(&body)
+		default:
+			body, _ := io.ReadAll(resp.Body)
+			return nil, goahttp.ErrInvalidResponse("suggestions", "chat", resp.StatusCode, string(body))
+		}
+	}
+}
+
 // BuildExplainRequest instantiates a HTTP request object with method and path
 // set to call the "suggestions" service "explain" endpoint
 func (c *Client) BuildExplainRequest(ctx context.Context, v any) (*http.Request, error) {
@@ -823,6 +926,18 @@ func unmarshalChartSuggestionResponseBodyToSuggestionsChartSuggestion(v *ChartSu
 		ChartType: *v.ChartType,
 		Label:     *v.Label,
 		Reason:    *v.Reason,
+	}
+
+	return res
+}
+
+// unmarshalChatTurnResponseBodyToSuggestionsChatTurn builds a value of type
+// *suggestions.ChatTurn from a value of type *ChatTurnResponseBody.
+func unmarshalChatTurnResponseBodyToSuggestionsChatTurn(v *ChatTurnResponseBody) *suggestions.ChatTurn {
+	res := &suggestions.ChatTurn{
+		Question:  *v.Question,
+		SQL:       *v.SQL,
+		CreatedAt: *v.CreatedAt,
 	}
 
 	return res

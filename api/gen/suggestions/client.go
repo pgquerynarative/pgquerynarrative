@@ -19,16 +19,18 @@ type Client struct {
 	QuestionsEndpoint goa.Endpoint
 	SimilarEndpoint   goa.Endpoint
 	AskEndpoint       goa.Endpoint
+	ChatEndpoint      goa.Endpoint
 	ExplainEndpoint   goa.Endpoint
 }
 
 // NewClient initializes a "suggestions" service client given the endpoints.
-func NewClient(queries, questions, similar, ask, explain goa.Endpoint) *Client {
+func NewClient(queries, questions, similar, ask, chat, explain goa.Endpoint) *Client {
 	return &Client{
 		QueriesEndpoint:   queries,
 		QuestionsEndpoint: questions,
 		SimilarEndpoint:   similar,
 		AskEndpoint:       ask,
+		ChatEndpoint:      chat,
 		ExplainEndpoint:   explain,
 	}
 }
@@ -75,6 +77,20 @@ func (c *Client) Ask(ctx context.Context, p *AskPayload) (res *AskResult, err er
 		return
 	}
 	return ires.(*AskResult), nil
+}
+
+// Chat calls the "chat" endpoint of the "suggestions" service.
+// Chat may return the following errors:
+//   - "validation_error" (type *ValidationError)
+//   - "llm_error" (type *LLMError)
+//   - error: internal error
+func (c *Client) Chat(ctx context.Context, p *ChatPayload) (res *ChatResult, err error) {
+	var ires any
+	ires, err = c.ChatEndpoint(ctx, p)
+	if err != nil {
+		return
+	}
+	return ires.(*ChatResult), nil
 }
 
 // Explain calls the "explain" endpoint of the "suggestions" service.

@@ -119,6 +119,19 @@ export interface AskResult {
   sql: string;
   report: Report;
 }
+export interface ChatTurn {
+  question: string;
+  sql: string;
+  created_at: string;
+}
+export interface ChatResult {
+  session_id: string;
+  question: string;
+  sql: string;
+  report: Report;
+  history: ChatTurn[];
+  follow_ups: string[];
+}
 
 export interface ConnectionInfo { id: string; name: string; }
 
@@ -203,6 +216,11 @@ export const api = {
     request<AskResult>("/suggestions/ask", {
       method: "POST",
       body: JSON.stringify({ question: question.trim(), connection_id: connectionId }),
+    }),
+  askChat: (question: string, sessionId?: string, connectionId?: string) =>
+    request<ChatResult>("/suggestions/chat", {
+      method: "POST",
+      body: JSON.stringify({ question: question.trim(), session_id: sessionId, connection_id: connectionId }),
     }),
 
   listDashboards: () => request<{ items: Dashboard[] }>("/dashboards"),

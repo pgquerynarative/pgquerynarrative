@@ -27,6 +27,11 @@ func AskSuggestionsPath() string {
 	return "/api/v1/suggestions/ask"
 }
 
+// ChatSuggestionsPath returns the URL path to the suggestions service chat HTTP endpoint.
+func ChatSuggestionsPath() string {
+	return "/api/v1/suggestions/chat"
+}
+
 // ExplainSuggestionsPath returns the URL path to the suggestions service explain HTTP endpoint.
 func ExplainSuggestionsPath() string {
 	return "/api/v1/suggestions/explain"

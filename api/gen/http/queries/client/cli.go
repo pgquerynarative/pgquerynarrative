@@ -25,7 +25,7 @@ func BuildRunPayload(queriesRunBody string) (*queries.RunQueryPayload, error) {
 	{
 		err = json.Unmarshal([]byte(queriesRunBody), &body)
 		if err != nil {
-			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"connection_id\": \"Earum enim quia nulla ipsa quia.\",\n      \"limit\": 762,\n      \"sql\": \"c\"\n   }'")
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"connection_id\": \"Sed est facere illum.\",\n      \"limit\": 438,\n      \"sql\": \"4\"\n   }'")
 		}
 		err = goa.MergeErrors(err, goa.ValidatePattern("body.sql", body.SQL, "^[^;]+$"))
 		if utf8.RuneCountInString(body.SQL) < 1 {
@@ -68,7 +68,7 @@ func BuildListSavedPayload(queriesListSavedTags string, queriesListSavedConnecti
 		if queriesListSavedTags != "" {
 			err = json.Unmarshal([]byte(queriesListSavedTags), &tags)
 			if err != nil {
-				return nil, fmt.Errorf("invalid JSON for tags, \nerror: %s, \nexample of valid JSON:\n%s", err, "'[\n      \"Cumque soluta.\",\n      \"Voluptas tenetur.\",\n      \"Unde adipisci beatae culpa sequi sapiente.\",\n      \"Et voluptatem.\"\n   ]'")
+				return nil, fmt.Errorf("invalid JSON for tags, \nerror: %s, \nexample of valid JSON:\n%s", err, "'[\n      \"Nihil ea quia cumque.\",\n      \"Rerum ea adipisci explicabo.\",\n      \"Voluptatem aliquid officiis excepturi necessitatibus.\",\n      \"Et esse et.\"\n   ]'")
 			}
 		}
 	}
@@ -132,7 +132,7 @@ func BuildSavePayload(queriesSaveBody string) (*queries.SaveQueryPayload, error)
 	{
 		err = json.Unmarshal([]byte(queriesSaveBody), &body)
 		if err != nil {
-			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"connection_id\": \"Doloremque recusandae ut dolor.\",\n      \"description\": \"v49\",\n      \"name\": \"e\",\n      \"sql\": \"2zu\",\n      \"tags\": [\n         \"Sed adipisci quidem.\",\n         \"Sit possimus.\"\n      ]\n   }'")
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"connection_id\": \"Beatae et fugiat.\",\n      \"description\": \"kdo\",\n      \"name\": \"op\",\n      \"sql\": \"s7m\",\n      \"tags\": [\n         \"Provident eius.\",\n         \"Iusto ad dicta ut dolorum.\",\n         \"Aperiam inventore voluptas itaque molestiae qui.\",\n         \"Omnis neque id.\"\n      ]\n   }'")
 		}
 		if utf8.RuneCountInString(body.Name) < 1 {
 			err = goa.MergeErrors(err, goa.InvalidLengthError("body.name", body.Name, utf8.RuneCountInString(body.Name), 1, true))

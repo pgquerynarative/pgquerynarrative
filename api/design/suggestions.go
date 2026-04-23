@@ -92,6 +92,28 @@ var _ = Service("suggestions", func() {
 		})
 	})
 
+	Method("chat", func() {
+		Description("Multi-turn Ask conversation with short context memory and optional follow-up suggestions.")
+		Payload(func() {
+			Attribute("question", String, func() {
+				MinLength(1)
+				MaxLength(1000)
+			})
+			Attribute("session_id", String)
+			Attribute("connection_id", String, "Optional connection ID; defaults to server default connection")
+			Required("question")
+		})
+		Result(ChatResult)
+		Error("validation_error", ValidationError)
+		Error("llm_error", LLMError)
+		HTTP(func() {
+			POST("/api/v1/suggestions/chat")
+			Response(StatusOK)
+			Response(StatusBadRequest, "validation_error")
+			Response(StatusInternalServerError, "llm_error")
+		})
+	})
+
 	Method("explain", func() {
 		Description("Explain a SQL query in plain English (one or two sentences). Requires LLM.")
 		Payload(func() {
@@ -126,6 +148,23 @@ var AskResult = Type("AskResult", func() {
 	Attribute("sql", String, "The generated and executed SQL")
 	Attribute("report", Report, "The narrative report from the query result")
 	Required("question", "sql", "report")
+})
+
+var ChatTurn = Type("ChatTurn", func() {
+	Attribute("question", String)
+	Attribute("sql", String)
+	Attribute("created_at", String, func() { Format(FormatDateTime) })
+	Required("question", "sql", "created_at")
+})
+
+var ChatResult = Type("ChatResult", func() {
+	Attribute("session_id", String)
+	Attribute("question", String)
+	Attribute("sql", String)
+	Attribute("report", Report)
+	Attribute("history", ArrayOf(ChatTurn))
+	Attribute("follow_ups", ArrayOf(String))
+	Required("session_id", "question", "sql", "report", "history", "follow_ups")
 })
 
 // SuggestedQueriesResult is the result of the suggestions queries method.

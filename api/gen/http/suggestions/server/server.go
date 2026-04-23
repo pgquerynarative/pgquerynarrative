@@ -23,6 +23,7 @@ type Server struct {
 	Questions http.Handler
 	Similar   http.Handler
 	Ask       http.Handler
+	Chat      http.Handler
 	Explain   http.Handler
 }
 
@@ -57,12 +58,14 @@ func New(
 			{"Questions", "GET", "/api/v1/suggestions/questions"},
 			{"Similar", "GET", "/api/v1/suggestions/similar"},
 			{"Ask", "POST", "/api/v1/suggestions/ask"},
+			{"Chat", "POST", "/api/v1/suggestions/chat"},
 			{"Explain", "POST", "/api/v1/suggestions/explain"},
 		},
 		Queries:   NewQueriesHandler(e.Queries, mux, decoder, encoder, errhandler, formatter),
 		Questions: NewQuestionsHandler(e.Questions, mux, decoder, encoder, errhandler, formatter),
 		Similar:   NewSimilarHandler(e.Similar, mux, decoder, encoder, errhandler, formatter),
 		Ask:       NewAskHandler(e.Ask, mux, decoder, encoder, errhandler, formatter),
+		Chat:      NewChatHandler(e.Chat, mux, decoder, encoder, errhandler, formatter),
 		Explain:   NewExplainHandler(e.Explain, mux, decoder, encoder, errhandler, formatter),
 	}
 }
@@ -76,6 +79,7 @@ func (s *Server) Use(m func(http.Handler) http.Handler) {
 	s.Questions = m(s.Questions)
 	s.Similar = m(s.Similar)
 	s.Ask = m(s.Ask)
+	s.Chat = m(s.Chat)
 	s.Explain = m(s.Explain)
 }
 
@@ -88,6 +92,7 @@ func Mount(mux goahttp.Muxer, h *Server) {
 	MountQuestionsHandler(mux, h.Questions)
 	MountSimilarHandler(mux, h.Similar)
 	MountAskHandler(mux, h.Ask)
+	MountChatHandler(mux, h.Chat)
 	MountExplainHandler(mux, h.Explain)
 }
 
@@ -285,6 +290,59 @@ func NewAskHandler(
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := context.WithValue(r.Context(), goahttp.AcceptTypeKey, r.Header.Get("Accept"))
 		ctx = context.WithValue(ctx, goa.MethodKey, "ask")
+		ctx = context.WithValue(ctx, goa.ServiceKey, "suggestions")
+		payload, err := decodeRequest(r)
+		if err != nil {
+			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+			return
+		}
+		res, err := endpoint(ctx, payload)
+		if err != nil {
+			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+			return
+		}
+		if err := encodeResponse(ctx, w, res); err != nil {
+			if errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+		}
+	})
+}
+
+// MountChatHandler configures the mux to serve the "suggestions" service
+// "chat" endpoint.
+func MountChatHandler(mux goahttp.Muxer, h http.Handler) {
+	f, ok := h.(http.HandlerFunc)
+	if !ok {
+		f = func(w http.ResponseWriter, r *http.Request) {
+			h.ServeHTTP(w, r)
+		}
+	}
+	mux.Handle("POST", "/api/v1/suggestions/chat", f)
+}
+
+// NewChatHandler creates a HTTP handler which loads the HTTP request and calls
+// the "suggestions" service "chat" endpoint.
+func NewChatHandler(
+	endpoint goa.Endpoint,
+	mux goahttp.Muxer,
+	decoder func(*http.Request) goahttp.Decoder,
+	encoder func(context.Context, http.ResponseWriter) goahttp.Encoder,
+	errhandler func(context.Context, http.ResponseWriter, error),
+	formatter func(ctx context.Context, err error) goahttp.Statuser,
+) http.Handler {
+	var (
+		decodeRequest  = DecodeChatRequest(mux, decoder)
+		encodeResponse = EncodeChatResponse(encoder)
+		encodeError    = EncodeChatError(encoder, formatter)
+	)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := context.WithValue(r.Context(), goahttp.AcceptTypeKey, r.Header.Get("Accept"))
+		ctx = context.WithValue(ctx, goa.MethodKey, "chat")
 		ctx = context.WithValue(ctx, goa.ServiceKey, "suggestions")
 		payload, err := decodeRequest(r)
 		if err != nil {

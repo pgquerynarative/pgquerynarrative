@@ -32,6 +32,9 @@ type Client struct {
 	// Ask Doer is the HTTP client used to make requests to the ask endpoint.
 	AskDoer goahttp.Doer
 
+	// Chat Doer is the HTTP client used to make requests to the chat endpoint.
+	ChatDoer goahttp.Doer
+
 	// Explain Doer is the HTTP client used to make requests to the explain
 	// endpoint.
 	ExplainDoer goahttp.Doer
@@ -60,6 +63,7 @@ func NewClient(
 		QuestionsDoer:       doer,
 		SimilarDoer:         doer,
 		AskDoer:             doer,
+		ChatDoer:            doer,
 		ExplainDoer:         doer,
 		RestoreResponseBody: restoreBody,
 		scheme:              scheme,
@@ -160,6 +164,30 @@ func (c *Client) Ask() goa.Endpoint {
 		resp, err := c.AskDoer.Do(req)
 		if err != nil {
 			return nil, goahttp.ErrRequestError("suggestions", "ask", err)
+		}
+		return decodeResponse(resp)
+	}
+}
+
+// Chat returns an endpoint that makes HTTP requests to the suggestions service
+// chat server.
+func (c *Client) Chat() goa.Endpoint {
+	var (
+		encodeRequest  = EncodeChatRequest(c.encoder)
+		decodeResponse = DecodeChatResponse(c.decoder, c.RestoreResponseBody)
+	)
+	return func(ctx context.Context, v any) (any, error) {
+		req, err := c.BuildChatRequest(ctx, v)
+		if err != nil {
+			return nil, err
+		}
+		err = encodeRequest(req, v)
+		if err != nil {
+			return nil, err
+		}
+		resp, err := c.ChatDoer.Do(req)
+		if err != nil {
+			return nil, goahttp.ErrRequestError("suggestions", "chat", err)
 		}
 		return decodeResponse(resp)
 	}
