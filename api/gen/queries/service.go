@@ -69,9 +69,10 @@ type GetSavedPayload struct {
 // ListSavedPayload is the payload type of the queries service list_saved
 // method.
 type ListSavedPayload struct {
-	Tags   []string
-	Limit  int32
-	Offset int32
+	Tags         []string
+	ConnectionID *string
+	Limit        int32
+	Offset       int32
 }
 
 type NotFoundError struct {
@@ -101,6 +102,8 @@ type RunQueryPayload struct {
 	SQL string
 	// Maximum number of rows to return
 	Limit int32
+	// Optional connection ID; defaults to server default connection
+	ConnectionID *string
 }
 
 // RunQueryResult is the result type of the queries service run method.
@@ -127,17 +130,20 @@ type SaveQueryPayload struct {
 	SQL         string
 	Description *string
 	Tags        []string
+	// Optional connection ID; defaults to server default connection
+	ConnectionID *string
 }
 
 // SavedQuery is the result type of the queries service save method.
 type SavedQuery struct {
-	ID          string
-	Name        string
-	SQL         string
-	Description *string
-	Tags        []string
-	CreatedAt   string
-	UpdatedAt   string
+	ID           string
+	Name         string
+	SQL          string
+	Description  *string
+	Tags         []string
+	ConnectionID string
+	CreatedAt    string
+	UpdatedAt    string
 }
 
 // SavedQueryList is the result type of the queries service list_saved method.

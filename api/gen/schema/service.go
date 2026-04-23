@@ -15,7 +15,7 @@ import (
 type Service interface {
 	// Return the list of allowed schemas with their tables and columns (from
 	// information_schema, read-only).
-	Get(context.Context) (res *SchemaResult, err error)
+	Get(context.Context, *GetPayload) (res *SchemaResult, err error)
 }
 
 // APIName is the name of the API as defined in the design.
@@ -37,6 +37,11 @@ var MethodNames = [1]string{"get"}
 type ColumnInfo struct {
 	Name string
 	Type string
+}
+
+// GetPayload is the payload type of the schema service get method.
+type GetPayload struct {
+	ConnectionID *string
 }
 
 type SchemaInfo struct {

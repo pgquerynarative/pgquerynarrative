@@ -19,6 +19,7 @@ import (
 type GenerateRequestBody struct {
 	SQL          *string `form:"sql,omitempty" json:"sql,omitempty" xml:"sql,omitempty"`
 	SavedQueryID *string `form:"saved_query_id,omitempty" json:"saved_query_id,omitempty" xml:"saved_query_id,omitempty"`
+	ConnectionID *string `form:"connection_id,omitempty" json:"connection_id,omitempty" xml:"connection_id,omitempty"`
 }
 
 // GenerateResponseBody is the type of the "reports" service "generate"
@@ -27,6 +28,7 @@ type GenerateResponseBody struct {
 	ID           string                        `form:"id" json:"id" xml:"id"`
 	SavedQueryID *string                       `form:"saved_query_id,omitempty" json:"saved_query_id,omitempty" xml:"saved_query_id,omitempty"`
 	SQL          string                        `form:"sql" json:"sql" xml:"sql"`
+	ConnectionID string                        `form:"connection_id" json:"connection_id" xml:"connection_id"`
 	Narrative    *NarrativeContentResponseBody `form:"narrative" json:"narrative" xml:"narrative"`
 	Metrics      *MetricsDataResponseBody      `form:"metrics" json:"metrics" xml:"metrics"`
 	// Suggested chart types based on result shape
@@ -42,6 +44,7 @@ type GetResponseBody struct {
 	ID           string                        `form:"id" json:"id" xml:"id"`
 	SavedQueryID *string                       `form:"saved_query_id,omitempty" json:"saved_query_id,omitempty" xml:"saved_query_id,omitempty"`
 	SQL          string                        `form:"sql" json:"sql" xml:"sql"`
+	ConnectionID string                        `form:"connection_id" json:"connection_id" xml:"connection_id"`
 	Narrative    *NarrativeContentResponseBody `form:"narrative" json:"narrative" xml:"narrative"`
 	Metrics      *MetricsDataResponseBody      `form:"metrics" json:"metrics" xml:"metrics"`
 	// Suggested chart types based on result shape
@@ -237,6 +240,7 @@ type ReportResponseBody struct {
 	ID           string                        `form:"id" json:"id" xml:"id"`
 	SavedQueryID *string                       `form:"saved_query_id,omitempty" json:"saved_query_id,omitempty" xml:"saved_query_id,omitempty"`
 	SQL          string                        `form:"sql" json:"sql" xml:"sql"`
+	ConnectionID string                        `form:"connection_id" json:"connection_id" xml:"connection_id"`
 	Narrative    *NarrativeContentResponseBody `form:"narrative" json:"narrative" xml:"narrative"`
 	Metrics      *MetricsDataResponseBody      `form:"metrics" json:"metrics" xml:"metrics"`
 	// Suggested chart types based on result shape
@@ -253,6 +257,7 @@ func NewGenerateResponseBody(res *reports.Report) *GenerateResponseBody {
 		ID:           res.ID,
 		SavedQueryID: res.SavedQueryID,
 		SQL:          res.SQL,
+		ConnectionID: res.ConnectionID,
 		CreatedAt:    res.CreatedAt,
 		LlmModel:     res.LlmModel,
 		LlmProvider:  res.LlmProvider,
@@ -283,6 +288,7 @@ func NewGetResponseBody(res *reports.Report) *GetResponseBody {
 		ID:           res.ID,
 		SavedQueryID: res.SavedQueryID,
 		SQL:          res.SQL,
+		ConnectionID: res.ConnectionID,
 		CreatedAt:    res.CreatedAt,
 		LlmModel:     res.LlmModel,
 		LlmProvider:  res.LlmProvider,
@@ -366,6 +372,7 @@ func NewGenerateReportPayload(body *GenerateRequestBody) *reports.GenerateReport
 	v := &reports.GenerateReportPayload{
 		SQL:          *body.SQL,
 		SavedQueryID: body.SavedQueryID,
+		ConnectionID: body.ConnectionID,
 	}
 
 	return v
@@ -380,9 +387,10 @@ func NewGetPayload(id string) *reports.GetPayload {
 }
 
 // NewListPayload builds a reports service list endpoint payload.
-func NewListPayload(savedQueryID *string, limit int32, offset int32) *reports.ListPayload {
+func NewListPayload(savedQueryID *string, connectionID *string, limit int32, offset int32) *reports.ListPayload {
 	v := &reports.ListPayload{}
 	v.SavedQueryID = savedQueryID
+	v.ConnectionID = connectionID
 	v.Limit = limit
 	v.Offset = offset
 

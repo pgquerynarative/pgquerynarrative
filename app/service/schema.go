@@ -12,15 +12,36 @@ import (
 // SchemaService implements the schema service API (catalog discovery).
 type SchemaService struct {
 	loader *catalog.Loader
+	connectionResolver
 }
 
 // NewSchemaService creates a schema service that returns allowed schemas,
 // tables, and columns from the database (read-only pool).
 func NewSchemaService(loader *catalog.Loader) *SchemaService {
-	return &SchemaService{loader: loader}
+	return &SchemaService{
+		loader:             loader,
+		connectionResolver: newConnectionResolver("default", nil, map[string]*catalog.Loader{"default": loader}),
+	}
+}
+
+// NewSchemaServiceMultiConnection creates schema service with one catalog loader per connection.
+func NewSchemaServiceMultiConnection(loaders map[string]*catalog.Loader, defaultConnectionID string) *SchemaService {
+	var defaultLoader *catalog.Loader
+	if l, ok := loaders[defaultConnectionID]; ok {
+		defaultLoader = l
+	} else {
+		for _, l := range loaders {
+			defaultLoader = l
+			break
+		}
+	}
+	return &SchemaService{
+		loader:             defaultLoader,
+		connectionResolver: newConnectionResolver(defaultConnectionID, nil, loaders),
+	}
 }
 
 // Get returns the list of allowed schemas with their tables and columns.
-func (s *SchemaService) Get(ctx context.Context) (*schema.SchemaResult, error) {
-	return s.loader.Load(ctx)
+func (s *SchemaService) Get(ctx context.Context, payload *schema.GetPayload) (*schema.SchemaResult, error) {
+	return s.connectionResolver.loaderFor(payload.ConnectionID).Load(ctx)
 }

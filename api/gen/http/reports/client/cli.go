@@ -25,7 +25,7 @@ func BuildGeneratePayload(reportsGenerateBody string) (*reports.GenerateReportPa
 	{
 		err = json.Unmarshal([]byte(reportsGenerateBody), &body)
 		if err != nil {
-			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"saved_query_id\": \"9128b5e0-e82f-4e41-8db0-f958a15ff997\",\n      \"sql\": \"z\"\n   }'")
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"connection_id\": \"Exercitationem ut modi quia exercitationem ut.\",\n      \"saved_query_id\": \"8c846872-0be8-4d6c-bed8-dc644f521913\",\n      \"sql\": \"58n\"\n   }'")
 		}
 		err = goa.MergeErrors(err, goa.ValidatePattern("body.sql", body.SQL, "^[^;]+$"))
 		if utf8.RuneCountInString(body.SQL) < 1 {
@@ -44,6 +44,7 @@ func BuildGeneratePayload(reportsGenerateBody string) (*reports.GenerateReportPa
 	v := &reports.GenerateReportPayload{
 		SQL:          body.SQL,
 		SavedQueryID: body.SavedQueryID,
+		ConnectionID: body.ConnectionID,
 	}
 
 	return v, nil
@@ -69,7 +70,7 @@ func BuildGetPayload(reportsGetID string) (*reports.GetPayload, error) {
 
 // BuildListPayload builds the payload for the reports list endpoint from CLI
 // flags.
-func BuildListPayload(reportsListSavedQueryID string, reportsListLimit string, reportsListOffset string) (*reports.ListPayload, error) {
+func BuildListPayload(reportsListSavedQueryID string, reportsListConnectionID string, reportsListLimit string, reportsListOffset string) (*reports.ListPayload, error) {
 	var err error
 	var savedQueryID *string
 	{
@@ -79,6 +80,12 @@ func BuildListPayload(reportsListSavedQueryID string, reportsListLimit string, r
 			if err != nil {
 				return nil, err
 			}
+		}
+	}
+	var connectionID *string
+	{
+		if reportsListConnectionID != "" {
+			connectionID = &reportsListConnectionID
 		}
 	}
 	var limit int32
@@ -120,6 +127,7 @@ func BuildListPayload(reportsListSavedQueryID string, reportsListLimit string, r
 	}
 	v := &reports.ListPayload{}
 	v.SavedQueryID = savedQueryID
+	v.ConnectionID = connectionID
 	v.Limit = limit
 	v.Offset = offset
 

@@ -95,6 +95,7 @@ type CorrelationPairData struct {
 type GenerateReportPayload struct {
 	SQL          string
 	SavedQueryID *string
+	ConnectionID *string
 }
 
 // GetPayload is the payload type of the reports service get method.
@@ -111,6 +112,7 @@ type LLMError struct {
 // ListPayload is the payload type of the reports service list method.
 type ListPayload struct {
 	SavedQueryID *string
+	ConnectionID *string
 	Limit        int32
 	Offset       int32
 }
@@ -158,6 +160,7 @@ type Report struct {
 	ID           string
 	SavedQueryID *string
 	SQL          string
+	ConnectionID string
 	Narrative    *NarrativeContent
 	Metrics      *MetricsData
 	// Suggested chart types based on result shape

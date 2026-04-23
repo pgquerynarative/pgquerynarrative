@@ -106,13 +106,18 @@ func EncodeListSavedResponse(encoder func(context.Context, http.ResponseWriter) 
 func DecodeListSavedRequest(mux goahttp.Muxer, decoder func(*http.Request) goahttp.Decoder) func(*http.Request) (*queries.ListSavedPayload, error) {
 	return func(r *http.Request) (*queries.ListSavedPayload, error) {
 		var (
-			tags   []string
-			limit  int32
-			offset int32
-			err    error
+			tags         []string
+			connectionID *string
+			limit        int32
+			offset       int32
+			err          error
 		)
 		qp := r.URL.Query()
 		tags = qp["tags"]
+		connectionIDRaw := qp.Get("connection_id")
+		if connectionIDRaw != "" {
+			connectionID = &connectionIDRaw
+		}
 		{
 			limitRaw := qp.Get("limit")
 			if limitRaw == "" {
@@ -147,7 +152,7 @@ func DecodeListSavedRequest(mux goahttp.Muxer, decoder func(*http.Request) goaht
 		if err != nil {
 			return nil, err
 		}
-		payload := NewListSavedPayload(tags, limit, offset)
+		payload := NewListSavedPayload(tags, connectionID, limit, offset)
 
 		return payload, nil
 	}
@@ -365,12 +370,13 @@ func marshalQueriesPeriodComparisonItemToPeriodComparisonItemResponseBody(v *que
 // *SavedQueryResponseBody from a value of type *queries.SavedQuery.
 func marshalQueriesSavedQueryToSavedQueryResponseBody(v *queries.SavedQuery) *SavedQueryResponseBody {
 	res := &SavedQueryResponseBody{
-		ID:          v.ID,
-		Name:        v.Name,
-		SQL:         v.SQL,
-		Description: v.Description,
-		CreatedAt:   v.CreatedAt,
-		UpdatedAt:   v.UpdatedAt,
+		ID:           v.ID,
+		Name:         v.Name,
+		SQL:          v.SQL,
+		Description:  v.Description,
+		ConnectionID: v.ConnectionID,
+		CreatedAt:    v.CreatedAt,
+		UpdatedAt:    v.UpdatedAt,
 	}
 	if v.Tags != nil {
 		res.Tags = make([]string, len(v.Tags))

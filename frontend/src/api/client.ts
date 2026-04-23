@@ -41,6 +41,7 @@ export interface SavedQuery {
   sql: string;
   description?: string;
   tags?: string[];
+  connection_id: string;
   created_at: string;
   updated_at?: string;
 }
@@ -59,6 +60,7 @@ export interface Report {
   narrative: NarrativeContent;
   metrics: Record<string, unknown>;
   chart_suggestions?: ChartSuggestion[];
+  connection_id: string;
   created_at: string;
   llm_model: string;
   llm_provider: string;
@@ -69,6 +71,8 @@ export interface AskResult {
   sql: string;
   report: Report;
 }
+
+export interface ConnectionInfo { id: string; name: string; }
 
 export interface SchemaInfo { name: string; tables: { name: string; columns: Column[] }[]; }
 
@@ -97,43 +101,44 @@ function normalizeSql(sql: string): string {
 }
 
 export const api = {
-  runQuery: (sql: string, limit = 100) =>
+  runQuery: (sql: string, limit = 100, connectionId?: string) =>
     request<RunQueryResult>("/queries/run", {
       method: "POST",
-      body: JSON.stringify({ sql: normalizeSql(sql), limit }),
+      body: JSON.stringify({ sql: normalizeSql(sql), limit, connection_id: connectionId }),
     }),
 
-  listSaved: (limit = 50, offset = 0) =>
-    request<{ items: SavedQuery[]; limit: number; offset: number }>(`/queries/saved?limit=${limit}&offset=${offset}`),
+  listSaved: (limit = 50, offset = 0, connectionId?: string) =>
+    request<{ items: SavedQuery[]; limit: number; offset: number }>(`/queries/saved?limit=${limit}&offset=${offset}${connectionId ? `&connection_id=${encodeURIComponent(connectionId)}` : ""}`),
 
-  saveQuery: (name: string, sql: string, tags: string[] = []) =>
-    request<SavedQuery>("/queries/saved", { method: "POST", body: JSON.stringify({ name, sql, tags }) }),
+  saveQuery: (name: string, sql: string, tags: string[] = [], connectionId?: string) =>
+    request<SavedQuery>("/queries/saved", { method: "POST", body: JSON.stringify({ name, sql, tags, connection_id: connectionId }) }),
 
   getSaved: (id: string) => request<SavedQuery>(`/queries/saved/${id}`),
 
   deleteSaved: (id: string) => request<void>(`/queries/saved/${id}`, { method: "DELETE" }),
 
-  generateReport: (sql: string) =>
+  generateReport: (sql: string, connectionId?: string) =>
     request<Report>("/reports/generate", {
       method: "POST",
-      body: JSON.stringify({ sql: normalizeSql(sql) }),
+      body: JSON.stringify({ sql: normalizeSql(sql), connection_id: connectionId }),
     }),
 
-  listReports: (limit = 50, offset = 0) =>
-    request<{ items: Report[]; limit: number; offset: number }>(`/reports?limit=${limit}&offset=${offset}`),
+  listReports: (limit = 50, offset = 0, connectionId?: string) =>
+    request<{ items: Report[]; limit: number; offset: number }>(`/reports?limit=${limit}&offset=${offset}${connectionId ? `&connection_id=${encodeURIComponent(connectionId)}` : ""}`),
 
   getReport: (id: string) => request<Report>(`/reports/${id}`),
 
-  getSchema: () => request<{ schemas: SchemaInfo[] }>("/schema"),
+  getSchema: (connectionId?: string) => request<{ schemas: SchemaInfo[] }>(`/schema${connectionId ? `?connection_id=${encodeURIComponent(connectionId)}` : ""}`),
+  listConnections: () => request<{ items: ConnectionInfo[] }>("/connections"),
 
   getSettings: () => request<SettingsResponse>("/settings"),
 
   getSuggestions: (limit = 5) =>
     request<{ suggestions: { sql: string; title: string; source: string }[] }>(`/suggestions/queries?limit=${limit}`),
 
-  ask: (question: string) =>
+  ask: (question: string, connectionId?: string) =>
     request<AskResult>("/suggestions/ask", {
       method: "POST",
-      body: JSON.stringify({ question: question.trim() }),
+      body: JSON.stringify({ question: question.trim(), connection_id: connectionId }),
     }),
 };

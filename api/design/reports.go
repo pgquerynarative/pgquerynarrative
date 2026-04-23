@@ -44,6 +44,7 @@ var _ = Service("reports", func() {
 			Attribute("saved_query_id", String, func() {
 				Format(FormatUUID)
 			})
+			Attribute("connection_id", String)
 			Attribute("limit", Int32, func() {
 				Default(50)
 				Minimum(1)
@@ -59,6 +60,7 @@ var _ = Service("reports", func() {
 			GET("/api/v1/reports")
 			Params(func() {
 				Param("saved_query_id")
+				Param("connection_id")
 				Param("limit")
 				Param("offset")
 			})
@@ -75,6 +77,7 @@ var GenerateReportPayload = Type("GenerateReportPayload", func() {
 	Attribute("saved_query_id", String, func() {
 		Format(FormatUUID)
 	})
+	Attribute("connection_id", String)
 	Required("sql")
 })
 
@@ -86,6 +89,7 @@ var Report = Type("Report", func() {
 		Format(FormatUUID)
 	})
 	Attribute("sql", String)
+	Attribute("connection_id", String)
 	Attribute("narrative", NarrativeContent)
 	Attribute("metrics", MetricsData)
 	Attribute("chart_suggestions", ArrayOf(ChartSuggestion), "Suggested chart types based on result shape")
@@ -94,7 +98,7 @@ var Report = Type("Report", func() {
 	})
 	Attribute("llm_model", String)
 	Attribute("llm_provider", String)
-	Required("id", "sql", "narrative", "metrics", "created_at", "llm_model", "llm_provider")
+	Required("id", "sql", "connection_id", "narrative", "metrics", "created_at", "llm_model", "llm_provider")
 })
 
 var NarrativeContent = Type("NarrativeContent", func() {

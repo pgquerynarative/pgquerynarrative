@@ -17,6 +17,7 @@ import (
 	"github.com/pgquerynarrative/pgquerynarrative/app/queryrunner"
 	"github.com/pgquerynarrative/pgquerynarrative/app/service"
 	pkgsuggestions "github.com/pgquerynarrative/pgquerynarrative/app/suggestions"
+	"github.com/pgquerynarrative/pgquerynarrative/gen/connections"
 )
 
 // Client provides access to narrative capabilities: running queries, generating
@@ -29,6 +30,7 @@ type Client struct {
 	queriesService     *service.QueriesService
 	reportsService     *service.ReportsService
 	schemaService      *service.SchemaService
+	connectionsService *service.ConnectionsService
 	suggestionsService suggestions.Service
 }
 
@@ -47,6 +49,8 @@ func NewClient(ctx context.Context, cfg Config) (*Client, error) {
 		ReadOnlyPassword: cfg.Database.ReadOnlyPassword,
 		SSLMode:          cfg.Database.SSLMode,
 		QueryTimeout:     cfg.Database.QueryTimeout,
+		DefaultID:        cfg.Database.DefaultID,
+		Connections:      toAppConnections(cfg.Database.Connections),
 	}
 	pools, err := db.NewPools(ctx, dbCfg)
 	if err != nil {
@@ -67,8 +71,27 @@ func NewClient(ctx context.Context, cfg Config) (*Client, error) {
 	}
 
 	validator := queryrunner.NewValidator(allowedSchemas, maxQueryLength)
-	runner := queryrunner.NewRunner(pools.ReadOnly, validator, maxRows, cfg.Database.QueryTimeout)
 	llmClient := newLLMClient(LLMConfig(cfg.LLM))
+	defaultConnectionID := pools.DefaultConnectionID
+
+	runners := make(map[string]*queryrunner.Runner, len(dbCfg.Connections))
+	loaders := make(map[string]*catalog.Loader, len(dbCfg.Connections))
+	connectionItems := make([]*connections.ConnectionInfo, 0, len(dbCfg.Connections))
+	for _, conn := range dbCfg.Connections {
+		roPool := pools.ReadOnly(conn.ID)
+		connSchemas := conn.AllowedSchemas
+		if len(connSchemas) == 0 {
+			connSchemas = allowedSchemas
+		}
+		connValidator := queryrunner.NewValidator(connSchemas, maxQueryLength)
+		timeout := conn.QueryTimeout
+		if timeout <= 0 {
+			timeout = cfg.Database.QueryTimeout
+		}
+		runners[conn.ID] = queryrunner.NewRunner(roPool, connValidator, maxRows, timeout)
+		loaders[conn.ID] = catalog.NewLoader(roPool, connSchemas)
+		connectionItems = append(connectionItems, &connections.ConnectionInfo{ID: conn.ID, Name: conn.Name})
+	}
 
 	var queriesService *service.QueriesService
 	var reportsService *service.ReportsService
@@ -90,35 +113,25 @@ func NewClient(ctx context.Context, cfg Config) (*Client, error) {
 	}
 	if cfg.Embedding.BaseURL != "" && cfg.Embedding.Model != "" {
 		emb := embedding.NewOllamaEmbedder(cfg.Embedding.BaseURL, cfg.Embedding.Model)
-		queriesService = service.NewQueriesServiceWithEmbedding(
-			pools.ReadOnly, pools.App, runner, metricsCfg,
-			emb, embeddingStore, cfg.Embedding.Model,
-		)
-		reportsService = service.NewReportsServiceWithRAG(
-			pools.ReadOnly, pools.App, runner, llmClient, metricsCfg,
-			emb, embeddingStore,
-		)
+		queriesService = service.NewQueriesServiceMultiConnection(pools.App, runners, defaultConnectionID, metricsCfg, emb, embeddingStore, cfg.Embedding.Model)
+		reportsService = service.NewReportsServiceMultiConnection(pools.App, runners, defaultConnectionID, llmClient, metricsCfg, emb, embeddingStore)
 		suggester = pkgsuggestions.NewSuggesterWithEmbedding(pools.App, emb, embeddingStore)
 	} else {
-		queriesService = service.NewQueriesService(
-			pools.ReadOnly, pools.App, runner, metricsCfg,
-		)
-		reportsService = service.NewReportsService(
-			pools.ReadOnly, pools.App, runner, llmClient, metricsCfg,
-		)
+		queriesService = service.NewQueriesServiceMultiConnection(pools.App, runners, defaultConnectionID, metricsCfg, nil, nil, "")
+		reportsService = service.NewReportsServiceMultiConnection(pools.App, runners, defaultConnectionID, llmClient, metricsCfg, nil, nil)
 		suggester = pkgsuggestions.NewSuggester(pools.App)
 	}
-
-	catalogLoader := catalog.NewLoader(pools.ReadOnly, allowedSchemas)
-	schemaService := service.NewSchemaService(catalogLoader)
-	askService := service.NewAskService(catalogLoader, llmClient, validator, reportsService)
+	schemaService := service.NewSchemaServiceMultiConnection(loaders, defaultConnectionID)
+	askService := service.NewAskServiceMultiConnection(loaders, llmClient, validator, reportsService, defaultConnectionID)
 	suggestionsService := &service.SuggestionsServiceWrapper{Suggester: suggester, AskSvc: askService}
+	connectionsService := service.NewConnectionsService(connectionItems)
 
 	return &Client{
 		pools:              pools,
 		queriesService:     queriesService,
 		reportsService:     reportsService,
 		schemaService:      schemaService,
+		connectionsService: connectionsService,
 		suggestionsService: suggestionsService,
 	}, nil
 }
@@ -175,6 +188,11 @@ func (c *Client) SuggestionsService() suggestions.Service {
 	return c.suggestionsService
 }
 
+// ConnectionsService returns the connections service for use with Goa endpoints.
+func (c *Client) ConnectionsService() connections.Service {
+	return c.connectionsService
+}
+
 // AppPool returns the application database pool for use by the server (e.g. audit logging).
 // Do not close the returned pool; Close the Client instead.
 func (c *Client) AppPool() *pgxpool.Pool {
@@ -182,4 +200,23 @@ func (c *Client) AppPool() *pgxpool.Pool {
 		return nil
 	}
 	return c.pools.App
+}
+
+func toAppConnections(in []DataConnectionConfig) []appconfig.DataConnectionConfig {
+	out := make([]appconfig.DataConnectionConfig, 0, len(in))
+	for _, c := range in {
+		out = append(out, appconfig.DataConnectionConfig{
+			ID:               c.ID,
+			Name:             c.Name,
+			Host:             c.Host,
+			Port:             c.Port,
+			Database:         c.Database,
+			ReadOnlyUser:     c.ReadOnlyUser,
+			ReadOnlyPassword: c.ReadOnlyPassword,
+			SSLMode:          c.SSLMode,
+			QueryTimeout:     c.QueryTimeout,
+			AllowedSchemas:   append([]string(nil), c.AllowedSchemas...),
+		})
+	}
+	return out
 }

@@ -20,6 +20,8 @@ type AskRequestBody struct {
 	// Natural-language question (e.g. 'What were top 5 products by revenue last
 	// month?')
 	Question *string `form:"question,omitempty" json:"question,omitempty" xml:"question,omitempty"`
+	// Optional connection ID; defaults to server default connection
+	ConnectionID *string `form:"connection_id,omitempty" json:"connection_id,omitempty" xml:"connection_id,omitempty"`
 }
 
 // ExplainRequestBody is the type of the "suggestions" service "explain"
@@ -110,6 +112,7 @@ type ReportResponseBody struct {
 	ID           string                        `form:"id" json:"id" xml:"id"`
 	SavedQueryID *string                       `form:"saved_query_id,omitempty" json:"saved_query_id,omitempty" xml:"saved_query_id,omitempty"`
 	SQL          string                        `form:"sql" json:"sql" xml:"sql"`
+	ConnectionID string                        `form:"connection_id" json:"connection_id" xml:"connection_id"`
 	Narrative    *NarrativeContentResponseBody `form:"narrative" json:"narrative" xml:"narrative"`
 	Metrics      *MetricsDataResponseBody      `form:"metrics" json:"metrics" xml:"metrics"`
 	// Suggested chart types based on result shape
@@ -394,7 +397,8 @@ func NewSimilarPayload(text *string, limit int32) *suggestions.SimilarPayload {
 // NewAskPayload builds a suggestions service ask endpoint payload.
 func NewAskPayload(body *AskRequestBody) *suggestions.AskPayload {
 	v := &suggestions.AskPayload{
-		Question: *body.Question,
+		Question:     *body.Question,
+		ConnectionID: body.ConnectionID,
 	}
 
 	return v

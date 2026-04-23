@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { api, type SavedQuery, ApiError } from "@/api/client";
+import { api, type SavedQuery, type ConnectionInfo, ApiError } from "@/api/client";
 import { Search, Trash2, Copy, Play, AlertCircle, Bookmark } from "lucide-react";
 import { truncate } from "@/lib/utils";
 import { useNavigate } from "react-router-dom";
@@ -17,18 +17,23 @@ export default function SavedQueries() {
   const [search, setSearch] = useState("");
   const [error, setError] = useState("");
   const [selected, setSelected] = useState<SavedQuery | null>(null);
+  const [connections, setConnections] = useState<ConnectionInfo[]>([]);
+  const [connectionFilter, setConnectionFilter] = useState("");
   const nav = useNavigate();
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await api.listSaved(100, 0);
+      const res = await api.listSaved(100, 0, connectionFilter || undefined);
       setQueries(res.items || []);
     } catch { setError("Failed to load saved queries."); }
     finally { setLoading(false); }
-  }, []);
+  }, [connectionFilter]);
 
   useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    api.listConnections().then((r) => setConnections(r.items || [])).catch(() => {});
+  }, []);
 
   const handleDelete = async (id: string) => {
     if (!confirm("Delete this saved query?")) return;
@@ -68,6 +73,15 @@ export default function SavedQueries() {
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input placeholder="Search by name, SQL, or tag..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10" />
       </div>
+      {connections.length > 0 && (
+        <div className="flex items-center gap-2">
+          <label className="text-sm text-muted-foreground">Connection</label>
+          <select className="h-9 rounded-md border border-input bg-background px-3 text-sm" value={connectionFilter} onChange={(e) => setConnectionFilter(e.target.value)}>
+            <option value="">All</option>
+            {connections.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        </div>
+      )}
 
       <div className="grid gap-6 md:grid-cols-[1fr_1fr]">
         {/* List */}
@@ -93,7 +107,10 @@ export default function SavedQueries() {
               >
                 <div className="flex items-center justify-between">
                   <p className="text-sm font-medium truncate">{q.name}</p>
-                  <span className="text-[10px] text-muted-foreground">{new Date(q.created_at).toLocaleDateString()}</span>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="secondary" className="text-[10px]">{q.connection_id}</Badge>
+                    <span className="text-[10px] text-muted-foreground">{new Date(q.created_at).toLocaleDateString()}</span>
+                  </div>
                 </div>
                 <p className="text-xs text-muted-foreground font-mono mt-1 truncate">{truncate(q.sql, 80)}</p>
               </button>

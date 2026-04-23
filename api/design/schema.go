@@ -11,9 +11,15 @@ var _ = Service("schema", func() {
 
 	Method("get", func() {
 		Description("Return the list of allowed schemas with their tables and columns (from information_schema, read-only).")
+		Payload(func() {
+			Attribute("connection_id", String)
+		})
 		Result(SchemaResult)
 		HTTP(func() {
 			GET("/api/v1/schema")
+			Params(func() {
+				Param("connection_id")
+			})
 			Response(StatusOK)
 		})
 	})

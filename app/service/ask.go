@@ -19,6 +19,7 @@ type AskService struct {
 	llmClient     llm.Client
 	validator     *queryrunner.Validator
 	reportsSvc    *ReportsService
+	connectionResolver
 }
 
 // NewAskService creates an AskService with the given dependencies.
@@ -33,6 +34,37 @@ func NewAskService(
 		llmClient:     llmClient,
 		validator:     validator,
 		reportsSvc:    reportsSvc,
+		connectionResolver: newConnectionResolver("default", map[string]*queryrunner.Runner{
+			"default": reportsSvc.runner,
+		}, map[string]*catalog.Loader{
+			"default": catalogLoader,
+		}),
+	}
+}
+
+// NewAskServiceMultiConnection creates AskService with connection-aware schema loading and report generation.
+func NewAskServiceMultiConnection(
+	loaders map[string]*catalog.Loader,
+	llmClient llm.Client,
+	validator *queryrunner.Validator,
+	reportsSvc *ReportsService,
+	defaultConnectionID string,
+) *AskService {
+	var defaultLoader *catalog.Loader
+	if l, ok := loaders[defaultConnectionID]; ok {
+		defaultLoader = l
+	} else {
+		for _, l := range loaders {
+			defaultLoader = l
+			break
+		}
+	}
+	return &AskService{
+		catalogLoader:      defaultLoader,
+		llmClient:          llmClient,
+		validator:          validator,
+		reportsSvc:         reportsSvc,
+		connectionResolver: newConnectionResolver(defaultConnectionID, reportsSvc.runners, loaders),
 	}
 }
 
@@ -43,7 +75,7 @@ func (s *AskService) Ask(ctx context.Context, payload *suggestions.AskPayload) (
 		return nil, &suggestions.ValidationError{Name: "validation_error", Message: "question is required", Code: strPtr("VALIDATION_ERROR")}
 	}
 
-	schemaResult, err := s.catalogLoader.Load(ctx)
+	schemaResult, err := s.connectionResolver.loaderFor(payload.ConnectionID).Load(ctx)
 	if err != nil {
 		return nil, &suggestions.LLMError{Name: "llm_error", Message: "failed to load schema: " + err.Error(), Code: strPtr("SCHEMA_ERROR")}
 	}
@@ -64,7 +96,7 @@ func (s *AskService) Ask(ctx context.Context, payload *suggestions.AskPayload) (
 		return nil, &suggestions.ValidationError{Name: "validation_error", Message: err.Error(), Code: strPtr("VALIDATION_ERROR")}
 	}
 
-	reportPayload := &reports.GenerateReportPayload{SQL: sql}
+	reportPayload := &reports.GenerateReportPayload{SQL: sql, ConnectionID: payload.ConnectionID}
 	report, err := s.reportsSvc.Generate(ctx, reportPayload)
 	if err != nil {
 		if ve, ok := err.(*reports.ValidationError); ok {

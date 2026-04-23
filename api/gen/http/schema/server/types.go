@@ -58,3 +58,11 @@ func NewGetResponseBody(res *schema.SchemaResult) *GetResponseBody {
 	}
 	return body
 }
+
+// NewGetPayload builds a schema service get endpoint payload.
+func NewGetPayload(connectionID *string) *schema.GetPayload {
+	v := &schema.GetPayload{}
+	v.ConnectionID = connectionID
+
+	return v
+}

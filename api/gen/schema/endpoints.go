@@ -34,6 +34,7 @@ func (e *Endpoints) Use(m func(goa.Endpoint) goa.Endpoint) {
 // service "schema".
 func NewGetEndpoint(s Service) goa.Endpoint {
 	return func(ctx context.Context, req any) (any, error) {
-		return s.Get(ctx)
+		p := req.(*GetPayload)
+		return s.Get(ctx, p)
 	}
 }

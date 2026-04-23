@@ -6,3 +6,22 @@
 // $ goa gen github.com/pgquerynarrative/pgquerynarrative/api/design
 
 package client
+
+import (
+	schema "github.com/pgquerynarrative/pgquerynarrative/api/gen/schema"
+)
+
+// BuildGetPayload builds the payload for the schema get endpoint from CLI
+// flags.
+func BuildGetPayload(schemaGetConnectionID string) (*schema.GetPayload, error) {
+	var connectionID *string
+	{
+		if schemaGetConnectionID != "" {
+			connectionID = &schemaGetConnectionID
+		}
+	}
+	v := &schema.GetPayload{}
+	v.ConnectionID = connectionID
+
+	return v, nil
+}

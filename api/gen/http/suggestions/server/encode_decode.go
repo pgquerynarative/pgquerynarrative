@@ -311,6 +311,7 @@ func marshalSuggestionsReportToReportResponseBody(v *suggestions.Report) *Report
 		ID:           v.ID,
 		SavedQueryID: v.SavedQueryID,
 		SQL:          v.SQL,
+		ConnectionID: v.ConnectionID,
 		CreatedAt:    v.CreatedAt,
 		LlmModel:     v.LlmModel,
 		LlmProvider:  v.LlmProvider,

@@ -19,6 +19,8 @@ type RunRequestBody struct {
 	SQL string `form:"sql" json:"sql" xml:"sql"`
 	// Maximum number of rows to return
 	Limit int32 `form:"limit" json:"limit" xml:"limit"`
+	// Optional connection ID; defaults to server default connection
+	ConnectionID *string `form:"connection_id,omitempty" json:"connection_id,omitempty" xml:"connection_id,omitempty"`
 }
 
 // SaveRequestBody is the type of the "queries" service "save" endpoint HTTP
@@ -28,6 +30,8 @@ type SaveRequestBody struct {
 	SQL         string   `form:"sql" json:"sql" xml:"sql"`
 	Description *string  `form:"description,omitempty" json:"description,omitempty" xml:"description,omitempty"`
 	Tags        []string `form:"tags,omitempty" json:"tags,omitempty" xml:"tags,omitempty"`
+	// Optional connection ID; defaults to server default connection
+	ConnectionID *string `form:"connection_id,omitempty" json:"connection_id,omitempty" xml:"connection_id,omitempty"`
 }
 
 // RunResponseBody is the type of the "queries" service "run" endpoint HTTP
@@ -60,25 +64,27 @@ type ListSavedResponseBody struct {
 // SaveResponseBody is the type of the "queries" service "save" endpoint HTTP
 // response body.
 type SaveResponseBody struct {
-	ID          *string  `form:"id,omitempty" json:"id,omitempty" xml:"id,omitempty"`
-	Name        *string  `form:"name,omitempty" json:"name,omitempty" xml:"name,omitempty"`
-	SQL         *string  `form:"sql,omitempty" json:"sql,omitempty" xml:"sql,omitempty"`
-	Description *string  `form:"description,omitempty" json:"description,omitempty" xml:"description,omitempty"`
-	Tags        []string `form:"tags,omitempty" json:"tags,omitempty" xml:"tags,omitempty"`
-	CreatedAt   *string  `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
-	UpdatedAt   *string  `form:"updated_at,omitempty" json:"updated_at,omitempty" xml:"updated_at,omitempty"`
+	ID           *string  `form:"id,omitempty" json:"id,omitempty" xml:"id,omitempty"`
+	Name         *string  `form:"name,omitempty" json:"name,omitempty" xml:"name,omitempty"`
+	SQL          *string  `form:"sql,omitempty" json:"sql,omitempty" xml:"sql,omitempty"`
+	Description  *string  `form:"description,omitempty" json:"description,omitempty" xml:"description,omitempty"`
+	Tags         []string `form:"tags,omitempty" json:"tags,omitempty" xml:"tags,omitempty"`
+	ConnectionID *string  `form:"connection_id,omitempty" json:"connection_id,omitempty" xml:"connection_id,omitempty"`
+	CreatedAt    *string  `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
+	UpdatedAt    *string  `form:"updated_at,omitempty" json:"updated_at,omitempty" xml:"updated_at,omitempty"`
 }
 
 // GetSavedResponseBody is the type of the "queries" service "get_saved"
 // endpoint HTTP response body.
 type GetSavedResponseBody struct {
-	ID          *string  `form:"id,omitempty" json:"id,omitempty" xml:"id,omitempty"`
-	Name        *string  `form:"name,omitempty" json:"name,omitempty" xml:"name,omitempty"`
-	SQL         *string  `form:"sql,omitempty" json:"sql,omitempty" xml:"sql,omitempty"`
-	Description *string  `form:"description,omitempty" json:"description,omitempty" xml:"description,omitempty"`
-	Tags        []string `form:"tags,omitempty" json:"tags,omitempty" xml:"tags,omitempty"`
-	CreatedAt   *string  `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
-	UpdatedAt   *string  `form:"updated_at,omitempty" json:"updated_at,omitempty" xml:"updated_at,omitempty"`
+	ID           *string  `form:"id,omitempty" json:"id,omitempty" xml:"id,omitempty"`
+	Name         *string  `form:"name,omitempty" json:"name,omitempty" xml:"name,omitempty"`
+	SQL          *string  `form:"sql,omitempty" json:"sql,omitempty" xml:"sql,omitempty"`
+	Description  *string  `form:"description,omitempty" json:"description,omitempty" xml:"description,omitempty"`
+	Tags         []string `form:"tags,omitempty" json:"tags,omitempty" xml:"tags,omitempty"`
+	ConnectionID *string  `form:"connection_id,omitempty" json:"connection_id,omitempty" xml:"connection_id,omitempty"`
+	CreatedAt    *string  `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
+	UpdatedAt    *string  `form:"updated_at,omitempty" json:"updated_at,omitempty" xml:"updated_at,omitempty"`
 }
 
 // RunValidationErrorResponseBody is the type of the "queries" service "run"
@@ -140,21 +146,23 @@ type PeriodComparisonItemResponseBody struct {
 
 // SavedQueryResponseBody is used to define fields on response body types.
 type SavedQueryResponseBody struct {
-	ID          *string  `form:"id,omitempty" json:"id,omitempty" xml:"id,omitempty"`
-	Name        *string  `form:"name,omitempty" json:"name,omitempty" xml:"name,omitempty"`
-	SQL         *string  `form:"sql,omitempty" json:"sql,omitempty" xml:"sql,omitempty"`
-	Description *string  `form:"description,omitempty" json:"description,omitempty" xml:"description,omitempty"`
-	Tags        []string `form:"tags,omitempty" json:"tags,omitempty" xml:"tags,omitempty"`
-	CreatedAt   *string  `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
-	UpdatedAt   *string  `form:"updated_at,omitempty" json:"updated_at,omitempty" xml:"updated_at,omitempty"`
+	ID           *string  `form:"id,omitempty" json:"id,omitempty" xml:"id,omitempty"`
+	Name         *string  `form:"name,omitempty" json:"name,omitempty" xml:"name,omitempty"`
+	SQL          *string  `form:"sql,omitempty" json:"sql,omitempty" xml:"sql,omitempty"`
+	Description  *string  `form:"description,omitempty" json:"description,omitempty" xml:"description,omitempty"`
+	Tags         []string `form:"tags,omitempty" json:"tags,omitempty" xml:"tags,omitempty"`
+	ConnectionID *string  `form:"connection_id,omitempty" json:"connection_id,omitempty" xml:"connection_id,omitempty"`
+	CreatedAt    *string  `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
+	UpdatedAt    *string  `form:"updated_at,omitempty" json:"updated_at,omitempty" xml:"updated_at,omitempty"`
 }
 
 // NewRunRequestBody builds the HTTP request body from the payload of the "run"
 // endpoint of the "queries" service.
 func NewRunRequestBody(p *queries.RunQueryPayload) *RunRequestBody {
 	body := &RunRequestBody{
-		SQL:   p.SQL,
-		Limit: p.Limit,
+		SQL:          p.SQL,
+		Limit:        p.Limit,
+		ConnectionID: p.ConnectionID,
 	}
 	{
 		var zero int32
@@ -169,9 +177,10 @@ func NewRunRequestBody(p *queries.RunQueryPayload) *RunRequestBody {
 // "save" endpoint of the "queries" service.
 func NewSaveRequestBody(p *queries.SaveQueryPayload) *SaveRequestBody {
 	body := &SaveRequestBody{
-		Name:        p.Name,
-		SQL:         p.SQL,
-		Description: p.Description,
+		Name:         p.Name,
+		SQL:          p.SQL,
+		Description:  p.Description,
+		ConnectionID: p.ConnectionID,
 	}
 	if p.Tags != nil {
 		body.Tags = make([]string, len(p.Tags))
@@ -266,12 +275,13 @@ func NewListSavedSavedQueryListOK(body *ListSavedResponseBody) *queries.SavedQue
 // HTTP "OK" response.
 func NewSavedQueryOK(body *SaveResponseBody) *queries.SavedQuery {
 	v := &queries.SavedQuery{
-		ID:          *body.ID,
-		Name:        *body.Name,
-		SQL:         *body.SQL,
-		Description: body.Description,
-		CreatedAt:   *body.CreatedAt,
-		UpdatedAt:   *body.UpdatedAt,
+		ID:           *body.ID,
+		Name:         *body.Name,
+		SQL:          *body.SQL,
+		Description:  body.Description,
+		ConnectionID: *body.ConnectionID,
+		CreatedAt:    *body.CreatedAt,
+		UpdatedAt:    *body.UpdatedAt,
 	}
 	if body.Tags != nil {
 		v.Tags = make([]string, len(body.Tags))
@@ -287,12 +297,13 @@ func NewSavedQueryOK(body *SaveResponseBody) *queries.SavedQuery {
 // result from a HTTP "OK" response.
 func NewGetSavedSavedQueryOK(body *GetSavedResponseBody) *queries.SavedQuery {
 	v := &queries.SavedQuery{
-		ID:          *body.ID,
-		Name:        *body.Name,
-		SQL:         *body.SQL,
-		Description: body.Description,
-		CreatedAt:   *body.CreatedAt,
-		UpdatedAt:   *body.UpdatedAt,
+		ID:           *body.ID,
+		Name:         *body.Name,
+		SQL:          *body.SQL,
+		Description:  body.Description,
+		ConnectionID: *body.ConnectionID,
+		CreatedAt:    *body.CreatedAt,
+		UpdatedAt:    *body.UpdatedAt,
 	}
 	if body.Tags != nil {
 		v.Tags = make([]string, len(body.Tags))
@@ -402,6 +413,9 @@ func ValidateSaveResponseBody(body *SaveResponseBody) (err error) {
 	if body.SQL == nil {
 		err = goa.MergeErrors(err, goa.MissingFieldError("sql", "body"))
 	}
+	if body.ConnectionID == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("connection_id", "body"))
+	}
 	if body.CreatedAt == nil {
 		err = goa.MergeErrors(err, goa.MissingFieldError("created_at", "body"))
 	}
@@ -431,6 +445,9 @@ func ValidateGetSavedResponseBody(body *GetSavedResponseBody) (err error) {
 	}
 	if body.SQL == nil {
 		err = goa.MergeErrors(err, goa.MissingFieldError("sql", "body"))
+	}
+	if body.ConnectionID == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("connection_id", "body"))
 	}
 	if body.CreatedAt == nil {
 		err = goa.MergeErrors(err, goa.MissingFieldError("created_at", "body"))
@@ -539,6 +556,9 @@ func ValidateSavedQueryResponseBody(body *SavedQueryResponseBody) (err error) {
 	}
 	if body.SQL == nil {
 		err = goa.MergeErrors(err, goa.MissingFieldError("sql", "body"))
+	}
+	if body.ConnectionID == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("connection_id", "body"))
 	}
 	if body.CreatedAt == nil {
 		err = goa.MergeErrors(err, goa.MissingFieldError("created_at", "body"))

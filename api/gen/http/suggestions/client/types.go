@@ -18,6 +18,8 @@ type AskRequestBody struct {
 	// Natural-language question (e.g. 'What were top 5 products by revenue last
 	// month?')
 	Question string `form:"question" json:"question" xml:"question"`
+	// Optional connection ID; defaults to server default connection
+	ConnectionID *string `form:"connection_id,omitempty" json:"connection_id,omitempty" xml:"connection_id,omitempty"`
 }
 
 // ExplainRequestBody is the type of the "suggestions" service "explain"
@@ -108,6 +110,7 @@ type ReportResponseBody struct {
 	ID           *string                       `form:"id,omitempty" json:"id,omitempty" xml:"id,omitempty"`
 	SavedQueryID *string                       `form:"saved_query_id,omitempty" json:"saved_query_id,omitempty" xml:"saved_query_id,omitempty"`
 	SQL          *string                       `form:"sql,omitempty" json:"sql,omitempty" xml:"sql,omitempty"`
+	ConnectionID *string                       `form:"connection_id,omitempty" json:"connection_id,omitempty" xml:"connection_id,omitempty"`
 	Narrative    *NarrativeContentResponseBody `form:"narrative,omitempty" json:"narrative,omitempty" xml:"narrative,omitempty"`
 	Metrics      *MetricsDataResponseBody      `form:"metrics,omitempty" json:"metrics,omitempty" xml:"metrics,omitempty"`
 	// Suggested chart types based on result shape
@@ -270,7 +273,8 @@ type ChartSuggestionResponseBody struct {
 // endpoint of the "suggestions" service.
 func NewAskRequestBody(p *suggestions.AskPayload) *AskRequestBody {
 	body := &AskRequestBody{
-		Question: p.Question,
+		Question:     p.Question,
+		ConnectionID: p.ConnectionID,
 	}
 	return body
 }
@@ -519,6 +523,9 @@ func ValidateReportResponseBody(body *ReportResponseBody) (err error) {
 	}
 	if body.SQL == nil {
 		err = goa.MergeErrors(err, goa.MissingFieldError("sql", "body"))
+	}
+	if body.ConnectionID == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("connection_id", "body"))
 	}
 	if body.Narrative == nil {
 		err = goa.MergeErrors(err, goa.MissingFieldError("narrative", "body"))

@@ -25,7 +25,7 @@ func BuildRunPayload(queriesRunBody string) (*queries.RunQueryPayload, error) {
 	{
 		err = json.Unmarshal([]byte(queriesRunBody), &body)
 		if err != nil {
-			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"limit\": 524,\n      \"sql\": \"s\"\n   }'")
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"connection_id\": \"Qui animi harum totam quidem impedit.\",\n      \"limit\": 222,\n      \"sql\": \"490\"\n   }'")
 		}
 		err = goa.MergeErrors(err, goa.ValidatePattern("body.sql", body.SQL, "^[^;]+$"))
 		if utf8.RuneCountInString(body.SQL) < 1 {
@@ -45,8 +45,9 @@ func BuildRunPayload(queriesRunBody string) (*queries.RunQueryPayload, error) {
 		}
 	}
 	v := &queries.RunQueryPayload{
-		SQL:   body.SQL,
-		Limit: body.Limit,
+		SQL:          body.SQL,
+		Limit:        body.Limit,
+		ConnectionID: body.ConnectionID,
 	}
 	{
 		var zero int32
@@ -60,15 +61,21 @@ func BuildRunPayload(queriesRunBody string) (*queries.RunQueryPayload, error) {
 
 // BuildListSavedPayload builds the payload for the queries list_saved endpoint
 // from CLI flags.
-func BuildListSavedPayload(queriesListSavedTags string, queriesListSavedLimit string, queriesListSavedOffset string) (*queries.ListSavedPayload, error) {
+func BuildListSavedPayload(queriesListSavedTags string, queriesListSavedConnectionID string, queriesListSavedLimit string, queriesListSavedOffset string) (*queries.ListSavedPayload, error) {
 	var err error
 	var tags []string
 	{
 		if queriesListSavedTags != "" {
 			err = json.Unmarshal([]byte(queriesListSavedTags), &tags)
 			if err != nil {
-				return nil, fmt.Errorf("invalid JSON for tags, \nerror: %s, \nexample of valid JSON:\n%s", err, "'[\n      \"Corporis incidunt aperiam at quam.\",\n      \"Ut eveniet perspiciatis facere.\",\n      \"Ut non dolorem voluptatibus sint.\",\n      \"Ullam facere eum voluptatem doloribus.\"\n   ]'")
+				return nil, fmt.Errorf("invalid JSON for tags, \nerror: %s, \nexample of valid JSON:\n%s", err, "'[\n      \"Doloribus quibusdam.\",\n      \"Dolore ad qui.\",\n      \"Enim odit reprehenderit vel qui enim.\"\n   ]'")
 			}
+		}
+	}
+	var connectionID *string
+	{
+		if queriesListSavedConnectionID != "" {
+			connectionID = &queriesListSavedConnectionID
 		}
 	}
 	var limit int32
@@ -110,6 +117,7 @@ func BuildListSavedPayload(queriesListSavedTags string, queriesListSavedLimit st
 	}
 	v := &queries.ListSavedPayload{}
 	v.Tags = tags
+	v.ConnectionID = connectionID
 	v.Limit = limit
 	v.Offset = offset
 
@@ -124,7 +132,7 @@ func BuildSavePayload(queriesSaveBody string) (*queries.SaveQueryPayload, error)
 	{
 		err = json.Unmarshal([]byte(queriesSaveBody), &body)
 		if err != nil {
-			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"description\": \"tzb\",\n      \"name\": \"my8\",\n      \"sql\": \"6t\",\n      \"tags\": [\n         \"Non itaque corporis ratione.\",\n         \"Nisi cumque et aut.\"\n      ]\n   }'")
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"connection_id\": \"Quis magni.\",\n      \"description\": \"c8d\",\n      \"name\": \"cu\",\n      \"sql\": \"6t\",\n      \"tags\": [\n         \"Ut aut sunt numquam officiis.\",\n         \"Nobis dignissimos.\",\n         \"Maiores beatae non ad.\",\n         \"Esse excepturi est animi.\"\n      ]\n   }'")
 		}
 		if utf8.RuneCountInString(body.Name) < 1 {
 			err = goa.MergeErrors(err, goa.InvalidLengthError("body.name", body.Name, utf8.RuneCountInString(body.Name), 1, true))
@@ -148,9 +156,10 @@ func BuildSavePayload(queriesSaveBody string) (*queries.SaveQueryPayload, error)
 		}
 	}
 	v := &queries.SaveQueryPayload{
-		Name:        body.Name,
-		SQL:         body.SQL,
-		Description: body.Description,
+		Name:         body.Name,
+		SQL:          body.SQL,
+		Description:  body.Description,
+		ConnectionID: body.ConnectionID,
 	}
 	if body.Tags != nil {
 		v.Tags = make([]string, len(body.Tags))

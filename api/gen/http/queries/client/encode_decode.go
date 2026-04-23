@@ -134,6 +134,9 @@ func EncodeListSavedRequest(encoder func(*http.Request) goahttp.Encoder) func(*h
 		for _, value := range p.Tags {
 			values.Add("tags", value)
 		}
+		if p.ConnectionID != nil {
+			values.Add("connection_id", *p.ConnectionID)
+		}
 		values.Add("limit", fmt.Sprintf("%v", p.Limit))
 		values.Add("offset", fmt.Sprintf("%v", p.Offset))
 		req.URL.RawQuery = values.Encode()
@@ -453,12 +456,13 @@ func unmarshalPeriodComparisonItemResponseBodyToQueriesPeriodComparisonItem(v *P
 // *queries.SavedQuery from a value of type *SavedQueryResponseBody.
 func unmarshalSavedQueryResponseBodyToQueriesSavedQuery(v *SavedQueryResponseBody) *queries.SavedQuery {
 	res := &queries.SavedQuery{
-		ID:          *v.ID,
-		Name:        *v.Name,
-		SQL:         *v.SQL,
-		Description: v.Description,
-		CreatedAt:   *v.CreatedAt,
-		UpdatedAt:   *v.UpdatedAt,
+		ID:           *v.ID,
+		Name:         *v.Name,
+		SQL:          *v.SQL,
+		Description:  v.Description,
+		ConnectionID: *v.ConnectionID,
+		CreatedAt:    *v.CreatedAt,
+		UpdatedAt:    *v.UpdatedAt,
 	}
 	if v.Tags != nil {
 		res.Tags = make([]string, len(v.Tags))
