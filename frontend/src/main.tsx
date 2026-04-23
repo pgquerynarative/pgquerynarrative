@@ -56,6 +56,14 @@ createRoot(document.getElementById("root")!).render(
                   }
                 />
                 <Route
+                  path="shared/:token"
+                  element={
+                    <Suspense fallback={<RouteFallback />}>
+                      <Reports />
+                    </Suspense>
+                  }
+                />
+                <Route
                   path="settings"
                   element={
                     <Suspense fallback={<RouteFallback />}>

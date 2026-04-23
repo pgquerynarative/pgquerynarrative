@@ -145,6 +145,7 @@ func setupHTTPServer(
 	combinedMux.Handle("/api/", mux)
 	combinedMux.HandleFunc("/web/reports/export", webHandlers.ExportReport)
 	combinedMux.HandleFunc("/web/reports/export/pdf", webHandlers.ExportReportPDF)
+	combinedMux.HandleFunc("/web/reports/export/shared/pdf", webHandlers.ExportSharedReportPDF)
 	combinedMux.Handle("/", spaHandler("frontend/dist"))
 
 	var auditStore *audit.Store
@@ -265,7 +266,9 @@ func authMiddleware(next http.Handler, enabled bool, apiKey string, auditStore *
 		if path == "" {
 			path = "/"
 		}
-		needAuth := strings.HasPrefix(path, "/api/") || path == "/web/reports/export" || path == "/web/reports/export/pdf"
+		isPublicSharedAPI := strings.HasPrefix(path, "/api/v1/reports/shared/")
+		isPublicSharedPDF := path == "/web/reports/export/shared/pdf"
+		needAuth := (strings.HasPrefix(path, "/api/") && !isPublicSharedAPI) || ((path == "/web/reports/export" || path == "/web/reports/export/pdf") && !isPublicSharedPDF)
 		if !enabled || !needAuth || apiKey == "" {
 			next.ServeHTTP(w, r)
 			return

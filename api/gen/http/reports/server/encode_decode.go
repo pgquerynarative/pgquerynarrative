@@ -400,6 +400,140 @@ func EncodeRewriteError(encoder func(context.Context, http.ResponseWriter) goaht
 	}
 }
 
+// EncodeCreateShareResponse returns an encoder for responses returned by the
+// reports create_share endpoint.
+func EncodeCreateShareResponse(encoder func(context.Context, http.ResponseWriter) goahttp.Encoder) func(context.Context, http.ResponseWriter, any) error {
+	return func(ctx context.Context, w http.ResponseWriter, v any) error {
+		res, _ := v.(*reports.ReportShareLink)
+		enc := encoder(ctx, w)
+		body := NewCreateShareResponseBody(res)
+		w.WriteHeader(http.StatusOK)
+		return enc.Encode(body)
+	}
+}
+
+// DecodeCreateShareRequest returns a decoder for requests sent to the reports
+// create_share endpoint.
+func DecodeCreateShareRequest(mux goahttp.Muxer, decoder func(*http.Request) goahttp.Decoder) func(*http.Request) (*reports.CreateSharePayload, error) {
+	return func(r *http.Request) (*reports.CreateSharePayload, error) {
+		var (
+			body CreateShareRequestBody
+			err  error
+		)
+		err = decoder(r).Decode(&body)
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				return nil, goa.MissingPayloadError()
+			}
+			var gerr *goa.ServiceError
+			if errors.As(err, &gerr) {
+				return nil, gerr
+			}
+			return nil, goa.DecodePayloadError(err.Error())
+		}
+		err = ValidateCreateShareRequestBody(&body)
+		if err != nil {
+			return nil, err
+		}
+		payload := NewCreateSharePayload(&body)
+
+		return payload, nil
+	}
+}
+
+// EncodeCreateShareError returns an encoder for errors returned by the
+// create_share reports endpoint.
+func EncodeCreateShareError(encoder func(context.Context, http.ResponseWriter) goahttp.Encoder, formatter func(ctx context.Context, err error) goahttp.Statuser) func(context.Context, http.ResponseWriter, error) error {
+	encodeError := goahttp.ErrorEncoder(encoder, formatter)
+	return func(ctx context.Context, w http.ResponseWriter, v error) error {
+		var en goa.GoaErrorNamer
+		if !errors.As(v, &en) {
+			return encodeError(ctx, w, v)
+		}
+		switch en.GoaErrorName() {
+		case "not_found":
+			var res *reports.NotFoundError
+			errors.As(v, &res)
+			enc := encoder(ctx, w)
+			var body any
+			if formatter != nil {
+				body = formatter(ctx, res)
+			} else {
+				body = NewCreateShareNotFoundResponseBody(res)
+			}
+			w.Header().Set("goa-error", res.GoaErrorName())
+			w.WriteHeader(http.StatusNotFound)
+			return enc.Encode(body)
+		default:
+			return encodeError(ctx, w, v)
+		}
+	}
+}
+
+// EncodeGetSharedResponse returns an encoder for responses returned by the
+// reports get_shared endpoint.
+func EncodeGetSharedResponse(encoder func(context.Context, http.ResponseWriter) goahttp.Encoder) func(context.Context, http.ResponseWriter, any) error {
+	return func(ctx context.Context, w http.ResponseWriter, v any) error {
+		res, _ := v.(*reports.Report)
+		enc := encoder(ctx, w)
+		body := NewGetSharedResponseBody(res)
+		w.WriteHeader(http.StatusOK)
+		return enc.Encode(body)
+	}
+}
+
+// DecodeGetSharedRequest returns a decoder for requests sent to the reports
+// get_shared endpoint.
+func DecodeGetSharedRequest(mux goahttp.Muxer, decoder func(*http.Request) goahttp.Decoder) func(*http.Request) (*reports.GetSharedPayload, error) {
+	return func(r *http.Request) (*reports.GetSharedPayload, error) {
+		var (
+			token string
+			err   error
+
+			params = mux.Vars(r)
+		)
+		token = params["token"]
+		if utf8.RuneCountInString(token) < 12 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("token", token, utf8.RuneCountInString(token), 12, true))
+		}
+		if err != nil {
+			return nil, err
+		}
+		payload := NewGetSharedPayload(token)
+
+		return payload, nil
+	}
+}
+
+// EncodeGetSharedError returns an encoder for errors returned by the
+// get_shared reports endpoint.
+func EncodeGetSharedError(encoder func(context.Context, http.ResponseWriter) goahttp.Encoder, formatter func(ctx context.Context, err error) goahttp.Statuser) func(context.Context, http.ResponseWriter, error) error {
+	encodeError := goahttp.ErrorEncoder(encoder, formatter)
+	return func(ctx context.Context, w http.ResponseWriter, v error) error {
+		var en goa.GoaErrorNamer
+		if !errors.As(v, &en) {
+			return encodeError(ctx, w, v)
+		}
+		switch en.GoaErrorName() {
+		case "not_found":
+			var res *reports.NotFoundError
+			errors.As(v, &res)
+			enc := encoder(ctx, w)
+			var body any
+			if formatter != nil {
+				body = formatter(ctx, res)
+			} else {
+				body = NewGetSharedNotFoundResponseBody(res)
+			}
+			w.Header().Set("goa-error", res.GoaErrorName())
+			w.WriteHeader(http.StatusNotFound)
+			return enc.Encode(body)
+		default:
+			return encodeError(ctx, w, v)
+		}
+	}
+}
+
 // marshalReportsNarrativeContentToNarrativeContentResponseBody builds a value
 // of type *NarrativeContentResponseBody from a value of type
 // *reports.NarrativeContent.

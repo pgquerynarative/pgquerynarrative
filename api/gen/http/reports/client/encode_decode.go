@@ -473,6 +473,176 @@ func DecodeRewriteResponse(decoder func(*http.Response) goahttp.Decoder, restore
 	}
 }
 
+// BuildCreateShareRequest instantiates a HTTP request object with method and
+// path set to call the "reports" service "create_share" endpoint
+func (c *Client) BuildCreateShareRequest(ctx context.Context, v any) (*http.Request, error) {
+	u := &url.URL{Scheme: c.scheme, Host: c.host, Path: CreateShareReportsPath()}
+	req, err := http.NewRequest("POST", u.String(), nil)
+	if err != nil {
+		return nil, goahttp.ErrInvalidURL("reports", "create_share", u.String(), err)
+	}
+	if ctx != nil {
+		req = req.WithContext(ctx)
+	}
+
+	return req, nil
+}
+
+// EncodeCreateShareRequest returns an encoder for requests sent to the reports
+// create_share server.
+func EncodeCreateShareRequest(encoder func(*http.Request) goahttp.Encoder) func(*http.Request, any) error {
+	return func(req *http.Request, v any) error {
+		p, ok := v.(*reports.CreateSharePayload)
+		if !ok {
+			return goahttp.ErrInvalidType("reports", "create_share", "*reports.CreateSharePayload", v)
+		}
+		body := NewCreateShareRequestBody(p)
+		if err := encoder(req).Encode(&body); err != nil {
+			return goahttp.ErrEncodingError("reports", "create_share", err)
+		}
+		return nil
+	}
+}
+
+// DecodeCreateShareResponse returns a decoder for responses returned by the
+// reports create_share endpoint. restoreBody controls whether the response
+// body should be restored after having been read.
+// DecodeCreateShareResponse may return the following errors:
+//   - "not_found" (type *reports.NotFoundError): http.StatusNotFound
+//   - error: internal error
+func DecodeCreateShareResponse(decoder func(*http.Response) goahttp.Decoder, restoreBody bool) func(*http.Response) (any, error) {
+	return func(resp *http.Response) (any, error) {
+		if restoreBody {
+			b, err := io.ReadAll(resp.Body)
+			if err != nil {
+				return nil, err
+			}
+			resp.Body = io.NopCloser(bytes.NewBuffer(b))
+			defer func() {
+				resp.Body = io.NopCloser(bytes.NewBuffer(b))
+			}()
+		} else {
+			defer resp.Body.Close()
+		}
+		switch resp.StatusCode {
+		case http.StatusOK:
+			var (
+				body CreateShareResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("reports", "create_share", err)
+			}
+			err = ValidateCreateShareResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("reports", "create_share", err)
+			}
+			res := NewCreateShareReportShareLinkOK(&body)
+			return res, nil
+		case http.StatusNotFound:
+			var (
+				body CreateShareNotFoundResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("reports", "create_share", err)
+			}
+			err = ValidateCreateShareNotFoundResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("reports", "create_share", err)
+			}
+			return nil, NewCreateShareNotFound(&body)
+		default:
+			body, _ := io.ReadAll(resp.Body)
+			return nil, goahttp.ErrInvalidResponse("reports", "create_share", resp.StatusCode, string(body))
+		}
+	}
+}
+
+// BuildGetSharedRequest instantiates a HTTP request object with method and
+// path set to call the "reports" service "get_shared" endpoint
+func (c *Client) BuildGetSharedRequest(ctx context.Context, v any) (*http.Request, error) {
+	var (
+		token string
+	)
+	{
+		p, ok := v.(*reports.GetSharedPayload)
+		if !ok {
+			return nil, goahttp.ErrInvalidType("reports", "get_shared", "*reports.GetSharedPayload", v)
+		}
+		token = p.Token
+	}
+	u := &url.URL{Scheme: c.scheme, Host: c.host, Path: GetSharedReportsPath(token)}
+	req, err := http.NewRequest("GET", u.String(), nil)
+	if err != nil {
+		return nil, goahttp.ErrInvalidURL("reports", "get_shared", u.String(), err)
+	}
+	if ctx != nil {
+		req = req.WithContext(ctx)
+	}
+
+	return req, nil
+}
+
+// DecodeGetSharedResponse returns a decoder for responses returned by the
+// reports get_shared endpoint. restoreBody controls whether the response body
+// should be restored after having been read.
+// DecodeGetSharedResponse may return the following errors:
+//   - "not_found" (type *reports.NotFoundError): http.StatusNotFound
+//   - error: internal error
+func DecodeGetSharedResponse(decoder func(*http.Response) goahttp.Decoder, restoreBody bool) func(*http.Response) (any, error) {
+	return func(resp *http.Response) (any, error) {
+		if restoreBody {
+			b, err := io.ReadAll(resp.Body)
+			if err != nil {
+				return nil, err
+			}
+			resp.Body = io.NopCloser(bytes.NewBuffer(b))
+			defer func() {
+				resp.Body = io.NopCloser(bytes.NewBuffer(b))
+			}()
+		} else {
+			defer resp.Body.Close()
+		}
+		switch resp.StatusCode {
+		case http.StatusOK:
+			var (
+				body GetSharedResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("reports", "get_shared", err)
+			}
+			err = ValidateGetSharedResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("reports", "get_shared", err)
+			}
+			res := NewGetSharedReportOK(&body)
+			return res, nil
+		case http.StatusNotFound:
+			var (
+				body GetSharedNotFoundResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("reports", "get_shared", err)
+			}
+			err = ValidateGetSharedNotFoundResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("reports", "get_shared", err)
+			}
+			return nil, NewGetSharedNotFound(&body)
+		default:
+			body, _ := io.ReadAll(resp.Body)
+			return nil, goahttp.ErrInvalidResponse("reports", "get_shared", resp.StatusCode, string(body))
+		}
+	}
+}
+
 // unmarshalNarrativeContentResponseBodyToReportsNarrativeContent builds a
 // value of type *reports.NarrativeContent from a value of type
 // *NarrativeContentResponseBody.

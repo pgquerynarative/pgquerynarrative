@@ -15,21 +15,25 @@ import (
 
 // Client is the "reports" service client.
 type Client struct {
-	GenerateEndpoint goa.Endpoint
-	GetEndpoint      goa.Endpoint
-	ListEndpoint     goa.Endpoint
-	SimilarEndpoint  goa.Endpoint
-	RewriteEndpoint  goa.Endpoint
+	GenerateEndpoint    goa.Endpoint
+	GetEndpoint         goa.Endpoint
+	ListEndpoint        goa.Endpoint
+	SimilarEndpoint     goa.Endpoint
+	RewriteEndpoint     goa.Endpoint
+	CreateShareEndpoint goa.Endpoint
+	GetSharedEndpoint   goa.Endpoint
 }
 
 // NewClient initializes a "reports" service client given the endpoints.
-func NewClient(generate, get, list, similar, rewrite goa.Endpoint) *Client {
+func NewClient(generate, get, list, similar, rewrite, createShare, getShared goa.Endpoint) *Client {
 	return &Client{
-		GenerateEndpoint: generate,
-		GetEndpoint:      get,
-		ListEndpoint:     list,
-		SimilarEndpoint:  similar,
-		RewriteEndpoint:  rewrite,
+		GenerateEndpoint:    generate,
+		GetEndpoint:         get,
+		ListEndpoint:        list,
+		SimilarEndpoint:     similar,
+		RewriteEndpoint:     rewrite,
+		CreateShareEndpoint: createShare,
+		GetSharedEndpoint:   getShared,
 	}
 }
 
@@ -93,4 +97,30 @@ func (c *Client) Rewrite(ctx context.Context, p *RewritePayload) (res *Narrative
 		return
 	}
 	return ires.(*NarrativeContent), nil
+}
+
+// CreateShare calls the "create_share" endpoint of the "reports" service.
+// CreateShare may return the following errors:
+//   - "not_found" (type *NotFoundError)
+//   - error: internal error
+func (c *Client) CreateShare(ctx context.Context, p *CreateSharePayload) (res *ReportShareLink, err error) {
+	var ires any
+	ires, err = c.CreateShareEndpoint(ctx, p)
+	if err != nil {
+		return
+	}
+	return ires.(*ReportShareLink), nil
+}
+
+// GetShared calls the "get_shared" endpoint of the "reports" service.
+// GetShared may return the following errors:
+//   - "not_found" (type *NotFoundError)
+//   - error: internal error
+func (c *Client) GetShared(ctx context.Context, p *GetSharedPayload) (res *Report, err error) {
+	var ires any
+	ires, err = c.GetSharedEndpoint(ctx, p)
+	if err != nil {
+		return
+	}
+	return ires.(*Report), nil
 }

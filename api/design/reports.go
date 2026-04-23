@@ -118,6 +118,44 @@ var _ = Service("reports", func() {
 			Response(StatusNotFound, "not_found")
 		})
 	})
+
+	Method("create_share", func() {
+		Description("Create or refresh a shareable read-only token link for a report.")
+		Payload(func() {
+			Attribute("report_id", String, func() {
+				Format(FormatUUID)
+			})
+			Attribute("expires_in_hours", Int32, "Optional expiry in hours (1-720). Omit for no expiry.", func() {
+				Minimum(1)
+				Maximum(720)
+			})
+			Required("report_id")
+		})
+		Result(ReportShareLink)
+		Error("not_found", NotFoundError)
+		HTTP(func() {
+			POST("/api/v1/reports/share")
+			Response(StatusOK)
+			Response(StatusNotFound, "not_found")
+		})
+	})
+
+	Method("get_shared", func() {
+		Description("Fetch a report by valid share token.")
+		Payload(func() {
+			Attribute("token", String, func() {
+				MinLength(12)
+			})
+			Required("token")
+		})
+		Result(Report)
+		Error("not_found", NotFoundError)
+		HTTP(func() {
+			GET("/api/v1/reports/shared/{token}")
+			Response(StatusOK)
+			Response(StatusNotFound, "not_found")
+		})
+	})
 })
 
 var GenerateReportPayload = Type("GenerateReportPayload", func() {
@@ -287,6 +325,13 @@ var SimilarReportItem = Type("SimilarReportItem", func() {
 var ReportSimilarResult = Type("ReportSimilarResult", func() {
 	Attribute("items", ArrayOf(SimilarReportItem))
 	Required("items")
+})
+
+var ReportShareLink = Type("ReportShareLink", func() {
+	Attribute("token", String)
+	Attribute("url", String)
+	Attribute("expires_at", String, func() { Format(FormatDateTime) })
+	Required("token", "url")
 })
 
 var LLMError = Type("LLMError", func() {
