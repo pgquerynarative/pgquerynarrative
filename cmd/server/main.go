@@ -33,7 +33,9 @@ import (
 	"github.com/pgquerynarrative/pgquerynarrative/app/logger"
 	"github.com/pgquerynarrative/pgquerynarrative/app/ratelimit"
 	"github.com/pgquerynarrative/pgquerynarrative/gen/connections"
+	"github.com/pgquerynarrative/pgquerynarrative/gen/dashboards"
 	connectionsServer "github.com/pgquerynarrative/pgquerynarrative/gen/http/connections/server"
+	dashboardsServer "github.com/pgquerynarrative/pgquerynarrative/gen/http/dashboards/server"
 	"github.com/pgquerynarrative/pgquerynarrative/pkg/narrative"
 	"github.com/pgquerynarrative/pgquerynarrative/web"
 	goahttp "goa.design/goa/v3/http"
@@ -69,11 +71,12 @@ func main() {
 	queriesEndpoints := queries.NewEndpoints(client.QueriesService())
 	connectionsEndpoints := connections.NewEndpoints(client.ConnectionsService())
 	reportsEndpoints := reports.NewEndpoints(client.ReportsService())
+	dashboardsEndpoints := dashboards.NewEndpoints(client.DashboardsService())
 	schemaEndpoints := schema.NewEndpoints(client.SchemaService())
 	suggestionsEndpoints := suggestions.NewEndpoints(client.SuggestionsService())
 
 	// Configure HTTP server
-	httpServer := setupHTTPServer(cfg, client, queriesEndpoints, connectionsEndpoints, reportsEndpoints, schemaEndpoints, suggestionsEndpoints, appLogger)
+	httpServer := setupHTTPServer(cfg, client, queriesEndpoints, connectionsEndpoints, reportsEndpoints, dashboardsEndpoints, schemaEndpoints, suggestionsEndpoints, appLogger)
 
 	// Start server in a goroutine
 	go func() {
@@ -112,6 +115,7 @@ func setupHTTPServer(
 	queriesEndpoints *queries.Endpoints,
 	connectionsEndpoints *connections.Endpoints,
 	reportsEndpoints *reports.Endpoints,
+	dashboardsEndpoints *dashboards.Endpoints,
 	schemaEndpoints *schema.Endpoints,
 	suggestionsEndpoints *suggestions.Endpoints,
 	appLogger *logger.Logger,
@@ -129,6 +133,8 @@ func setupHTTPServer(
 	connectionsServer.Mount(mux, connectionsHTTP)
 	reportsHTTP := reportsServer.New(reportsEndpoints, mux, dec, enc, errHandler, nil)
 	reportsServer.Mount(mux, reportsHTTP)
+	dashboardsHTTP := dashboardsServer.New(dashboardsEndpoints, mux, dec, enc, errHandler, nil)
+	dashboardsServer.Mount(mux, dashboardsHTTP)
 	schemaHTTP := schemaServer.New(schemaEndpoints, mux, dec, enc, errHandler, nil)
 	schemaServer.Mount(mux, schemaHTTP)
 	suggestionsHTTP := suggestionsServer.New(suggestionsEndpoints, mux, dec, enc, errHandler, nil)

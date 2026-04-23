@@ -13,6 +13,7 @@ const QueryRunner = lazy(() => import("@/pages/query-runner"));
 const SavedQueries = lazy(() => import("@/pages/saved-queries"));
 const Reports = lazy(() => import("@/pages/reports"));
 const SettingsPage = lazy(() => import("@/pages/settings"));
+const DashboardsPage = lazy(() => import("@/pages/dashboards"));
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
@@ -23,6 +24,22 @@ createRoot(document.getElementById("root")!).render(
             <Routes>
               <Route element={<Layout />}>
                 <Route index element={<Dashboard />} />
+                <Route
+                  path="dashboards"
+                  element={
+                    <Suspense fallback={<RouteFallback />}>
+                      <DashboardsPage />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="dashboards/:id"
+                  element={
+                    <Suspense fallback={<RouteFallback />}>
+                      <DashboardsPage />
+                    </Suspense>
+                  }
+                />
                 <Route
                   path="query"
                   element={
