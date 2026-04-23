@@ -13,6 +13,11 @@ type Client interface {
 	Name() string
 }
 
+// Modeler is implemented by LLM clients that can expose the configured model name.
+type Modeler interface {
+	Model() string
+}
+
 // Config contains LLM configuration
 type Config struct {
 	Provider string // "ollama", "gemini", "claude", "openai", "groq"

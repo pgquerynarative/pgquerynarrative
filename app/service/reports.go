@@ -131,10 +131,11 @@ func (s *ReportsService) Generate(ctx context.Context, payload *reports.Generate
 
 	// Convert metrics to API format
 	metricsData := ConvertMetrics(calcMetrics)
+	providerName, modelName := llmMetadata(s.llmClient)
 
 	// Store report in database
 	debuglog.Log("storing report in database")
-	reportID, err := s.storeReport(ctx, payload, narrative, calcMetrics, queryResult)
+	reportID, err := s.storeReport(ctx, payload, narrative, calcMetrics, queryResult, providerName, modelName)
 	if err != nil {
 		return nil, err
 	}
@@ -157,8 +158,8 @@ func (s *ReportsService) Generate(ctx context.Context, payload *reports.Generate
 		Metrics:          metricsData,
 		ChartSuggestions: chartSuggestions,
 		CreatedAt:        time.Now().Format(time.RFC3339),
-		LlmModel:         s.llmClient.Name(),
-		LlmProvider:      s.llmClient.Name(),
+		LlmModel:         modelName,
+		LlmProvider:      providerName,
 	}, nil
 }
 
@@ -194,7 +195,7 @@ func suggestToReports(in []charts.Suggestion) []*reports.ChartSuggestion {
 	return out
 }
 
-func (s *ReportsService) storeReport(ctx context.Context, payload *reports.GenerateReportPayload, narrative *story.NarrativeContent, calcMetrics *metrics.Metrics, queryResult *queryrunner.Result) (string, error) {
+func (s *ReportsService) storeReport(ctx context.Context, payload *reports.GenerateReportPayload, narrative *story.NarrativeContent, calcMetrics *metrics.Metrics, queryResult *queryrunner.Result, providerName, modelName string) (string, error) {
 	narrativeJSON, _ := json.Marshal(narrative)
 	metricsJSON, _ := json.Marshal(calcMetrics)
 	statsJSON, _ := json.Marshal(map[string]interface{}{
@@ -210,9 +211,23 @@ func (s *ReportsService) storeReport(ctx context.Context, payload *reports.Gener
 		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 		RETURNING id
 	`, payload.SavedQueryID, payload.SQL, narrative.Headline, narrativeJSON, metricsJSON, statsJSON,
-		s.llmClient.Name(), s.llmClient.Name(), true).Scan(&reportID)
+		modelName, providerName, true).Scan(&reportID)
 
 	return reportID, err
+}
+
+func llmMetadata(client llm.Client) (providerName, modelName string) {
+	if client == nil {
+		return "", ""
+	}
+	providerName = client.Name()
+	modelName = providerName
+	if modeler, ok := client.(llm.Modeler); ok {
+		if model := strings.TrimSpace(modeler.Model()); model != "" {
+			modelName = model
+		}
+	}
+	return providerName, modelName
 }
 
 func (s *ReportsService) Get(ctx context.Context, payload *reports.GetPayload) (*reports.Report, error) {

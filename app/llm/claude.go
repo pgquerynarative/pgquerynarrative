@@ -40,6 +40,10 @@ func (c *ClaudeClient) Name() string {
 	return "claude"
 }
 
+func (c *ClaudeClient) Model() string {
+	return c.model
+}
+
 const claudeMaxRetries = 3
 const claudeRetryDelay = 6 * time.Second
 

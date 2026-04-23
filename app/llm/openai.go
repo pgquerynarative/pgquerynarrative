@@ -39,6 +39,10 @@ func (c *OpenAIClient) Name() string {
 	return "openai"
 }
 
+func (c *OpenAIClient) Model() string {
+	return c.model
+}
+
 const openaiMaxRetries = 3
 const openaiRetryDelay = 6 * time.Second
 

@@ -39,6 +39,10 @@ func (c *GroqClient) Name() string {
 	return "groq"
 }
 
+func (c *GroqClient) Model() string {
+	return c.model
+}
+
 const groqMaxRetries = 3
 const groqRetryDelay = 6 * time.Second
 
