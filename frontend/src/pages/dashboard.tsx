@@ -118,6 +118,7 @@ export default function Dashboard() {
                         <Clock className="h-3 w-3 text-muted-foreground" />
                         <span className="text-xs text-muted-foreground">{new Date(r.created_at).toLocaleDateString()}</span>
                         <Badge variant="secondary" className="text-[10px]">{r.llm_provider}</Badge>
+                        <Badge variant="outline" className="text-[10px]">{r.connection_id}</Badge>
                       </div>
                     </div>
                     <Zap className="h-4 w-4 text-brand-cyan flex-shrink-0" />
@@ -149,7 +150,10 @@ export default function Dashboard() {
                       <p className="text-sm font-medium truncate">{q.name}</p>
                       <p className="text-xs text-muted-foreground font-mono truncate mt-0.5">{truncate(q.sql, 60)}</p>
                     </div>
-                    {q.tags && q.tags.length > 0 && <Badge variant="outline" className="ml-2 text-[10px]">{q.tags[0]}</Badge>}
+                    <div className="flex items-center gap-2">
+                      <Badge variant="secondary" className="text-[10px]">{q.connection_id}</Badge>
+                      {q.tags && q.tags.length > 0 && <Badge variant="outline" className="ml-2 text-[10px]">{q.tags[0]}</Badge>}
+                    </div>
                   </div>
                 ))}
               </div>

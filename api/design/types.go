@@ -15,6 +15,7 @@ var RunQueryPayload = Type("RunQueryPayload", func() {
 		Minimum(1)
 		Maximum(1000)
 	})
+	Attribute("connection_id", String, "Optional connection ID; defaults to server default connection")
 	Required("sql")
 })
 
@@ -83,6 +84,7 @@ var SaveQueryPayload = Type("SaveQueryPayload", func() {
 		MaxLength(500)
 	})
 	Attribute("tags", ArrayOf(String))
+	Attribute("connection_id", String, "Optional connection ID; defaults to server default connection")
 	Required("name", "sql")
 })
 
@@ -94,13 +96,14 @@ var SavedQuery = Type("SavedQuery", func() {
 	Attribute("sql", String)
 	Attribute("description", String)
 	Attribute("tags", ArrayOf(String))
+	Attribute("connection_id", String)
 	Attribute("created_at", String, func() {
 		Format(FormatDateTime)
 	})
 	Attribute("updated_at", String, func() {
 		Format(FormatDateTime)
 	})
-	Required("id", "name", "sql", "created_at", "updated_at")
+	Required("id", "name", "sql", "connection_id", "created_at", "updated_at")
 })
 
 var SavedQueryList = Type("SavedQueryList", func() {

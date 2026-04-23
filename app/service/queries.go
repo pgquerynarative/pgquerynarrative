@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"math"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/pgquerynarrative/pgquerynarrative/api/gen/queries"
 	"github.com/pgquerynarrative/pgquerynarrative/app/apilog"
+	"github.com/pgquerynarrative/pgquerynarrative/app/catalog"
 	"github.com/pgquerynarrative/pgquerynarrative/app/charts"
 	"github.com/pgquerynarrative/pgquerynarrative/app/config"
 	"github.com/pgquerynarrative/pgquerynarrative/app/embedding"
@@ -30,6 +32,7 @@ type QueriesService struct {
 	embedder       embedding.Embedder  // Optional: for storing query embeddings on save
 	embeddingStore *embedding.Store    // Optional: for RAG / similar-query retrieval
 	embeddingModel string              // Model name to store with embedding (e.g. nomic-embed-text)
+	connectionResolver
 }
 
 var strPtr = format.StrPtr
@@ -37,12 +40,15 @@ var strPtr = format.StrPtr
 // NewQueriesService creates a new queries service with the specified dependencies.
 // metricsCfg supplies trend threshold, anomaly sigma, trend periods, and moving-average window; nil uses defaults.
 func NewQueriesService(readOnlyPool, appPool *pgxpool.Pool, runner *queryrunner.Runner, metricsCfg config.MetricsConfig) *QueriesService {
+	defaultRunners := map[string]*queryrunner.Runner{"default": runner}
+	defaultLoaders := map[string]*catalog.Loader{}
 	opts := metricsOptionsFromConfig(metricsCfg)
 	return &QueriesService{
-		readOnlyPool: readOnlyPool,
-		appPool:      appPool,
-		runner:       runner,
-		metricsOpts:  opts,
+		readOnlyPool:       readOnlyPool,
+		appPool:            appPool,
+		runner:             runner,
+		metricsOpts:        opts,
+		connectionResolver: newConnectionResolver("default", defaultRunners, defaultLoaders),
 	}
 }
 
@@ -50,15 +56,41 @@ func NewQueriesService(readOnlyPool, appPool *pgxpool.Pool, runner *queryrunner.
 // when saved queries are created, for similar-query retrieval and RAG. embeddingModel
 // is the name of the embedding model (e.g. nomic-embed-text).
 func NewQueriesServiceWithEmbedding(readOnlyPool, appPool *pgxpool.Pool, runner *queryrunner.Runner, metricsCfg config.MetricsConfig, embedder embedding.Embedder, embeddingStore *embedding.Store, embeddingModel string) *QueriesService {
+	defaultRunners := map[string]*queryrunner.Runner{"default": runner}
+	defaultLoaders := map[string]*catalog.Loader{}
 	opts := metricsOptionsFromConfig(metricsCfg)
 	return &QueriesService{
-		readOnlyPool:   readOnlyPool,
-		appPool:        appPool,
-		runner:         runner,
-		metricsOpts:    opts,
-		embedder:       embedder,
-		embeddingStore: embeddingStore,
-		embeddingModel: embeddingModel,
+		readOnlyPool:       readOnlyPool,
+		appPool:            appPool,
+		runner:             runner,
+		metricsOpts:        opts,
+		embedder:           embedder,
+		embeddingStore:     embeddingStore,
+		embeddingModel:     embeddingModel,
+		connectionResolver: newConnectionResolver("default", defaultRunners, defaultLoaders),
+	}
+}
+
+// NewQueriesServiceMultiConnection creates a queries service with one runner per connection.
+func NewQueriesServiceMultiConnection(appPool *pgxpool.Pool, runners map[string]*queryrunner.Runner, defaultConnectionID string, metricsCfg config.MetricsConfig, embedder embedding.Embedder, embeddingStore *embedding.Store, embeddingModel string) *QueriesService {
+	var defaultRunner *queryrunner.Runner
+	if r, ok := runners[defaultConnectionID]; ok {
+		defaultRunner = r
+	} else {
+		for _, r := range runners {
+			defaultRunner = r
+			break
+		}
+	}
+	opts := metricsOptionsFromConfig(metricsCfg)
+	return &QueriesService{
+		appPool:            appPool,
+		runner:             defaultRunner,
+		metricsOpts:        opts,
+		embedder:           embedder,
+		embeddingStore:     embeddingStore,
+		embeddingModel:     embeddingModel,
+		connectionResolver: newConnectionResolver(defaultConnectionID, runners, map[string]*catalog.Loader{}),
 	}
 }
 
@@ -76,7 +108,8 @@ func NewQueriesServiceWithEmbedding(readOnlyPool, appPool *pgxpool.Pool, runner 
 //   - RunQueryResult with columns, rows, and metadata
 //   - ValidationError if query is invalid or times out
 func (s *QueriesService) Run(ctx context.Context, payload *queries.RunQueryPayload) (*queries.RunQueryResult, error) {
-	result, err := s.runner.Run(ctx, payload.SQL, int(payload.Limit))
+	runner := s.connectionResolver.runnerFor(payload.ConnectionID)
+	result, err := runner.Run(ctx, payload.SQL, int(payload.Limit))
 	if err != nil {
 		kind, userMsg := ClassifyRunError(err)
 		if kind == RunErrorTimeout {
@@ -201,16 +234,17 @@ func timeSeriesToPeriodComparison(columnNames []string, rows [][]interface{}, op
 //   - SavedQuery with generated ID and timestamps
 //   - Error if database operation fails
 func (s *QueriesService) Save(ctx context.Context, payload *queries.SaveQueryPayload) (*queries.SavedQuery, error) {
+	connectionID := s.normalizedConnectionID(payload.ConnectionID)
 	row := s.appPool.QueryRow(ctx, `
-		INSERT INTO app.saved_queries (name, sql, description, tags)
-		VALUES ($1, $2, $3, $4)
-		RETURNING id, name, sql, description, tags, created_at, updated_at
-	`, payload.Name, payload.SQL, payload.Description, payload.Tags)
+		INSERT INTO app.saved_queries (name, sql, description, tags, connection_id)
+		VALUES ($1, $2, $3, $4, $5)
+		RETURNING id, name, sql, description, tags, connection_id, created_at, updated_at
+	`, payload.Name, payload.SQL, payload.Description, payload.Tags, connectionID)
 
 	var item queries.SavedQuery
 	var createdAt time.Time
 	var updatedAt time.Time
-	if err := row.Scan(&item.ID, &item.Name, &item.SQL, &item.Description, &item.Tags, &createdAt, &updatedAt); err != nil {
+	if err := row.Scan(&item.ID, &item.Name, &item.SQL, &item.Description, &item.Tags, &item.ConnectionID, &createdAt, &updatedAt); err != nil {
 		return nil, err
 	}
 	item.CreatedAt = createdAt.Format(time.RFC3339)
@@ -250,20 +284,40 @@ func (s *QueriesService) ListSaved(ctx context.Context, payload *queries.ListSav
 	var rows pgx.Rows
 	var err error
 	if len(payload.Tags) > 0 {
-		rows, err = s.appPool.Query(ctx, `
-			SELECT id, name, sql, description, tags, created_at, updated_at
+		if payload.ConnectionID != nil && strings.TrimSpace(*payload.ConnectionID) != "" {
+			rows, err = s.appPool.Query(ctx, `
+			SELECT id, name, sql, description, tags, connection_id, created_at, updated_at
+			FROM app.saved_queries
+			WHERE tags && $1 AND connection_id = $2
+			ORDER BY created_at DESC
+			LIMIT $3 OFFSET $4
+		`, payload.Tags, *payload.ConnectionID, limit, offset)
+		} else {
+			rows, err = s.appPool.Query(ctx, `
+			SELECT id, name, sql, description, tags, connection_id, created_at, updated_at
 			FROM app.saved_queries
 			WHERE tags && $1
 			ORDER BY created_at DESC
 			LIMIT $2 OFFSET $3
 		`, payload.Tags, limit, offset)
+		}
 	} else {
-		rows, err = s.appPool.Query(ctx, `
-			SELECT id, name, sql, description, tags, created_at, updated_at
+		if payload.ConnectionID != nil && strings.TrimSpace(*payload.ConnectionID) != "" {
+			rows, err = s.appPool.Query(ctx, `
+			SELECT id, name, sql, description, tags, connection_id, created_at, updated_at
+			FROM app.saved_queries
+			WHERE connection_id = $1
+			ORDER BY created_at DESC
+			LIMIT $2 OFFSET $3
+		`, *payload.ConnectionID, limit, offset)
+		} else {
+			rows, err = s.appPool.Query(ctx, `
+			SELECT id, name, sql, description, tags, connection_id, created_at, updated_at
 			FROM app.saved_queries
 			ORDER BY created_at DESC
 			LIMIT $1 OFFSET $2
 		`, limit, offset)
+		}
 	}
 	if err != nil {
 		return nil, err
@@ -275,7 +329,7 @@ func (s *QueriesService) ListSaved(ctx context.Context, payload *queries.ListSav
 		var item queries.SavedQuery
 		var createdAt time.Time
 		var updatedAt time.Time
-		if err := rows.Scan(&item.ID, &item.Name, &item.SQL, &item.Description, &item.Tags, &createdAt, &updatedAt); err != nil {
+		if err := rows.Scan(&item.ID, &item.Name, &item.SQL, &item.Description, &item.Tags, &item.ConnectionID, &createdAt, &updatedAt); err != nil {
 			return nil, err
 		}
 		item.CreatedAt = createdAt.Format(time.RFC3339)
@@ -305,7 +359,7 @@ func (s *QueriesService) ListSaved(ctx context.Context, payload *queries.ListSav
 //   - Error if database operation fails
 func (s *QueriesService) GetSaved(ctx context.Context, payload *queries.GetSavedPayload) (*queries.SavedQuery, error) {
 	row := s.appPool.QueryRow(ctx, `
-		SELECT id, name, sql, description, tags, created_at, updated_at
+		SELECT id, name, sql, description, tags, connection_id, created_at, updated_at
 		FROM app.saved_queries
 		WHERE id = $1
 	`, payload.ID)
@@ -313,7 +367,7 @@ func (s *QueriesService) GetSaved(ctx context.Context, payload *queries.GetSaved
 	var item queries.SavedQuery
 	var createdAt time.Time
 	var updatedAt time.Time
-	if err := row.Scan(&item.ID, &item.Name, &item.SQL, &item.Description, &item.Tags, &createdAt, &updatedAt); err != nil {
+	if err := row.Scan(&item.ID, &item.Name, &item.SQL, &item.Description, &item.Tags, &item.ConnectionID, &createdAt, &updatedAt); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, &queries.NotFoundError{
 				Name:    "not_found",

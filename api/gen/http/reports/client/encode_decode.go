@@ -231,6 +231,9 @@ func EncodeListRequest(encoder func(*http.Request) goahttp.Encoder) func(*http.R
 		if p.SavedQueryID != nil {
 			values.Add("saved_query_id", *p.SavedQueryID)
 		}
+		if p.ConnectionID != nil {
+			values.Add("connection_id", *p.ConnectionID)
+		}
 		values.Add("limit", fmt.Sprintf("%v", p.Limit))
 		values.Add("offset", fmt.Sprintf("%v", p.Offset))
 		req.URL.RawQuery = values.Encode()
@@ -625,6 +628,7 @@ func unmarshalReportResponseBodyToReportsReport(v *ReportResponseBody) *reports.
 		ID:           *v.ID,
 		SavedQueryID: v.SavedQueryID,
 		SQL:          *v.SQL,
+		ConnectionID: *v.ConnectionID,
 		CreatedAt:    *v.CreatedAt,
 		LlmModel:     *v.LlmModel,
 		LlmProvider:  *v.LlmProvider,

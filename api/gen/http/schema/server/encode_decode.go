@@ -27,6 +27,23 @@ func EncodeGetResponse(encoder func(context.Context, http.ResponseWriter) goahtt
 	}
 }
 
+// DecodeGetRequest returns a decoder for requests sent to the schema get
+// endpoint.
+func DecodeGetRequest(mux goahttp.Muxer, decoder func(*http.Request) goahttp.Decoder) func(*http.Request) (*schema.GetPayload, error) {
+	return func(r *http.Request) (*schema.GetPayload, error) {
+		var (
+			connectionID *string
+		)
+		connectionIDRaw := r.URL.Query().Get("connection_id")
+		if connectionIDRaw != "" {
+			connectionID = &connectionIDRaw
+		}
+		payload := NewGetPayload(connectionID)
+
+		return payload, nil
+	}
+}
+
 // marshalSchemaSchemaInfoToSchemaInfoResponseBody builds a value of type
 // *SchemaInfoResponseBody from a value of type *schema.SchemaInfo.
 func marshalSchemaSchemaInfoToSchemaInfoResponseBody(v *schema.SchemaInfo) *SchemaInfoResponseBody {

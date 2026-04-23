@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { api, type RunQueryResult, type Report, ApiError } from "@/api/client";
+import { api, type RunQueryResult, type Report, type ConnectionInfo, ApiError } from "@/api/client";
 import { Play, FileText, AlertCircle, Clock, Rows3, Download, BarChart3, PieChart as PieChartIcon, LineChart as LineChartIcon, Table2, Sparkles, History, Lightbulb, BookmarkPlus } from "lucide-react";
 import { SchemaBrowser } from "@/components/schema-browser";
 import { useAnnounce } from "@/contexts/announce-context";
@@ -52,6 +52,8 @@ export default function QueryRunner() {
   const [saveTags, setSaveTags] = useState("");
   const [saveLoading, setSaveLoading] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState("");
+  const [connections, setConnections] = useState<ConnectionInfo[]>([]);
+  const [connectionId, setConnectionId] = useState<string>("");
   const resultsRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<HTMLTextAreaElement>(null);
   const announce = useAnnounce();
@@ -59,6 +61,14 @@ export default function QueryRunner() {
   useEffect(() => {
     saveHistory(history);
   }, [history]);
+
+  useEffect(() => {
+    api.listConnections().then((r) => {
+      const items = r.items ?? [];
+      setConnections(items);
+      setConnectionId((prev) => prev || items[0]?.id || "");
+    }).catch(() => {});
+  }, []);
 
   useEffect(() => {
     api.getSuggestions(6).then((r) => setSuggestions(r.suggestions ?? [])).catch(() => {}).finally(() => setSuggestionsLoading(false));
@@ -94,7 +104,7 @@ export default function QueryRunner() {
     setChartType(null);
     if (sqlOverride) setSql(toRun);
     try {
-      const r = await api.runQuery(toRun, Math.max(1, Math.min(1000, Number(limit) || 100)));
+      const r = await api.runQuery(toRun, Math.max(1, Math.min(1000, Number(limit) || 100)), connectionId || undefined);
       setResult(r);
       setHistory((prev) => {
         const rest = prev.filter((h) => h.trim() !== toRun);
@@ -108,13 +118,13 @@ export default function QueryRunner() {
     } finally {
       setLoading(false);
     }
-  }, [sql, limit, announce]);
+  }, [sql, limit, announce, connectionId]);
 
   const generateReport = useCallback(async () => {
     if (!sql.trim()) return;
     setGenLoading(true);
     try {
-      const r = await api.generateReport(sql);
+      const r = await api.generateReport(sql, connectionId || undefined);
       setReport(r);
       announce("Report generated.", "polite");
     } catch (e) {
@@ -126,7 +136,7 @@ export default function QueryRunner() {
     } finally {
       setGenLoading(false);
     }
-  }, [sql, announce]);
+  }, [sql, announce, connectionId]);
 
   const saveQuery = useCallback(async () => {
     const normalizedSQL = sql.trim().replace(/;\s*$/, "");
@@ -148,7 +158,7 @@ export default function QueryRunner() {
     setSaveSuccess("");
     setSaveLoading(true);
     try {
-      await api.saveQuery(saveName.trim(), normalizedSQL, tags);
+      await api.saveQuery(saveName.trim(), normalizedSQL, tags, connectionId || undefined);
       setSaveSuccess(`Saved "${saveName.trim()}" to Saved Queries.`);
       setSaveName("");
       setSaveTags("");
@@ -157,7 +167,7 @@ export default function QueryRunner() {
     } finally {
       setSaveLoading(false);
     }
-  }, [sql, saveName, saveTags]);
+  }, [sql, saveName, saveTags, connectionId]);
 
   const ask = useCallback(async () => {
     if (!question.trim()) {
@@ -170,7 +180,7 @@ export default function QueryRunner() {
     setReport(null);
     setChartType(null);
     try {
-      const r = await api.ask(question.trim());
+      const r = await api.ask(question.trim(), connectionId || undefined);
       setSql(r.sql);
       setReport(r.report);
       announce("Answer and report generated.", "polite");
@@ -183,7 +193,7 @@ export default function QueryRunner() {
     } finally {
       setAskLoading(false);
     }
-  }, [question, announce]);
+  }, [question, announce, connectionId]);
 
   const insertIntoEditor = useCallback((text: string) => {
     setSql((prev) => {
@@ -202,7 +212,7 @@ export default function QueryRunner() {
       <div className="grid grid-cols-1 xl:grid-cols-[260px_1fr] gap-4 xl:gap-6">
         <aside className="xl:sticky xl:top-4 xl:self-start shrink-0">
           <h2 className="text-sm font-semibold text-muted-foreground mb-2 px-1">Database schema</h2>
-          <SchemaBrowser onInsert={insertIntoEditor} />
+          <SchemaBrowser onInsert={insertIntoEditor} connectionId={connectionId || undefined} />
         </aside>
         <div className="space-y-6 min-w-0">
       {/* Ask in natural language */}
@@ -215,6 +225,11 @@ export default function QueryRunner() {
           <p className="text-xs text-muted-foreground mt-1">Describe what you want in plain English; the app will generate SQL and a narrative report.</p>
         </CardHeader>
         <CardContent className="flex flex-wrap gap-3">
+          {connections.length > 0 && (
+            <select className="h-10 rounded-md border border-input bg-background px-3 text-sm" value={connectionId} onChange={(e) => setConnectionId(e.target.value)}>
+              {connections.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          )}
           <Input
             placeholder="e.g. What were the top 5 products by revenue?"
             value={question}

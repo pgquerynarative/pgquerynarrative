@@ -46,6 +46,22 @@ type DatabaseConfig struct {
 	ReadOnlyPassword string
 	SSLMode          string
 	QueryTimeout     time.Duration
+	DefaultID        string
+	Connections      []DataConnectionConfig
+}
+
+// DataConnectionConfig defines one read-only data source.
+type DataConnectionConfig struct {
+	ID               string
+	Name             string
+	Host             string
+	Port             int
+	Database         string
+	ReadOnlyUser     string
+	ReadOnlyPassword string
+	SSLMode          string
+	QueryTimeout     time.Duration
+	AllowedSchemas   []string
 }
 
 // LLMConfig holds LLM provider settings.
@@ -87,6 +103,8 @@ func FromAppConfig(cfg config.Config) Config {
 			ReadOnlyPassword: cfg.Database.ReadOnlyPassword,
 			SSLMode:          cfg.Database.SSLMode,
 			QueryTimeout:     cfg.Database.QueryTimeout,
+			DefaultID:        cfg.Database.DefaultID,
+			Connections:      toNarrativeConnections(cfg.Database.Connections),
 		},
 		LLM: LLMConfig{
 			Provider: cfg.LLM.Provider,
@@ -122,4 +140,23 @@ func allowedSchemasOrDefault(schemas []string) []string {
 		return schemas
 	}
 	return []string{"public", "demo"}
+}
+
+func toNarrativeConnections(in []config.DataConnectionConfig) []DataConnectionConfig {
+	out := make([]DataConnectionConfig, 0, len(in))
+	for _, c := range in {
+		out = append(out, DataConnectionConfig{
+			ID:               c.ID,
+			Name:             c.Name,
+			Host:             c.Host,
+			Port:             c.Port,
+			Database:         c.Database,
+			ReadOnlyUser:     c.ReadOnlyUser,
+			ReadOnlyPassword: c.ReadOnlyPassword,
+			SSLMode:          c.SSLMode,
+			QueryTimeout:     c.QueryTimeout,
+			AllowedSchemas:   append([]string(nil), c.AllowedSchemas...),
+		})
+	}
+	return out
 }

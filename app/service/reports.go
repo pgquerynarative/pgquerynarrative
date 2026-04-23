@@ -33,17 +33,21 @@ type ReportsService struct {
 	metricsOpts    *metrics.Options
 	embedder       embedding.Embedder
 	embeddingStore *embedding.Store
+	runners        map[string]*queryrunner.Runner
+	connectionResolver
 }
 
 func NewReportsService(readOnlyPool, appPool *pgxpool.Pool, runner *queryrunner.Runner, llmClient llm.Client, metricsCfg config.MetricsConfig) *ReportsService {
 	opts := metricsOptionsFromConfig(metricsCfg)
 	return &ReportsService{
-		readOnlyPool: readOnlyPool,
-		appPool:      appPool,
-		runner:       runner,
-		llmClient:    llmClient,
-		generator:    story.NewGenerator(llmClient),
-		metricsOpts:  opts,
+		readOnlyPool:       readOnlyPool,
+		appPool:            appPool,
+		runner:             runner,
+		llmClient:          llmClient,
+		generator:          story.NewGenerator(llmClient),
+		metricsOpts:        opts,
+		runners:            map[string]*queryrunner.Runner{"default": runner},
+		connectionResolver: newConnectionResolver("default", map[string]*queryrunner.Runner{"default": runner}, nil),
 	}
 }
 
@@ -52,21 +56,49 @@ func NewReportsService(readOnlyPool, appPool *pgxpool.Pool, runner *queryrunner.
 func NewReportsServiceWithRAG(readOnlyPool, appPool *pgxpool.Pool, runner *queryrunner.Runner, llmClient llm.Client, metricsCfg config.MetricsConfig, embedder embedding.Embedder, embeddingStore *embedding.Store) *ReportsService {
 	opts := metricsOptionsFromConfig(metricsCfg)
 	return &ReportsService{
-		readOnlyPool:   readOnlyPool,
-		appPool:        appPool,
-		runner:         runner,
-		llmClient:      llmClient,
-		generator:      story.NewGenerator(llmClient),
-		metricsOpts:    opts,
-		embedder:       embedder,
-		embeddingStore: embeddingStore,
+		readOnlyPool:       readOnlyPool,
+		appPool:            appPool,
+		runner:             runner,
+		llmClient:          llmClient,
+		generator:          story.NewGenerator(llmClient),
+		metricsOpts:        opts,
+		embedder:           embedder,
+		embeddingStore:     embeddingStore,
+		runners:            map[string]*queryrunner.Runner{"default": runner},
+		connectionResolver: newConnectionResolver("default", map[string]*queryrunner.Runner{"default": runner}, nil),
+	}
+}
+
+// NewReportsServiceMultiConnection creates a reports service with one runner per connection.
+func NewReportsServiceMultiConnection(appPool *pgxpool.Pool, runners map[string]*queryrunner.Runner, defaultConnectionID string, llmClient llm.Client, metricsCfg config.MetricsConfig, embedder embedding.Embedder, embeddingStore *embedding.Store) *ReportsService {
+	var defaultRunner *queryrunner.Runner
+	if r, ok := runners[defaultConnectionID]; ok {
+		defaultRunner = r
+	} else {
+		for _, r := range runners {
+			defaultRunner = r
+			break
+		}
+	}
+	opts := metricsOptionsFromConfig(metricsCfg)
+	return &ReportsService{
+		appPool:            appPool,
+		runner:             defaultRunner,
+		llmClient:          llmClient,
+		generator:          story.NewGenerator(llmClient),
+		metricsOpts:        opts,
+		embedder:           embedder,
+		embeddingStore:     embeddingStore,
+		runners:            runners,
+		connectionResolver: newConnectionResolver(defaultConnectionID, runners, nil),
 	}
 }
 
 func (s *ReportsService) Generate(ctx context.Context, payload *reports.GenerateReportPayload) (*reports.Report, error) {
 	debuglog.Log("report generation started")
 	// Execute query
-	queryResult, err := s.runner.Run(ctx, payload.SQL, 1000)
+	connectionID := s.normalizedConnectionID(payload.ConnectionID)
+	queryResult, err := s.connectionResolver.runnerFor(payload.ConnectionID).Run(ctx, payload.SQL, 1000)
 	if err != nil {
 		kind, userMsg := ClassifyRunError(err)
 		if kind == RunErrorTimeout {
@@ -139,7 +171,7 @@ func (s *ReportsService) Generate(ctx context.Context, payload *reports.Generate
 
 	// Store report in database
 	debuglog.Log("storing report in database")
-	reportID, err := s.storeReport(ctx, payload, narrative, calcMetrics, queryResult, providerName, modelName)
+	reportID, err := s.storeReport(ctx, payload, narrative, calcMetrics, queryResult, providerName, modelName, connectionID)
 	if err != nil {
 		return nil, err
 	}
@@ -161,6 +193,7 @@ func (s *ReportsService) Generate(ctx context.Context, payload *reports.Generate
 		Narrative:        narrativeData,
 		Metrics:          metricsData,
 		ChartSuggestions: chartSuggestions,
+		ConnectionID:     connectionID,
 		CreatedAt:        time.Now().Format(time.RFC3339),
 		LlmModel:         modelName,
 		LlmProvider:      providerName,
@@ -312,7 +345,7 @@ func chartTypeLabel(chartType string) string {
 	}
 }
 
-func (s *ReportsService) storeReport(ctx context.Context, payload *reports.GenerateReportPayload, narrative *story.NarrativeContent, calcMetrics *metrics.Metrics, queryResult *queryrunner.Result, providerName, modelName string) (string, error) {
+func (s *ReportsService) storeReport(ctx context.Context, payload *reports.GenerateReportPayload, narrative *story.NarrativeContent, calcMetrics *metrics.Metrics, queryResult *queryrunner.Result, providerName, modelName, connectionID string) (string, error) {
 	narrativeJSON, _ := json.Marshal(narrative)
 	metricsJSON, _ := json.Marshal(calcMetrics)
 	statsJSON, _ := json.Marshal(map[string]interface{}{
@@ -324,11 +357,11 @@ func (s *ReportsService) storeReport(ctx context.Context, payload *reports.Gener
 	err := s.appPool.QueryRow(ctx, `
 		INSERT INTO app.reports (
 			saved_query_id, sql, narrative_md, narrative_json, metrics, stats,
-			llm_model, llm_provider, success
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+			llm_model, llm_provider, success, connection_id
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 		RETURNING id
 	`, payload.SavedQueryID, payload.SQL, narrative.Headline, narrativeJSON, metricsJSON, statsJSON,
-		modelName, providerName, true).Scan(&reportID)
+		modelName, providerName, true, connectionID).Scan(&reportID)
 
 	return reportID, err
 }
@@ -349,7 +382,7 @@ func llmMetadata(client llm.Client) (providerName, modelName string) {
 
 func (s *ReportsService) Get(ctx context.Context, payload *reports.GetPayload) (*reports.Report, error) {
 	row := s.appPool.QueryRow(ctx, `
-		SELECT id, saved_query_id, sql, narrative_json, metrics, created_at, llm_model, llm_provider
+		SELECT id, saved_query_id, sql, narrative_json, metrics, created_at, llm_model, llm_provider, connection_id
 		FROM app.reports
 		WHERE id = $1
 	`, payload.ID)
@@ -360,7 +393,7 @@ func (s *ReportsService) Get(ctx context.Context, payload *reports.GetPayload) (
 	var metricsJSON []byte
 	var createdAt time.Time
 
-	err := row.Scan(&report.ID, &savedQueryID, &report.SQL, &narrativeJSON, &metricsJSON, &createdAt, &report.LlmModel, &report.LlmProvider)
+	err := row.Scan(&report.ID, &savedQueryID, &report.SQL, &narrativeJSON, &metricsJSON, &createdAt, &report.LlmModel, &report.LlmProvider, &report.ConnectionID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, &reports.NotFoundError{
@@ -405,16 +438,34 @@ func (s *ReportsService) List(ctx context.Context, payload *reports.ListPayload)
 	var err error
 
 	if payload.SavedQueryID != nil && *payload.SavedQueryID != "" {
-		rows, err = s.appPool.Query(ctx, `
-			SELECT id, saved_query_id, sql, narrative_json, metrics, created_at, llm_model, llm_provider
+		if payload.ConnectionID != nil && *payload.ConnectionID != "" {
+			rows, err = s.appPool.Query(ctx, `
+			SELECT id, saved_query_id, sql, narrative_json, metrics, created_at, llm_model, llm_provider, connection_id
+			FROM app.reports
+			WHERE saved_query_id = $1 AND connection_id = $2
+			ORDER BY created_at DESC
+			LIMIT $3 OFFSET $4
+		`, *payload.SavedQueryID, *payload.ConnectionID, limit, offset)
+		} else {
+			rows, err = s.appPool.Query(ctx, `
+			SELECT id, saved_query_id, sql, narrative_json, metrics, created_at, llm_model, llm_provider, connection_id
 			FROM app.reports
 			WHERE saved_query_id = $1
 			ORDER BY created_at DESC
 			LIMIT $2 OFFSET $3
 		`, *payload.SavedQueryID, limit, offset)
+		}
+	} else if payload.ConnectionID != nil && *payload.ConnectionID != "" {
+		rows, err = s.appPool.Query(ctx, `
+			SELECT id, saved_query_id, sql, narrative_json, metrics, created_at, llm_model, llm_provider, connection_id
+			FROM app.reports
+			WHERE connection_id = $1
+			ORDER BY created_at DESC
+			LIMIT $2 OFFSET $3
+		`, *payload.ConnectionID, limit, offset)
 	} else {
 		rows, err = s.appPool.Query(ctx, `
-			SELECT id, saved_query_id, sql, narrative_json, metrics, created_at, llm_model, llm_provider
+			SELECT id, saved_query_id, sql, narrative_json, metrics, created_at, llm_model, llm_provider, connection_id
 			FROM app.reports
 			ORDER BY created_at DESC
 			LIMIT $1 OFFSET $2
@@ -434,7 +485,7 @@ func (s *ReportsService) List(ctx context.Context, payload *reports.ListPayload)
 		var metricsJSON []byte
 		var createdAt time.Time
 
-		if err := rows.Scan(&report.ID, &savedQueryID, &report.SQL, &narrativeJSON, &metricsJSON, &createdAt, &report.LlmModel, &report.LlmProvider); err != nil {
+		if err := rows.Scan(&report.ID, &savedQueryID, &report.SQL, &narrativeJSON, &metricsJSON, &createdAt, &report.LlmModel, &report.LlmProvider, &report.ConnectionID); err != nil {
 			return nil, err
 		}
 

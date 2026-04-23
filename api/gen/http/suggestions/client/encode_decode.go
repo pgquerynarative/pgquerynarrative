@@ -391,6 +391,7 @@ func unmarshalReportResponseBodyToSuggestionsReport(v *ReportResponseBody) *sugg
 		ID:           *v.ID,
 		SavedQueryID: v.SavedQueryID,
 		SQL:          *v.SQL,
+		ConnectionID: *v.ConnectionID,
 		CreatedAt:    *v.CreatedAt,
 		LlmModel:     *v.LlmModel,
 		LlmProvider:  *v.LlmProvider,

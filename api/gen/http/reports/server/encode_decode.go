@@ -182,6 +182,7 @@ func DecodeListRequest(mux goahttp.Muxer, decoder func(*http.Request) goahttp.De
 	return func(r *http.Request) (*reports.ListPayload, error) {
 		var (
 			savedQueryID *string
+			connectionID *string
 			limit        int32
 			offset       int32
 			err          error
@@ -193,6 +194,10 @@ func DecodeListRequest(mux goahttp.Muxer, decoder func(*http.Request) goahttp.De
 		}
 		if savedQueryID != nil {
 			err = goa.MergeErrors(err, goa.ValidateFormat("saved_query_id", *savedQueryID, goa.FormatUUID))
+		}
+		connectionIDRaw := qp.Get("connection_id")
+		if connectionIDRaw != "" {
+			connectionID = &connectionIDRaw
 		}
 		{
 			limitRaw := qp.Get("limit")
@@ -228,7 +233,7 @@ func DecodeListRequest(mux goahttp.Muxer, decoder func(*http.Request) goahttp.De
 		if err != nil {
 			return nil, err
 		}
-		payload := NewListPayload(savedQueryID, limit, offset)
+		payload := NewListPayload(savedQueryID, connectionID, limit, offset)
 
 		return payload, nil
 	}
@@ -585,6 +590,7 @@ func marshalReportsReportToReportResponseBody(v *reports.Report) *ReportResponse
 		ID:           v.ID,
 		SavedQueryID: v.SavedQueryID,
 		SQL:          v.SQL,
+		ConnectionID: v.ConnectionID,
 		CreatedAt:    v.CreatedAt,
 		LlmModel:     v.LlmModel,
 		LlmProvider:  v.LlmProvider,

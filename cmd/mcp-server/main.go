@@ -58,7 +58,7 @@ func main() {
 		if limit <= 0 {
 			limit = defaultRunLimit
 		}
-		body, err := client.post(ctx, apiPrefix+"/queries/run", map[string]any{"sql": input.SQL, "limit": limit})
+		body, err := client.post(ctx, apiPrefix+"/queries/run", map[string]any{"sql": input.SQL, "limit": limit, "connection_id": input.ConnectionID})
 		return toolResult(body, err)
 	})
 
@@ -66,7 +66,7 @@ func main() {
 		Name:        "generate_report",
 		Description: "Run a SQL query and generate a narrative report (headline, takeaways, drivers, limitations, recommendations) using the configured LLM.",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, input GenerateReportInput) (*mcp.CallToolResult, any, error) {
-		body, err := client.post(ctx, apiPrefix+"/reports/generate", map[string]any{"sql": input.SQL})
+		body, err := client.post(ctx, apiPrefix+"/reports/generate", map[string]any{"sql": input.SQL, "connection_id": input.ConnectionID})
 		return toolResult(body, err)
 	})
 
@@ -78,7 +78,11 @@ func main() {
 		if limit <= 0 {
 			limit = defaultListLimit
 		}
-		body, err := client.get(ctx, listURL(apiPrefix+"/queries/saved", limit, input.Offset))
+		path := listURL(apiPrefix+"/queries/saved", limit, input.Offset)
+		if input.ConnectionID != "" {
+			path += "&connection_id=" + url.QueryEscape(input.ConnectionID)
+		}
+		body, err := client.get(ctx, path)
 		return toolResult(body, err)
 	})
 
@@ -98,7 +102,11 @@ func main() {
 		if limit <= 0 {
 			limit = defaultListLimit
 		}
-		body, err := client.get(ctx, listURL(apiPrefix+"/reports", limit, input.Offset))
+		path := listURL(apiPrefix+"/reports", limit, input.Offset)
+		if input.ConnectionID != "" {
+			path += "&connection_id=" + url.QueryEscape(input.ConnectionID)
+		}
+		body, err := client.get(ctx, path)
 		return toolResult(body, err)
 	})
 
@@ -106,7 +114,18 @@ func main() {
 		Name:        "get_schema",
 		Description: "Returns the database schema available for querying (allowed schemas, tables, columns). Use this to see what tables and columns you can use in run_query.",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, input GetSchemaInput) (*mcp.CallToolResult, any, error) {
-		body, err := client.get(ctx, apiPrefix+"/schema")
+		path := apiPrefix + "/schema"
+		if input.ConnectionID != "" {
+			path = path + "?connection_id=" + url.QueryEscape(input.ConnectionID)
+		}
+		body, err := client.get(ctx, path)
+		return toolResult(body, err)
+	})
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "list_connections",
+		Description: "List configured database connections (id and name).",
+	}, func(ctx context.Context, req *mcp.CallToolRequest, input struct{}) (*mcp.CallToolResult, any, error) {
+		body, err := client.get(ctx, apiPrefix+"/connections")
 		return toolResult(body, err)
 	})
 
@@ -118,7 +137,11 @@ func main() {
 		if savedLimit <= 0 {
 			savedLimit = defaultListLimit
 		}
-		schemaBody, err1 := client.get(ctx, apiPrefix+"/schema")
+		schemaPath := apiPrefix + "/schema"
+		if input.ConnectionID != "" {
+			schemaPath = schemaPath + "?connection_id=" + url.QueryEscape(input.ConnectionID)
+		}
+		schemaBody, err1 := client.get(ctx, schemaPath)
 		savedBody, err2 := client.get(ctx, listURL(apiPrefix+"/queries/saved", savedLimit, input.SavedOffset))
 		out := buildContextResult(schemaBody, savedBody, err1, err2)
 		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: out}}}, nil, nil
@@ -145,7 +168,11 @@ func main() {
 		Name:        "list_schemas",
 		Description: "List allowed database schemas, tables, and columns. Same as get_schema. Use this to see what you can query with run_query or ask_question.",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, input ListSchemasInput) (*mcp.CallToolResult, any, error) {
-		body, err := client.get(ctx, apiPrefix+"/schema")
+		path := apiPrefix + "/schema"
+		if input.ConnectionID != "" {
+			path += "?connection_id=" + url.QueryEscape(input.ConnectionID)
+		}
+		body, err := client.get(ctx, path)
 		return toolResult(body, err)
 	})
 
@@ -156,7 +183,7 @@ func main() {
 		if input.Question == "" {
 			return toolResult("", fmt.Errorf("question is required"))
 		}
-		body, err := client.post(ctx, apiPrefix+"/suggestions/ask", map[string]any{"question": input.Question})
+		body, err := client.post(ctx, apiPrefix+"/suggestions/ask", map[string]any{"question": input.Question, "connection_id": input.ConnectionID})
 		return toolResult(body, err)
 	})
 
@@ -178,17 +205,20 @@ func main() {
 }
 
 type RunQueryInput struct {
-	SQL   string `json:"sql" jsonschema:"Read-only SQL query e.g. SELECT from demo.sales"`
-	Limit int    `json:"limit" jsonschema:"Max rows to return"`
+	SQL          string `json:"sql" jsonschema:"Read-only SQL query e.g. SELECT from demo.sales"`
+	Limit        int    `json:"limit" jsonschema:"Max rows to return"`
+	ConnectionID string `json:"connection_id,omitempty" jsonschema:"Optional configured connection ID (default connection when omitted)"`
 }
 
 type GenerateReportInput struct {
-	SQL string `json:"sql" jsonschema:"SQL query for the report e.g. SELECT category SUM amount FROM demo.sales GROUP BY category"`
+	SQL          string `json:"sql" jsonschema:"SQL query for the report e.g. SELECT category SUM amount FROM demo.sales GROUP BY category"`
+	ConnectionID string `json:"connection_id,omitempty" jsonschema:"Optional configured connection ID"`
 }
 
 type ListSavedQueriesInput struct {
-	Limit  int `json:"limit" jsonschema:"Max items to return"`
-	Offset int `json:"offset" jsonschema:"Offset for pagination"`
+	Limit        int    `json:"limit" jsonschema:"Max items to return"`
+	Offset       int    `json:"offset" jsonschema:"Offset for pagination"`
+	ConnectionID string `json:"connection_id,omitempty" jsonschema:"Optional configured connection ID"`
 }
 
 type GetReportInput struct {
@@ -196,15 +226,19 @@ type GetReportInput struct {
 }
 
 type ListReportsInput struct {
-	Limit  int `json:"limit" jsonschema:"Max items to return"`
-	Offset int `json:"offset" jsonschema:"Offset for pagination"`
+	Limit        int    `json:"limit" jsonschema:"Max items to return"`
+	Offset       int    `json:"offset" jsonschema:"Offset for pagination"`
+	ConnectionID string `json:"connection_id,omitempty" jsonschema:"Optional configured connection ID"`
 }
 
-type GetSchemaInput struct{}
+type GetSchemaInput struct {
+	ConnectionID string `json:"connection_id,omitempty" jsonschema:"Optional configured connection ID"`
+}
 
 type GetContextInput struct {
-	SavedLimit  int `json:"saved_limit" jsonschema:"Max saved queries to include (default 20)"`
-	SavedOffset int `json:"saved_offset" jsonschema:"Offset for saved queries (default 0)"`
+	SavedLimit   int    `json:"saved_limit" jsonschema:"Max saved queries to include (default 20)"`
+	SavedOffset  int    `json:"saved_offset" jsonschema:"Offset for saved queries (default 0)"`
+	ConnectionID string `json:"connection_id,omitempty" jsonschema:"Optional configured connection ID for schema"`
 }
 
 type SuggestQueriesInput struct {
@@ -212,10 +246,13 @@ type SuggestQueriesInput struct {
 	Limit  int    `json:"limit" jsonschema:"Max suggestions to return (default 5)"`
 }
 
-type ListSchemasInput struct{}
+type ListSchemasInput struct {
+	ConnectionID string `json:"connection_id,omitempty" jsonschema:"Optional configured connection ID"`
+}
 
 type AskQuestionInput struct {
-	Question string `json:"question" jsonschema:"Natural-language question (e.g. What were the top 5 products by revenue?)"`
+	Question     string `json:"question" jsonschema:"Natural-language question (e.g. What were the top 5 products by revenue?)"`
+	ConnectionID string `json:"connection_id,omitempty" jsonschema:"Optional configured connection ID"`
 }
 
 type ExplainSQLInput struct {

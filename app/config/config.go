@@ -3,6 +3,7 @@
 package config
 
 import (
+	"encoding/json"
 	"os"
 	"strconv"
 	"strings"
@@ -85,6 +86,22 @@ type DatabaseConfig struct {
 	SSLMode          string        // SSL mode (disable, require, etc.)
 	QueryTimeout     time.Duration // Maximum query execution time
 	AllowedSchemas   []string      // Schemas queries may access (e.g. demo, public). Default: public,demo.
+	Connections      []DataConnectionConfig
+	DefaultID        string
+}
+
+// DataConnectionConfig is a read-only data source that queries/reports can run against.
+type DataConnectionConfig struct {
+	ID               string
+	Name             string
+	Host             string
+	Port             int
+	Database         string
+	ReadOnlyUser     string
+	ReadOnlyPassword string
+	SSLMode          string
+	QueryTimeout     time.Duration
+	AllowedSchemas   []string
 }
 
 // SecurityConfig contains security-related settings.
@@ -162,6 +179,17 @@ func Load() Config {
 			Level:  getEnv("LOG_LEVEL", "info"),
 			Pretty: getLogPrettyDefault(),
 		},
+	}
+	cfg.Database.DefaultID = getEnv("DATABASE_DEFAULT_CONNECTION_ID", "default")
+	cfg.Database.Connections = loadDataConnections(cfg.Database)
+	if cfg.Database.DefaultID == "" {
+		cfg.Database.DefaultID = "default"
+	}
+	if len(cfg.Database.Connections) == 0 {
+		cfg.Database.Connections = []DataConnectionConfig{defaultDataConnection(cfg.Database)}
+	}
+	if !hasConnectionID(cfg.Database.Connections, cfg.Database.DefaultID) {
+		cfg.Database.DefaultID = cfg.Database.Connections[0].ID
 	}
 	if cfg.Embedding.BaseURL == "" && cfg.LLM.Provider == "ollama" && cfg.LLM.BaseURL != "" {
 		cfg.Embedding.BaseURL = cfg.LLM.BaseURL
@@ -321,4 +349,65 @@ func getEnvSliceWithVal(value, sep string) []string {
 // getEnvSlice retrieves an environment variable, splits by sep, trims each part, and returns non-empty elements.
 func getEnvSlice(key, sep string) []string {
 	return getEnvSliceWithVal(os.Getenv(key), sep)
+}
+
+func defaultDataConnection(db DatabaseConfig) DataConnectionConfig {
+	return DataConnectionConfig{
+		ID:               "default",
+		Name:             "Default",
+		Host:             db.Host,
+		Port:             db.Port,
+		Database:         db.Database,
+		ReadOnlyUser:     db.ReadOnlyUser,
+		ReadOnlyPassword: db.ReadOnlyPassword,
+		SSLMode:          db.SSLMode,
+		QueryTimeout:     db.QueryTimeout,
+		AllowedSchemas:   append([]string(nil), db.AllowedSchemas...),
+	}
+}
+
+func loadDataConnections(db DatabaseConfig) []DataConnectionConfig {
+	out := []DataConnectionConfig{defaultDataConnection(db)}
+	raw := strings.TrimSpace(os.Getenv("DATABASE_CONNECTIONS_JSON"))
+	if raw == "" {
+		return out
+	}
+	var parsed []DataConnectionConfig
+	if err := json.Unmarshal([]byte(raw), &parsed); err != nil {
+		return out
+	}
+	for _, c := range parsed {
+		if strings.TrimSpace(c.ID) == "" {
+			continue
+		}
+		if c.Name == "" {
+			c.Name = c.ID
+		}
+		if c.Host == "" || c.Database == "" || c.ReadOnlyUser == "" {
+			continue
+		}
+		if c.Port <= 0 {
+			c.Port = 5432
+		}
+		if c.SSLMode == "" {
+			c.SSLMode = "disable"
+		}
+		if c.QueryTimeout <= 0 {
+			c.QueryTimeout = db.QueryTimeout
+		}
+		if len(c.AllowedSchemas) == 0 {
+			c.AllowedSchemas = append([]string(nil), db.AllowedSchemas...)
+		}
+		out = append(out, c)
+	}
+	return out
+}
+
+func hasConnectionID(connections []DataConnectionConfig, id string) bool {
+	for _, c := range connections {
+		if c.ID == id {
+			return true
+		}
+	}
+	return false
 }

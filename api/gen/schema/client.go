@@ -26,9 +26,9 @@ func NewClient(get goa.Endpoint) *Client {
 }
 
 // Get calls the "get" endpoint of the "schema" service.
-func (c *Client) Get(ctx context.Context) (res *SchemaResult, err error) {
+func (c *Client) Get(ctx context.Context, p *GetPayload) (res *SchemaResult, err error) {
 	var ires any
-	ires, err = c.GetEndpoint(ctx, nil)
+	ires, err = c.GetEndpoint(ctx, p)
 	if err != nil {
 		return
 	}

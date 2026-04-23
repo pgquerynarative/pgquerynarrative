@@ -64,6 +64,8 @@ type AskPayload struct {
 	// Natural-language question (e.g. 'What were top 5 products by revenue last
 	// month?')
 	Question string
+	// Optional connection ID; defaults to server default connection
+	ConnectionID *string
 }
 
 // AskResult is the result type of the suggestions service ask method.
@@ -187,6 +189,7 @@ type Report struct {
 	ID           string
 	SavedQueryID *string
 	SQL          string
+	ConnectionID string
 	Narrative    *NarrativeContent
 	Metrics      *MetricsData
 	// Suggested chart types based on result shape

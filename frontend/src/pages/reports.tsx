@@ -4,7 +4,7 @@ import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { api, type Report } from "@/api/client";
+import { api, type Report, type ConnectionInfo } from "@/api/client";
 import { FileText, Download, Clock, Cpu, ArrowLeft, BarChart3 } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { cn, truncate } from "@/lib/utils";
@@ -49,6 +49,7 @@ function ReportDetail() {
           <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
             <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{new Date(report.created_at).toLocaleString()}</span>
             <span className="flex items-center gap-1"><Cpu className="h-3 w-3" />{report.llm_provider} / {report.llm_model}</span>
+            <Badge variant="secondary" className="text-[10px]">{report.connection_id}</Badge>
           </div>
         </div>
         <div className="flex gap-2">
@@ -261,13 +262,18 @@ function Li({ children, color }: { children: React.ReactNode; color: string }) {
 function ReportList() {
   const [reports, setReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
+  const [connections, setConnections] = useState<ConnectionInfo[]>([]);
+  const [connectionFilter, setConnectionFilter] = useState("");
 
   const load = useCallback(async () => {
-    try { const res = await api.listReports(50, 0); setReports(res.items || []); } catch {}
+    try { const res = await api.listReports(50, 0, connectionFilter || undefined); setReports(res.items || []); } catch {}
     finally { setLoading(false); }
-  }, []);
+  }, [connectionFilter]);
 
   useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    api.listConnections().then((r) => setConnections(r.items || [])).catch(() => {});
+  }, []);
 
   return (
     <div className="space-y-6">
@@ -275,6 +281,15 @@ function ReportList() {
         <h1 className="text-2xl font-bold tracking-tight">Reports</h1>
         <p className="text-muted-foreground mt-1">Generated narrative reports from your queries.</p>
       </div>
+      {connections.length > 0 && (
+        <div className="flex items-center gap-2">
+          <label className="text-sm text-muted-foreground">Connection</label>
+          <select className="h-9 rounded-md border border-input bg-background px-3 text-sm" value={connectionFilter} onChange={(e) => setConnectionFilter(e.target.value)}>
+            <option value="">All</option>
+            {connections.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        </div>
+      )}
 
       {loading ? (
         <div className="space-y-3">{[1,2,3].map(i => <Skeleton key={i} className="h-20 w-full" />)}</div>
@@ -297,6 +312,7 @@ function ReportList() {
                     <div className="flex items-center gap-3 mt-1.5">
                       <span className="text-xs text-muted-foreground flex items-center gap-1"><Clock className="h-3 w-3" />{new Date(r.created_at).toLocaleDateString()}</span>
                       <Badge variant="secondary" className="text-[10px]">{r.llm_provider}</Badge>
+                      <Badge variant="outline" className="text-[10px]">{r.connection_id}</Badge>
                     </div>
                   </div>
                   <FileText className="h-5 w-5 text-brand-cyan flex-shrink-0 ml-4" />

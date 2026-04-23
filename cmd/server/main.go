@@ -32,6 +32,8 @@ import (
 	"github.com/pgquerynarrative/pgquerynarrative/app/config"
 	"github.com/pgquerynarrative/pgquerynarrative/app/logger"
 	"github.com/pgquerynarrative/pgquerynarrative/app/ratelimit"
+	"github.com/pgquerynarrative/pgquerynarrative/gen/connections"
+	connectionsServer "github.com/pgquerynarrative/pgquerynarrative/gen/http/connections/server"
 	"github.com/pgquerynarrative/pgquerynarrative/pkg/narrative"
 	"github.com/pgquerynarrative/pgquerynarrative/web"
 	goahttp "goa.design/goa/v3/http"
@@ -65,12 +67,13 @@ func main() {
 	logger.SetDefault(appLogger)
 
 	queriesEndpoints := queries.NewEndpoints(client.QueriesService())
+	connectionsEndpoints := connections.NewEndpoints(client.ConnectionsService())
 	reportsEndpoints := reports.NewEndpoints(client.ReportsService())
 	schemaEndpoints := schema.NewEndpoints(client.SchemaService())
 	suggestionsEndpoints := suggestions.NewEndpoints(client.SuggestionsService())
 
 	// Configure HTTP server
-	httpServer := setupHTTPServer(cfg, client, queriesEndpoints, reportsEndpoints, schemaEndpoints, suggestionsEndpoints, appLogger)
+	httpServer := setupHTTPServer(cfg, client, queriesEndpoints, connectionsEndpoints, reportsEndpoints, schemaEndpoints, suggestionsEndpoints, appLogger)
 
 	// Start server in a goroutine
 	go func() {
@@ -107,6 +110,7 @@ func setupHTTPServer(
 	cfg config.Config,
 	client *narrative.Client,
 	queriesEndpoints *queries.Endpoints,
+	connectionsEndpoints *connections.Endpoints,
 	reportsEndpoints *reports.Endpoints,
 	schemaEndpoints *schema.Endpoints,
 	suggestionsEndpoints *suggestions.Endpoints,
@@ -121,6 +125,8 @@ func setupHTTPServer(
 
 	queriesHTTP := server.New(queriesEndpoints, mux, dec, enc, errHandler, nil)
 	server.Mount(mux, queriesHTTP)
+	connectionsHTTP := connectionsServer.New(connectionsEndpoints, mux, dec, enc, errHandler, nil)
+	connectionsServer.Mount(mux, connectionsHTTP)
 	reportsHTTP := reportsServer.New(reportsEndpoints, mux, dec, enc, errHandler, nil)
 	reportsServer.Mount(mux, reportsHTTP)
 	schemaHTTP := schemaServer.New(schemaEndpoints, mux, dec, enc, errHandler, nil)

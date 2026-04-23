@@ -57,6 +57,7 @@ var _ = Service("suggestions", func() {
 				MinLength(1)
 				MaxLength(1000)
 			})
+			Attribute("connection_id", String, "Optional connection ID; defaults to server default connection")
 			Required("question")
 		})
 		Result(AskResult)

@@ -23,6 +23,7 @@ var _ = Service("queries", func() {
 		Description("List saved queries")
 		Payload(func() {
 			Attribute("tags", ArrayOf(String))
+			Attribute("connection_id", String)
 			Attribute("limit", Int32, func() {
 				Default(50)
 				Minimum(1)
@@ -38,6 +39,7 @@ var _ = Service("queries", func() {
 			GET("/api/v1/queries/saved")
 			Params(func() {
 				Param("tags")
+				Param("connection_id")
 				Param("limit")
 				Param("offset")
 			})

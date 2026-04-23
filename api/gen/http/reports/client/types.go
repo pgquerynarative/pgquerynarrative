@@ -17,6 +17,7 @@ import (
 type GenerateRequestBody struct {
 	SQL          string  `form:"sql" json:"sql" xml:"sql"`
 	SavedQueryID *string `form:"saved_query_id,omitempty" json:"saved_query_id,omitempty" xml:"saved_query_id,omitempty"`
+	ConnectionID *string `form:"connection_id,omitempty" json:"connection_id,omitempty" xml:"connection_id,omitempty"`
 }
 
 // GenerateResponseBody is the type of the "reports" service "generate"
@@ -25,6 +26,7 @@ type GenerateResponseBody struct {
 	ID           *string                       `form:"id,omitempty" json:"id,omitempty" xml:"id,omitempty"`
 	SavedQueryID *string                       `form:"saved_query_id,omitempty" json:"saved_query_id,omitempty" xml:"saved_query_id,omitempty"`
 	SQL          *string                       `form:"sql,omitempty" json:"sql,omitempty" xml:"sql,omitempty"`
+	ConnectionID *string                       `form:"connection_id,omitempty" json:"connection_id,omitempty" xml:"connection_id,omitempty"`
 	Narrative    *NarrativeContentResponseBody `form:"narrative,omitempty" json:"narrative,omitempty" xml:"narrative,omitempty"`
 	Metrics      *MetricsDataResponseBody      `form:"metrics,omitempty" json:"metrics,omitempty" xml:"metrics,omitempty"`
 	// Suggested chart types based on result shape
@@ -40,6 +42,7 @@ type GetResponseBody struct {
 	ID           *string                       `form:"id,omitempty" json:"id,omitempty" xml:"id,omitempty"`
 	SavedQueryID *string                       `form:"saved_query_id,omitempty" json:"saved_query_id,omitempty" xml:"saved_query_id,omitempty"`
 	SQL          *string                       `form:"sql,omitempty" json:"sql,omitempty" xml:"sql,omitempty"`
+	ConnectionID *string                       `form:"connection_id,omitempty" json:"connection_id,omitempty" xml:"connection_id,omitempty"`
 	Narrative    *NarrativeContentResponseBody `form:"narrative,omitempty" json:"narrative,omitempty" xml:"narrative,omitempty"`
 	Metrics      *MetricsDataResponseBody      `form:"metrics,omitempty" json:"metrics,omitempty" xml:"metrics,omitempty"`
 	// Suggested chart types based on result shape
@@ -235,6 +238,7 @@ type ReportResponseBody struct {
 	ID           *string                       `form:"id,omitempty" json:"id,omitempty" xml:"id,omitempty"`
 	SavedQueryID *string                       `form:"saved_query_id,omitempty" json:"saved_query_id,omitempty" xml:"saved_query_id,omitempty"`
 	SQL          *string                       `form:"sql,omitempty" json:"sql,omitempty" xml:"sql,omitempty"`
+	ConnectionID *string                       `form:"connection_id,omitempty" json:"connection_id,omitempty" xml:"connection_id,omitempty"`
 	Narrative    *NarrativeContentResponseBody `form:"narrative,omitempty" json:"narrative,omitempty" xml:"narrative,omitempty"`
 	Metrics      *MetricsDataResponseBody      `form:"metrics,omitempty" json:"metrics,omitempty" xml:"metrics,omitempty"`
 	// Suggested chart types based on result shape
@@ -250,6 +254,7 @@ func NewGenerateRequestBody(p *reports.GenerateReportPayload) *GenerateRequestBo
 	body := &GenerateRequestBody{
 		SQL:          p.SQL,
 		SavedQueryID: p.SavedQueryID,
+		ConnectionID: p.ConnectionID,
 	}
 	return body
 }
@@ -261,6 +266,7 @@ func NewGenerateReportOK(body *GenerateResponseBody) *reports.Report {
 		ID:           *body.ID,
 		SavedQueryID: body.SavedQueryID,
 		SQL:          *body.SQL,
+		ConnectionID: *body.ConnectionID,
 		CreatedAt:    *body.CreatedAt,
 		LlmModel:     *body.LlmModel,
 		LlmProvider:  *body.LlmProvider,
@@ -312,6 +318,7 @@ func NewGetReportOK(body *GetResponseBody) *reports.Report {
 		ID:           *body.ID,
 		SavedQueryID: body.SavedQueryID,
 		SQL:          *body.SQL,
+		ConnectionID: *body.ConnectionID,
 		CreatedAt:    *body.CreatedAt,
 		LlmModel:     *body.LlmModel,
 		LlmProvider:  *body.LlmProvider,
@@ -371,6 +378,9 @@ func ValidateGenerateResponseBody(body *GenerateResponseBody) (err error) {
 	if body.SQL == nil {
 		err = goa.MergeErrors(err, goa.MissingFieldError("sql", "body"))
 	}
+	if body.ConnectionID == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("connection_id", "body"))
+	}
 	if body.Narrative == nil {
 		err = goa.MergeErrors(err, goa.MissingFieldError("narrative", "body"))
 	}
@@ -422,6 +432,9 @@ func ValidateGetResponseBody(body *GetResponseBody) (err error) {
 	}
 	if body.SQL == nil {
 		err = goa.MergeErrors(err, goa.MissingFieldError("sql", "body"))
+	}
+	if body.ConnectionID == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("connection_id", "body"))
 	}
 	if body.Narrative == nil {
 		err = goa.MergeErrors(err, goa.MissingFieldError("narrative", "body"))
@@ -727,6 +740,9 @@ func ValidateReportResponseBody(body *ReportResponseBody) (err error) {
 	}
 	if body.SQL == nil {
 		err = goa.MergeErrors(err, goa.MissingFieldError("sql", "body"))
+	}
+	if body.ConnectionID == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("connection_id", "body"))
 	}
 	if body.Narrative == nil {
 		err = goa.MergeErrors(err, goa.MissingFieldError("narrative", "body"))

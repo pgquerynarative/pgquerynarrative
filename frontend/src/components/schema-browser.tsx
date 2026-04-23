@@ -7,9 +7,10 @@ import { cn } from "@/lib/utils";
 interface SchemaBrowserProps {
   onInsert: (text: string) => void;
   className?: string;
+  connectionId?: string;
 }
 
-export function SchemaBrowser({ onInsert, className }: SchemaBrowserProps) {
+export function SchemaBrowser({ onInsert, className, connectionId }: SchemaBrowserProps) {
   const [schemas, setSchemas] = useState<SchemaInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -17,11 +18,11 @@ export function SchemaBrowser({ onInsert, className }: SchemaBrowserProps) {
 
   useEffect(() => {
     api
-      .getSchema()
+      .getSchema(connectionId)
       .then((r) => setSchemas(r.schemas ?? []))
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
-  }, []);
+  }, [connectionId]);
 
   const toggle = (key: string) => {
     setExpanded((prev) => ({ ...prev, [key]: !prev[key] }));

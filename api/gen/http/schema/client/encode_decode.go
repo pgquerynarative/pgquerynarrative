@@ -33,6 +33,23 @@ func (c *Client) BuildGetRequest(ctx context.Context, v any) (*http.Request, err
 	return req, nil
 }
 
+// EncodeGetRequest returns an encoder for requests sent to the schema get
+// server.
+func EncodeGetRequest(encoder func(*http.Request) goahttp.Encoder) func(*http.Request, any) error {
+	return func(req *http.Request, v any) error {
+		p, ok := v.(*schema.GetPayload)
+		if !ok {
+			return goahttp.ErrInvalidType("schema", "get", "*schema.GetPayload", v)
+		}
+		values := req.URL.Query()
+		if p.ConnectionID != nil {
+			values.Add("connection_id", *p.ConnectionID)
+		}
+		req.URL.RawQuery = values.Encode()
+		return nil
+	}
+}
+
 // DecodeGetResponse returns a decoder for responses returned by the schema get
 // endpoint. restoreBody controls whether the response body should be restored
 // after having been read.

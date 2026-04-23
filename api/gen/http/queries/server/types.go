@@ -21,6 +21,8 @@ type RunRequestBody struct {
 	SQL *string `form:"sql,omitempty" json:"sql,omitempty" xml:"sql,omitempty"`
 	// Maximum number of rows to return
 	Limit *int32 `form:"limit,omitempty" json:"limit,omitempty" xml:"limit,omitempty"`
+	// Optional connection ID; defaults to server default connection
+	ConnectionID *string `form:"connection_id,omitempty" json:"connection_id,omitempty" xml:"connection_id,omitempty"`
 }
 
 // SaveRequestBody is the type of the "queries" service "save" endpoint HTTP
@@ -30,6 +32,8 @@ type SaveRequestBody struct {
 	SQL         *string  `form:"sql,omitempty" json:"sql,omitempty" xml:"sql,omitempty"`
 	Description *string  `form:"description,omitempty" json:"description,omitempty" xml:"description,omitempty"`
 	Tags        []string `form:"tags,omitempty" json:"tags,omitempty" xml:"tags,omitempty"`
+	// Optional connection ID; defaults to server default connection
+	ConnectionID *string `form:"connection_id,omitempty" json:"connection_id,omitempty" xml:"connection_id,omitempty"`
 }
 
 // RunResponseBody is the type of the "queries" service "run" endpoint HTTP
@@ -62,25 +66,27 @@ type ListSavedResponseBody struct {
 // SaveResponseBody is the type of the "queries" service "save" endpoint HTTP
 // response body.
 type SaveResponseBody struct {
-	ID          string   `form:"id" json:"id" xml:"id"`
-	Name        string   `form:"name" json:"name" xml:"name"`
-	SQL         string   `form:"sql" json:"sql" xml:"sql"`
-	Description *string  `form:"description,omitempty" json:"description,omitempty" xml:"description,omitempty"`
-	Tags        []string `form:"tags,omitempty" json:"tags,omitempty" xml:"tags,omitempty"`
-	CreatedAt   string   `form:"created_at" json:"created_at" xml:"created_at"`
-	UpdatedAt   string   `form:"updated_at" json:"updated_at" xml:"updated_at"`
+	ID           string   `form:"id" json:"id" xml:"id"`
+	Name         string   `form:"name" json:"name" xml:"name"`
+	SQL          string   `form:"sql" json:"sql" xml:"sql"`
+	Description  *string  `form:"description,omitempty" json:"description,omitempty" xml:"description,omitempty"`
+	Tags         []string `form:"tags,omitempty" json:"tags,omitempty" xml:"tags,omitempty"`
+	ConnectionID string   `form:"connection_id" json:"connection_id" xml:"connection_id"`
+	CreatedAt    string   `form:"created_at" json:"created_at" xml:"created_at"`
+	UpdatedAt    string   `form:"updated_at" json:"updated_at" xml:"updated_at"`
 }
 
 // GetSavedResponseBody is the type of the "queries" service "get_saved"
 // endpoint HTTP response body.
 type GetSavedResponseBody struct {
-	ID          string   `form:"id" json:"id" xml:"id"`
-	Name        string   `form:"name" json:"name" xml:"name"`
-	SQL         string   `form:"sql" json:"sql" xml:"sql"`
-	Description *string  `form:"description,omitempty" json:"description,omitempty" xml:"description,omitempty"`
-	Tags        []string `form:"tags,omitempty" json:"tags,omitempty" xml:"tags,omitempty"`
-	CreatedAt   string   `form:"created_at" json:"created_at" xml:"created_at"`
-	UpdatedAt   string   `form:"updated_at" json:"updated_at" xml:"updated_at"`
+	ID           string   `form:"id" json:"id" xml:"id"`
+	Name         string   `form:"name" json:"name" xml:"name"`
+	SQL          string   `form:"sql" json:"sql" xml:"sql"`
+	Description  *string  `form:"description,omitempty" json:"description,omitempty" xml:"description,omitempty"`
+	Tags         []string `form:"tags,omitempty" json:"tags,omitempty" xml:"tags,omitempty"`
+	ConnectionID string   `form:"connection_id" json:"connection_id" xml:"connection_id"`
+	CreatedAt    string   `form:"created_at" json:"created_at" xml:"created_at"`
+	UpdatedAt    string   `form:"updated_at" json:"updated_at" xml:"updated_at"`
 }
 
 // RunValidationErrorResponseBody is the type of the "queries" service "run"
@@ -142,13 +148,14 @@ type PeriodComparisonItemResponseBody struct {
 
 // SavedQueryResponseBody is used to define fields on response body types.
 type SavedQueryResponseBody struct {
-	ID          string   `form:"id" json:"id" xml:"id"`
-	Name        string   `form:"name" json:"name" xml:"name"`
-	SQL         string   `form:"sql" json:"sql" xml:"sql"`
-	Description *string  `form:"description,omitempty" json:"description,omitempty" xml:"description,omitempty"`
-	Tags        []string `form:"tags,omitempty" json:"tags,omitempty" xml:"tags,omitempty"`
-	CreatedAt   string   `form:"created_at" json:"created_at" xml:"created_at"`
-	UpdatedAt   string   `form:"updated_at" json:"updated_at" xml:"updated_at"`
+	ID           string   `form:"id" json:"id" xml:"id"`
+	Name         string   `form:"name" json:"name" xml:"name"`
+	SQL          string   `form:"sql" json:"sql" xml:"sql"`
+	Description  *string  `form:"description,omitempty" json:"description,omitempty" xml:"description,omitempty"`
+	Tags         []string `form:"tags,omitempty" json:"tags,omitempty" xml:"tags,omitempty"`
+	ConnectionID string   `form:"connection_id" json:"connection_id" xml:"connection_id"`
+	CreatedAt    string   `form:"created_at" json:"created_at" xml:"created_at"`
+	UpdatedAt    string   `form:"updated_at" json:"updated_at" xml:"updated_at"`
 }
 
 // NewRunResponseBody builds the HTTP response body from the result of the
@@ -233,12 +240,13 @@ func NewListSavedResponseBody(res *queries.SavedQueryList) *ListSavedResponseBod
 // "save" endpoint of the "queries" service.
 func NewSaveResponseBody(res *queries.SavedQuery) *SaveResponseBody {
 	body := &SaveResponseBody{
-		ID:          res.ID,
-		Name:        res.Name,
-		SQL:         res.SQL,
-		Description: res.Description,
-		CreatedAt:   res.CreatedAt,
-		UpdatedAt:   res.UpdatedAt,
+		ID:           res.ID,
+		Name:         res.Name,
+		SQL:          res.SQL,
+		Description:  res.Description,
+		ConnectionID: res.ConnectionID,
+		CreatedAt:    res.CreatedAt,
+		UpdatedAt:    res.UpdatedAt,
 	}
 	if res.Tags != nil {
 		body.Tags = make([]string, len(res.Tags))
@@ -253,12 +261,13 @@ func NewSaveResponseBody(res *queries.SavedQuery) *SaveResponseBody {
 // "get_saved" endpoint of the "queries" service.
 func NewGetSavedResponseBody(res *queries.SavedQuery) *GetSavedResponseBody {
 	body := &GetSavedResponseBody{
-		ID:          res.ID,
-		Name:        res.Name,
-		SQL:         res.SQL,
-		Description: res.Description,
-		CreatedAt:   res.CreatedAt,
-		UpdatedAt:   res.UpdatedAt,
+		ID:           res.ID,
+		Name:         res.Name,
+		SQL:          res.SQL,
+		Description:  res.Description,
+		ConnectionID: res.ConnectionID,
+		CreatedAt:    res.CreatedAt,
+		UpdatedAt:    res.UpdatedAt,
 	}
 	if res.Tags != nil {
 		body.Tags = make([]string, len(res.Tags))
@@ -305,7 +314,8 @@ func NewDeleteSavedNotFoundResponseBody(res *queries.NotFoundError) *DeleteSaved
 // NewRunQueryPayload builds a queries service run endpoint payload.
 func NewRunQueryPayload(body *RunRequestBody) *queries.RunQueryPayload {
 	v := &queries.RunQueryPayload{
-		SQL: *body.SQL,
+		SQL:          *body.SQL,
+		ConnectionID: body.ConnectionID,
 	}
 	if body.Limit != nil {
 		v.Limit = *body.Limit
@@ -318,9 +328,10 @@ func NewRunQueryPayload(body *RunRequestBody) *queries.RunQueryPayload {
 }
 
 // NewListSavedPayload builds a queries service list_saved endpoint payload.
-func NewListSavedPayload(tags []string, limit int32, offset int32) *queries.ListSavedPayload {
+func NewListSavedPayload(tags []string, connectionID *string, limit int32, offset int32) *queries.ListSavedPayload {
 	v := &queries.ListSavedPayload{}
 	v.Tags = tags
+	v.ConnectionID = connectionID
 	v.Limit = limit
 	v.Offset = offset
 
@@ -330,9 +341,10 @@ func NewListSavedPayload(tags []string, limit int32, offset int32) *queries.List
 // NewSaveQueryPayload builds a queries service save endpoint payload.
 func NewSaveQueryPayload(body *SaveRequestBody) *queries.SaveQueryPayload {
 	v := &queries.SaveQueryPayload{
-		Name:        *body.Name,
-		SQL:         *body.SQL,
-		Description: body.Description,
+		Name:         *body.Name,
+		SQL:          *body.SQL,
+		Description:  body.Description,
+		ConnectionID: body.ConnectionID,
 	}
 	if body.Tags != nil {
 		v.Tags = make([]string, len(body.Tags))
