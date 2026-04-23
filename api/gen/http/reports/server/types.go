@@ -22,6 +22,15 @@ type GenerateRequestBody struct {
 	ConnectionID *string `form:"connection_id,omitempty" json:"connection_id,omitempty" xml:"connection_id,omitempty"`
 }
 
+// RewriteRequestBody is the type of the "reports" service "rewrite" endpoint
+// HTTP request body.
+type RewriteRequestBody struct {
+	// Report ID to rewrite
+	ReportID *string `form:"report_id,omitempty" json:"report_id,omitempty" xml:"report_id,omitempty"`
+	// How to rewrite the narrative (e.g. concise, executive summary, Spanish)
+	Instruction *string `form:"instruction,omitempty" json:"instruction,omitempty" xml:"instruction,omitempty"`
+}
+
 // GenerateResponseBody is the type of the "reports" service "generate"
 // endpoint HTTP response body.
 type GenerateResponseBody struct {
@@ -68,6 +77,16 @@ type SimilarResponseBody struct {
 	Items []*SimilarReportItemResponseBody `form:"items" json:"items" xml:"items"`
 }
 
+// RewriteResponseBody is the type of the "reports" service "rewrite" endpoint
+// HTTP response body.
+type RewriteResponseBody struct {
+	Headline        string   `form:"headline" json:"headline" xml:"headline"`
+	Takeaways       []string `form:"takeaways" json:"takeaways" xml:"takeaways"`
+	Drivers         []string `form:"drivers,omitempty" json:"drivers,omitempty" xml:"drivers,omitempty"`
+	Limitations     []string `form:"limitations,omitempty" json:"limitations,omitempty" xml:"limitations,omitempty"`
+	Recommendations []string `form:"recommendations,omitempty" json:"recommendations,omitempty" xml:"recommendations,omitempty"`
+}
+
 // GenerateLlmErrorResponseBody is the type of the "reports" service "generate"
 // endpoint HTTP response body for the "llm_error" error.
 type GenerateLlmErrorResponseBody struct {
@@ -87,6 +106,30 @@ type GenerateValidationErrorResponseBody struct {
 // GetNotFoundResponseBody is the type of the "reports" service "get" endpoint
 // HTTP response body for the "not_found" error.
 type GetNotFoundResponseBody struct {
+	Name    string  `form:"name" json:"name" xml:"name"`
+	Message string  `form:"message" json:"message" xml:"message"`
+	Code    *string `form:"code,omitempty" json:"code,omitempty" xml:"code,omitempty"`
+}
+
+// RewriteLlmErrorResponseBody is the type of the "reports" service "rewrite"
+// endpoint HTTP response body for the "llm_error" error.
+type RewriteLlmErrorResponseBody struct {
+	Name    string  `form:"name" json:"name" xml:"name"`
+	Message string  `form:"message" json:"message" xml:"message"`
+	Code    *string `form:"code,omitempty" json:"code,omitempty" xml:"code,omitempty"`
+}
+
+// RewriteNotFoundResponseBody is the type of the "reports" service "rewrite"
+// endpoint HTTP response body for the "not_found" error.
+type RewriteNotFoundResponseBody struct {
+	Name    string  `form:"name" json:"name" xml:"name"`
+	Message string  `form:"message" json:"message" xml:"message"`
+	Code    *string `form:"code,omitempty" json:"code,omitempty" xml:"code,omitempty"`
+}
+
+// RewriteValidationErrorResponseBody is the type of the "reports" service
+// "rewrite" endpoint HTTP response body for the "validation_error" error.
+type RewriteValidationErrorResponseBody struct {
 	Name    string  `form:"name" json:"name" xml:"name"`
 	Message string  `form:"message" json:"message" xml:"message"`
 	Code    *string `form:"code,omitempty" json:"code,omitempty" xml:"code,omitempty"`
@@ -374,6 +417,41 @@ func NewSimilarResponseBody(res *reports.ReportSimilarResult) *SimilarResponseBo
 	return body
 }
 
+// NewRewriteResponseBody builds the HTTP response body from the result of the
+// "rewrite" endpoint of the "reports" service.
+func NewRewriteResponseBody(res *reports.NarrativeContent) *RewriteResponseBody {
+	body := &RewriteResponseBody{
+		Headline: res.Headline,
+	}
+	if res.Takeaways != nil {
+		body.Takeaways = make([]string, len(res.Takeaways))
+		for i, val := range res.Takeaways {
+			body.Takeaways[i] = val
+		}
+	} else {
+		body.Takeaways = []string{}
+	}
+	if res.Drivers != nil {
+		body.Drivers = make([]string, len(res.Drivers))
+		for i, val := range res.Drivers {
+			body.Drivers[i] = val
+		}
+	}
+	if res.Limitations != nil {
+		body.Limitations = make([]string, len(res.Limitations))
+		for i, val := range res.Limitations {
+			body.Limitations[i] = val
+		}
+	}
+	if res.Recommendations != nil {
+		body.Recommendations = make([]string, len(res.Recommendations))
+		for i, val := range res.Recommendations {
+			body.Recommendations[i] = val
+		}
+	}
+	return body
+}
+
 // NewGenerateLlmErrorResponseBody builds the HTTP response body from the
 // result of the "generate" endpoint of the "reports" service.
 func NewGenerateLlmErrorResponseBody(res *reports.LLMError) *GenerateLlmErrorResponseBody {
@@ -400,6 +478,39 @@ func NewGenerateValidationErrorResponseBody(res *reports.ValidationError) *Gener
 // the "get" endpoint of the "reports" service.
 func NewGetNotFoundResponseBody(res *reports.NotFoundError) *GetNotFoundResponseBody {
 	body := &GetNotFoundResponseBody{
+		Name:    res.Name,
+		Message: res.Message,
+		Code:    res.Code,
+	}
+	return body
+}
+
+// NewRewriteLlmErrorResponseBody builds the HTTP response body from the result
+// of the "rewrite" endpoint of the "reports" service.
+func NewRewriteLlmErrorResponseBody(res *reports.LLMError) *RewriteLlmErrorResponseBody {
+	body := &RewriteLlmErrorResponseBody{
+		Name:    res.Name,
+		Message: res.Message,
+		Code:    res.Code,
+	}
+	return body
+}
+
+// NewRewriteNotFoundResponseBody builds the HTTP response body from the result
+// of the "rewrite" endpoint of the "reports" service.
+func NewRewriteNotFoundResponseBody(res *reports.NotFoundError) *RewriteNotFoundResponseBody {
+	body := &RewriteNotFoundResponseBody{
+		Name:    res.Name,
+		Message: res.Message,
+		Code:    res.Code,
+	}
+	return body
+}
+
+// NewRewriteValidationErrorResponseBody builds the HTTP response body from the
+// result of the "rewrite" endpoint of the "reports" service.
+func NewRewriteValidationErrorResponseBody(res *reports.ValidationError) *RewriteValidationErrorResponseBody {
+	body := &RewriteValidationErrorResponseBody{
 		Name:    res.Name,
 		Message: res.Message,
 		Code:    res.Code,
@@ -447,6 +558,16 @@ func NewSimilarPayload(text string, connectionID *string, limit int32) *reports.
 	return v
 }
 
+// NewRewritePayload builds a reports service rewrite endpoint payload.
+func NewRewritePayload(body *RewriteRequestBody) *reports.RewritePayload {
+	v := &reports.RewritePayload{
+		ReportID:    *body.ReportID,
+		Instruction: *body.Instruction,
+	}
+
+	return v
+}
+
 // ValidateGenerateRequestBody runs the validations defined on
 // GenerateRequestBody
 func ValidateGenerateRequestBody(body *GenerateRequestBody) (err error) {
@@ -468,6 +589,30 @@ func ValidateGenerateRequestBody(body *GenerateRequestBody) (err error) {
 	}
 	if body.SavedQueryID != nil {
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.saved_query_id", *body.SavedQueryID, goa.FormatUUID))
+	}
+	return
+}
+
+// ValidateRewriteRequestBody runs the validations defined on RewriteRequestBody
+func ValidateRewriteRequestBody(body *RewriteRequestBody) (err error) {
+	if body.ReportID == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("report_id", "body"))
+	}
+	if body.Instruction == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("instruction", "body"))
+	}
+	if body.ReportID != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.report_id", *body.ReportID, goa.FormatUUID))
+	}
+	if body.Instruction != nil {
+		if utf8.RuneCountInString(*body.Instruction) < 1 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.instruction", *body.Instruction, utf8.RuneCountInString(*body.Instruction), 1, true))
+		}
+	}
+	if body.Instruction != nil {
+		if utf8.RuneCountInString(*body.Instruction) > 1000 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.instruction", *body.Instruction, utf8.RuneCountInString(*body.Instruction), 1000, false))
+		}
 	}
 	return
 }

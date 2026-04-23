@@ -29,6 +29,9 @@ function ReportDetail() {
   const { id } = useParams<{ id: string }>();
   const [report, setReport] = useState<Report | null>(null);
   const [loading, setLoading] = useState(true);
+  const [rewriteInstruction, setRewriteInstruction] = useState("");
+  const [rewriteLoading, setRewriteLoading] = useState(false);
+  const [rewriteError, setRewriteError] = useState("");
 
   useEffect(() => {
     if (!id) return;
@@ -39,6 +42,21 @@ function ReportDetail() {
   if (!report) return <p className="text-muted-foreground">Report not found.</p>;
 
   const { narrative } = report;
+  const applyRewrite = async (instruction: string) => {
+    const trimmed = instruction.trim();
+    if (!trimmed) return;
+    setRewriteError("");
+    setRewriteLoading(true);
+    try {
+      const rewritten = await api.rewriteReport(report.id, trimmed);
+      setReport({ ...report, narrative: rewritten });
+      setRewriteInstruction(trimmed);
+    } catch (e) {
+      setRewriteError(e instanceof Error ? e.message : "Failed to rewrite narrative");
+    } finally {
+      setRewriteLoading(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -65,6 +83,33 @@ function ReportDetail() {
       </Card>
 
       {/* Narrative sections */}
+      <Card className="border-primary/20">
+        <CardHeader>
+          <CardTitle className="text-sm">Refine Narrative</CardTitle>
+          <CardDescription>Rewrite for different audiences without rerunning the query.</CardDescription>
+        </CardHeader>
+        <CardContent className="pt-0 space-y-3">
+          <div className="flex flex-wrap gap-2">
+            {["Make it concise", "Focus on risks", "Explain for executives", "Translate to Spanish", "Emphasize anomalies"].map((preset) => (
+              <Button key={preset} variant="outline" size="sm" disabled={rewriteLoading} onClick={() => { void applyRewrite(preset); }}>
+                {preset}
+              </Button>
+            ))}
+          </div>
+          <div className="flex gap-2">
+            <Input
+              value={rewriteInstruction}
+              onChange={(e) => setRewriteInstruction(e.target.value)}
+              placeholder="Custom instruction (e.g. make it investor-friendly)"
+              disabled={rewriteLoading}
+            />
+            <Button disabled={rewriteLoading || !rewriteInstruction.trim()} onClick={() => { void applyRewrite(rewriteInstruction); }}>
+              Rewrite
+            </Button>
+          </div>
+          {rewriteError && <p className="text-xs text-destructive">{rewriteError}</p>}
+        </CardContent>
+      </Card>
       <Card className="border-primary/20">
         <CardContent className="p-6 space-y-5">
           {narrative?.headline && <h2 className="text-xl font-semibold">{narrative.headline}</h2>}

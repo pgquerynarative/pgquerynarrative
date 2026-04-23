@@ -30,3 +30,8 @@ func ListReportsPath() string {
 func SimilarReportsPath() string {
 	return "/api/v1/reports/similar"
 }
+
+// RewriteReportsPath returns the URL path to the reports service rewrite HTTP endpoint.
+func RewriteReportsPath() string {
+	return "/api/v1/reports/rewrite"
+}

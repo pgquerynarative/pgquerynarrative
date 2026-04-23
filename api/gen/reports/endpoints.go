@@ -19,6 +19,7 @@ type Endpoints struct {
 	Get      goa.Endpoint
 	List     goa.Endpoint
 	Similar  goa.Endpoint
+	Rewrite  goa.Endpoint
 }
 
 // NewEndpoints wraps the methods of the "reports" service with endpoints.
@@ -28,6 +29,7 @@ func NewEndpoints(s Service) *Endpoints {
 		Get:      NewGetEndpoint(s),
 		List:     NewListEndpoint(s),
 		Similar:  NewSimilarEndpoint(s),
+		Rewrite:  NewRewriteEndpoint(s),
 	}
 }
 
@@ -37,6 +39,7 @@ func (e *Endpoints) Use(m func(goa.Endpoint) goa.Endpoint) {
 	e.Get = m(e.Get)
 	e.List = m(e.List)
 	e.Similar = m(e.Similar)
+	e.Rewrite = m(e.Rewrite)
 }
 
 // NewGenerateEndpoint returns an endpoint function that calls the method
@@ -72,5 +75,14 @@ func NewSimilarEndpoint(s Service) goa.Endpoint {
 	return func(ctx context.Context, req any) (any, error) {
 		p := req.(*SimilarPayload)
 		return s.Similar(ctx, p)
+	}
+}
+
+// NewRewriteEndpoint returns an endpoint function that calls the method
+// "rewrite" of service "reports".
+func NewRewriteEndpoint(s Service) goa.Endpoint {
+	return func(ctx context.Context, req any) (any, error) {
+		p := req.(*RewritePayload)
+		return s.Rewrite(ctx, p)
 	}
 }

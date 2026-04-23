@@ -21,6 +21,8 @@ type Service interface {
 	List(context.Context, *ListPayload) (res *ReportList, err error)
 	// Find reports semantically similar to input text
 	Similar(context.Context, *SimilarPayload) (res *ReportSimilarResult, err error)
+	// Rewrite an existing report narrative using a user instruction.
+	Rewrite(context.Context, *RewritePayload) (res *NarrativeContent, err error)
 }
 
 // APIName is the name of the API as defined in the design.
@@ -37,7 +39,7 @@ const ServiceName = "reports"
 // MethodNames lists the service method names as defined in the design. These
 // are the same values that are set in the endpoint request contexts under the
 // MethodKey key.
-var MethodNames = [4]string{"generate", "get", "list", "similar"}
+var MethodNames = [5]string{"generate", "get", "list", "similar", "rewrite"}
 
 type AggregateData struct {
 	Sum   *float64
@@ -140,6 +142,7 @@ type MetricsData struct {
 	PerfSuggestions []string
 }
 
+// NarrativeContent is the result type of the reports service rewrite method.
 type NarrativeContent struct {
 	Headline        string
 	Takeaways       []string
@@ -184,6 +187,14 @@ type ReportList struct {
 // ReportSimilarResult is the result type of the reports service similar method.
 type ReportSimilarResult struct {
 	Items []*SimilarReportItem
+}
+
+// RewritePayload is the payload type of the reports service rewrite method.
+type RewritePayload struct {
+	// Report ID to rewrite
+	ReportID string
+	// How to rewrite the narrative (e.g. concise, executive summary, Spanish)
+	Instruction string
 }
 
 // SimilarPayload is the payload type of the reports service similar method.

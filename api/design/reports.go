@@ -93,6 +93,31 @@ var _ = Service("reports", func() {
 			Response(StatusOK)
 		})
 	})
+
+	Method("rewrite", func() {
+		Description("Rewrite an existing report narrative using a user instruction.")
+		Payload(func() {
+			Attribute("report_id", String, "Report ID to rewrite", func() {
+				Format(FormatUUID)
+			})
+			Attribute("instruction", String, "How to rewrite the narrative (e.g. concise, executive summary, Spanish)", func() {
+				MinLength(1)
+				MaxLength(1000)
+			})
+			Required("report_id", "instruction")
+		})
+		Result(NarrativeContent)
+		Error("validation_error", ValidationError)
+		Error("llm_error", LLMError)
+		Error("not_found", NotFoundError)
+		HTTP(func() {
+			POST("/api/v1/reports/rewrite")
+			Response(StatusOK)
+			Response(StatusBadRequest, "validation_error")
+			Response(StatusInternalServerError, "llm_error")
+			Response(StatusNotFound, "not_found")
+		})
+	})
 })
 
 var GenerateReportPayload = Type("GenerateReportPayload", func() {

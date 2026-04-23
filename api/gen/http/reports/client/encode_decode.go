@@ -355,6 +355,124 @@ func DecodeSimilarResponse(decoder func(*http.Response) goahttp.Decoder, restore
 	}
 }
 
+// BuildRewriteRequest instantiates a HTTP request object with method and path
+// set to call the "reports" service "rewrite" endpoint
+func (c *Client) BuildRewriteRequest(ctx context.Context, v any) (*http.Request, error) {
+	u := &url.URL{Scheme: c.scheme, Host: c.host, Path: RewriteReportsPath()}
+	req, err := http.NewRequest("POST", u.String(), nil)
+	if err != nil {
+		return nil, goahttp.ErrInvalidURL("reports", "rewrite", u.String(), err)
+	}
+	if ctx != nil {
+		req = req.WithContext(ctx)
+	}
+
+	return req, nil
+}
+
+// EncodeRewriteRequest returns an encoder for requests sent to the reports
+// rewrite server.
+func EncodeRewriteRequest(encoder func(*http.Request) goahttp.Encoder) func(*http.Request, any) error {
+	return func(req *http.Request, v any) error {
+		p, ok := v.(*reports.RewritePayload)
+		if !ok {
+			return goahttp.ErrInvalidType("reports", "rewrite", "*reports.RewritePayload", v)
+		}
+		body := NewRewriteRequestBody(p)
+		if err := encoder(req).Encode(&body); err != nil {
+			return goahttp.ErrEncodingError("reports", "rewrite", err)
+		}
+		return nil
+	}
+}
+
+// DecodeRewriteResponse returns a decoder for responses returned by the
+// reports rewrite endpoint. restoreBody controls whether the response body
+// should be restored after having been read.
+// DecodeRewriteResponse may return the following errors:
+//   - "llm_error" (type *reports.LLMError): http.StatusInternalServerError
+//   - "not_found" (type *reports.NotFoundError): http.StatusNotFound
+//   - "validation_error" (type *reports.ValidationError): http.StatusBadRequest
+//   - error: internal error
+func DecodeRewriteResponse(decoder func(*http.Response) goahttp.Decoder, restoreBody bool) func(*http.Response) (any, error) {
+	return func(resp *http.Response) (any, error) {
+		if restoreBody {
+			b, err := io.ReadAll(resp.Body)
+			if err != nil {
+				return nil, err
+			}
+			resp.Body = io.NopCloser(bytes.NewBuffer(b))
+			defer func() {
+				resp.Body = io.NopCloser(bytes.NewBuffer(b))
+			}()
+		} else {
+			defer resp.Body.Close()
+		}
+		switch resp.StatusCode {
+		case http.StatusOK:
+			var (
+				body RewriteResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("reports", "rewrite", err)
+			}
+			err = ValidateRewriteResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("reports", "rewrite", err)
+			}
+			res := NewRewriteNarrativeContentOK(&body)
+			return res, nil
+		case http.StatusInternalServerError:
+			var (
+				body RewriteLlmErrorResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("reports", "rewrite", err)
+			}
+			err = ValidateRewriteLlmErrorResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("reports", "rewrite", err)
+			}
+			return nil, NewRewriteLlmError(&body)
+		case http.StatusNotFound:
+			var (
+				body RewriteNotFoundResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("reports", "rewrite", err)
+			}
+			err = ValidateRewriteNotFoundResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("reports", "rewrite", err)
+			}
+			return nil, NewRewriteNotFound(&body)
+		case http.StatusBadRequest:
+			var (
+				body RewriteValidationErrorResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("reports", "rewrite", err)
+			}
+			err = ValidateRewriteValidationErrorResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("reports", "rewrite", err)
+			}
+			return nil, NewRewriteValidationError(&body)
+		default:
+			body, _ := io.ReadAll(resp.Body)
+			return nil, goahttp.ErrInvalidResponse("reports", "rewrite", resp.StatusCode, string(body))
+		}
+	}
+}
+
 // unmarshalNarrativeContentResponseBodyToReportsNarrativeContent builds a
 // value of type *reports.NarrativeContent from a value of type
 // *NarrativeContentResponseBody.

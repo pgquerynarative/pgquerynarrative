@@ -20,6 +20,15 @@ type GenerateRequestBody struct {
 	ConnectionID *string `form:"connection_id,omitempty" json:"connection_id,omitempty" xml:"connection_id,omitempty"`
 }
 
+// RewriteRequestBody is the type of the "reports" service "rewrite" endpoint
+// HTTP request body.
+type RewriteRequestBody struct {
+	// Report ID to rewrite
+	ReportID string `form:"report_id" json:"report_id" xml:"report_id"`
+	// How to rewrite the narrative (e.g. concise, executive summary, Spanish)
+	Instruction string `form:"instruction" json:"instruction" xml:"instruction"`
+}
+
 // GenerateResponseBody is the type of the "reports" service "generate"
 // endpoint HTTP response body.
 type GenerateResponseBody struct {
@@ -66,6 +75,16 @@ type SimilarResponseBody struct {
 	Items []*SimilarReportItemResponseBody `form:"items,omitempty" json:"items,omitempty" xml:"items,omitempty"`
 }
 
+// RewriteResponseBody is the type of the "reports" service "rewrite" endpoint
+// HTTP response body.
+type RewriteResponseBody struct {
+	Headline        *string  `form:"headline,omitempty" json:"headline,omitempty" xml:"headline,omitempty"`
+	Takeaways       []string `form:"takeaways,omitempty" json:"takeaways,omitempty" xml:"takeaways,omitempty"`
+	Drivers         []string `form:"drivers,omitempty" json:"drivers,omitempty" xml:"drivers,omitempty"`
+	Limitations     []string `form:"limitations,omitempty" json:"limitations,omitempty" xml:"limitations,omitempty"`
+	Recommendations []string `form:"recommendations,omitempty" json:"recommendations,omitempty" xml:"recommendations,omitempty"`
+}
+
 // GenerateLlmErrorResponseBody is the type of the "reports" service "generate"
 // endpoint HTTP response body for the "llm_error" error.
 type GenerateLlmErrorResponseBody struct {
@@ -85,6 +104,30 @@ type GenerateValidationErrorResponseBody struct {
 // GetNotFoundResponseBody is the type of the "reports" service "get" endpoint
 // HTTP response body for the "not_found" error.
 type GetNotFoundResponseBody struct {
+	Name    *string `form:"name,omitempty" json:"name,omitempty" xml:"name,omitempty"`
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+	Code    *string `form:"code,omitempty" json:"code,omitempty" xml:"code,omitempty"`
+}
+
+// RewriteLlmErrorResponseBody is the type of the "reports" service "rewrite"
+// endpoint HTTP response body for the "llm_error" error.
+type RewriteLlmErrorResponseBody struct {
+	Name    *string `form:"name,omitempty" json:"name,omitempty" xml:"name,omitempty"`
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+	Code    *string `form:"code,omitempty" json:"code,omitempty" xml:"code,omitempty"`
+}
+
+// RewriteNotFoundResponseBody is the type of the "reports" service "rewrite"
+// endpoint HTTP response body for the "not_found" error.
+type RewriteNotFoundResponseBody struct {
+	Name    *string `form:"name,omitempty" json:"name,omitempty" xml:"name,omitempty"`
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+	Code    *string `form:"code,omitempty" json:"code,omitempty" xml:"code,omitempty"`
+}
+
+// RewriteValidationErrorResponseBody is the type of the "reports" service
+// "rewrite" endpoint HTTP response body for the "validation_error" error.
+type RewriteValidationErrorResponseBody struct {
 	Name    *string `form:"name,omitempty" json:"name,omitempty" xml:"name,omitempty"`
 	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
 	Code    *string `form:"code,omitempty" json:"code,omitempty" xml:"code,omitempty"`
@@ -280,6 +323,16 @@ func NewGenerateRequestBody(p *reports.GenerateReportPayload) *GenerateRequestBo
 	return body
 }
 
+// NewRewriteRequestBody builds the HTTP request body from the payload of the
+// "rewrite" endpoint of the "reports" service.
+func NewRewriteRequestBody(p *reports.RewritePayload) *RewriteRequestBody {
+	body := &RewriteRequestBody{
+		ReportID:    p.ReportID,
+		Instruction: p.Instruction,
+	}
+	return body
+}
+
 // NewGenerateReportOK builds a "reports" service "generate" endpoint result
 // from a HTTP "OK" response.
 func NewGenerateReportOK(body *GenerateResponseBody) *reports.Report {
@@ -401,6 +454,72 @@ func NewSimilarReportSimilarResultOK(body *SimilarResponseBody) *reports.ReportS
 			continue
 		}
 		v.Items[i] = unmarshalSimilarReportItemResponseBodyToReportsSimilarReportItem(val)
+	}
+
+	return v
+}
+
+// NewRewriteNarrativeContentOK builds a "reports" service "rewrite" endpoint
+// result from a HTTP "OK" response.
+func NewRewriteNarrativeContentOK(body *RewriteResponseBody) *reports.NarrativeContent {
+	v := &reports.NarrativeContent{
+		Headline: *body.Headline,
+	}
+	v.Takeaways = make([]string, len(body.Takeaways))
+	for i, val := range body.Takeaways {
+		v.Takeaways[i] = val
+	}
+	if body.Drivers != nil {
+		v.Drivers = make([]string, len(body.Drivers))
+		for i, val := range body.Drivers {
+			v.Drivers[i] = val
+		}
+	}
+	if body.Limitations != nil {
+		v.Limitations = make([]string, len(body.Limitations))
+		for i, val := range body.Limitations {
+			v.Limitations[i] = val
+		}
+	}
+	if body.Recommendations != nil {
+		v.Recommendations = make([]string, len(body.Recommendations))
+		for i, val := range body.Recommendations {
+			v.Recommendations[i] = val
+		}
+	}
+
+	return v
+}
+
+// NewRewriteLlmError builds a reports service rewrite endpoint llm_error error.
+func NewRewriteLlmError(body *RewriteLlmErrorResponseBody) *reports.LLMError {
+	v := &reports.LLMError{
+		Name:    *body.Name,
+		Message: *body.Message,
+		Code:    body.Code,
+	}
+
+	return v
+}
+
+// NewRewriteNotFound builds a reports service rewrite endpoint not_found error.
+func NewRewriteNotFound(body *RewriteNotFoundResponseBody) *reports.NotFoundError {
+	v := &reports.NotFoundError{
+		Name:    *body.Name,
+		Message: *body.Message,
+		Code:    body.Code,
+	}
+
+	return v
+}
+
+// NewRewriteValidationError builds a reports service rewrite endpoint
+// validation_error error.
+func NewRewriteValidationError(body *RewriteValidationErrorResponseBody) *reports.ValidationError {
+	v := &reports.ValidationError{
+		Name:    *body.Name,
+		Message: *body.Message,
+		Code:    body.Code,
 	}
 
 	return v
@@ -554,6 +673,18 @@ func ValidateSimilarResponseBody(body *SimilarResponseBody) (err error) {
 	return
 }
 
+// ValidateRewriteResponseBody runs the validations defined on
+// RewriteResponseBody
+func ValidateRewriteResponseBody(body *RewriteResponseBody) (err error) {
+	if body.Headline == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("headline", "body"))
+	}
+	if body.Takeaways == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("takeaways", "body"))
+	}
+	return
+}
+
 // ValidateGenerateLlmErrorResponseBody runs the validations defined on
 // generate_llm_error_response_body
 func ValidateGenerateLlmErrorResponseBody(body *GenerateLlmErrorResponseBody) (err error) {
@@ -581,6 +712,42 @@ func ValidateGenerateValidationErrorResponseBody(body *GenerateValidationErrorRe
 // ValidateGetNotFoundResponseBody runs the validations defined on
 // get_not_found_response_body
 func ValidateGetNotFoundResponseBody(body *GetNotFoundResponseBody) (err error) {
+	if body.Name == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("name", "body"))
+	}
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
+// ValidateRewriteLlmErrorResponseBody runs the validations defined on
+// rewrite_llm_error_response_body
+func ValidateRewriteLlmErrorResponseBody(body *RewriteLlmErrorResponseBody) (err error) {
+	if body.Name == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("name", "body"))
+	}
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
+// ValidateRewriteNotFoundResponseBody runs the validations defined on
+// rewrite_not_found_response_body
+func ValidateRewriteNotFoundResponseBody(body *RewriteNotFoundResponseBody) (err error) {
+	if body.Name == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("name", "body"))
+	}
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
+// ValidateRewriteValidationErrorResponseBody runs the validations defined on
+// rewrite_validation_error_response_body
+func ValidateRewriteValidationErrorResponseBody(body *RewriteValidationErrorResponseBody) (err error) {
 	if body.Name == nil {
 		err = goa.MergeErrors(err, goa.MissingFieldError("name", "body"))
 	}

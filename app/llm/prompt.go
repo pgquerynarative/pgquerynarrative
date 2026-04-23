@@ -105,6 +105,30 @@ func BuildNarrativePrompt(sql string, columns []string, rows [][]interface{}, me
 	return sb.String()
 }
 
+// BuildNarrativeRewritePrompt asks the LLM to rewrite an existing narrative while
+// preserving the same JSON structure used by reports.
+func BuildNarrativeRewritePrompt(instruction, narrativeJSON, metricsJSON string) string {
+	var sb strings.Builder
+	sb.WriteString("You are a business writing editor for analytics narratives.\n")
+	sb.WriteString("Rewrite the narrative JSON according to this instruction:\n")
+	sb.WriteString(instruction)
+	sb.WriteString("\n\n")
+	sb.WriteString("Rules:\n")
+	sb.WriteString("1. Return STRICT valid JSON only.\n")
+	sb.WriteString("2. Keep exactly these keys: headline, takeaways, drivers, limitations, recommendations.\n")
+	sb.WriteString("3. Keep claims grounded in provided narrative and metrics context.\n")
+	sb.WriteString("4. Do not invent new metric values.\n")
+	sb.WriteString("5. Keep arrays as arrays of short strings.\n\n")
+	sb.WriteString("Current narrative JSON:\n")
+	sb.WriteString(narrativeJSON)
+	sb.WriteString("\n\n")
+	sb.WriteString("Metrics context JSON (for grounding only):\n")
+	sb.WriteString(metricsJSON)
+	sb.WriteString("\n\n")
+	sb.WriteString("Return only JSON with the same schema.")
+	return sb.String()
+}
+
 // formatCellForPrompt formats a cell value for the LLM prompt so numbers use comma-separated thousands,
 // reducing the chance the model misreads scale (e.g. 84816006.54 -> "84,816,006.54").
 func formatCellForPrompt(val interface{}) string {
