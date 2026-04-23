@@ -53,6 +53,8 @@ func (m *e2eLLM) Generate(ctx context.Context, prompt string) (string, error) {
 
 func (m *e2eLLM) Name() string { return "e2e" }
 
+func (m *e2eLLM) Model() string { return "e2e-test-model" }
+
 var _ llm.Client = (*e2eLLM)(nil)
 
 // StartPostgres starts a Postgres container and returns it and the connection string.

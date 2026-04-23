@@ -39,6 +39,10 @@ func (c *GeminiClient) Name() string {
 	return "gemini"
 }
 
+func (c *GeminiClient) Model() string {
+	return c.model
+}
+
 const geminiMaxRetries = 3
 const geminiRetryDelay = 6 * time.Second
 

@@ -38,6 +38,9 @@ func (c *OllamaClient) Name() string {
 	return "ollama"
 }
 
+func (c *OllamaClient) Model() string {
+	return c.model
+}
 func (c *OllamaClient) Generate(ctx context.Context, prompt string) (string, error) {
 	url := fmt.Sprintf("%s/api/generate", c.baseURL)
 
