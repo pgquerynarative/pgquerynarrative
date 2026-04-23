@@ -146,6 +146,8 @@ export const api = {
 
   getSuggestions: (limit = 5) =>
     request<{ suggestions: { sql: string; title: string; source: string }[] }>(`/suggestions/queries?limit=${limit}`),
+  getSuggestedQuestions: (limit = 8, connectionId?: string) =>
+    request<{ questions: string[] }>(`/suggestions/questions?limit=${limit}${connectionId ? `&connection_id=${encodeURIComponent(connectionId)}` : ""}`),
 
   ask: (question: string, connectionId?: string) =>
     request<AskResult>("/suggestions/ask", {

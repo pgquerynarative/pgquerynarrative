@@ -72,6 +72,59 @@ func DecodeQueriesRequest(mux goahttp.Muxer, decoder func(*http.Request) goahttp
 	}
 }
 
+// EncodeQuestionsResponse returns an encoder for responses returned by the
+// suggestions questions endpoint.
+func EncodeQuestionsResponse(encoder func(context.Context, http.ResponseWriter) goahttp.Encoder) func(context.Context, http.ResponseWriter, any) error {
+	return func(ctx context.Context, w http.ResponseWriter, v any) error {
+		res, _ := v.(*suggestions.SuggestedQuestionsResult)
+		enc := encoder(ctx, w)
+		body := NewQuestionsResponseBody(res)
+		w.WriteHeader(http.StatusOK)
+		return enc.Encode(body)
+	}
+}
+
+// DecodeQuestionsRequest returns a decoder for requests sent to the
+// suggestions questions endpoint.
+func DecodeQuestionsRequest(mux goahttp.Muxer, decoder func(*http.Request) goahttp.Decoder) func(*http.Request) (*suggestions.QuestionsPayload, error) {
+	return func(r *http.Request) (*suggestions.QuestionsPayload, error) {
+		var (
+			connectionID *string
+			limit        int32
+			err          error
+		)
+		qp := r.URL.Query()
+		connectionIDRaw := qp.Get("connection_id")
+		if connectionIDRaw != "" {
+			connectionID = &connectionIDRaw
+		}
+		{
+			limitRaw := qp.Get("limit")
+			if limitRaw == "" {
+				limit = 8
+			} else {
+				v, err2 := strconv.ParseInt(limitRaw, 10, 32)
+				if err2 != nil {
+					err = goa.MergeErrors(err, goa.InvalidFieldTypeError("limit", limitRaw, "integer"))
+				}
+				limit = int32(v)
+			}
+		}
+		if limit < 1 {
+			err = goa.MergeErrors(err, goa.InvalidRangeError("limit", limit, 1, true))
+		}
+		if limit > 20 {
+			err = goa.MergeErrors(err, goa.InvalidRangeError("limit", limit, 20, false))
+		}
+		if err != nil {
+			return nil, err
+		}
+		payload := NewQuestionsPayload(connectionID, limit)
+
+		return payload, nil
+	}
+}
+
 // EncodeSimilarResponse returns an encoder for responses returned by the
 // suggestions similar endpoint.
 func EncodeSimilarResponse(encoder func(context.Context, http.ResponseWriter) goahttp.Encoder) func(context.Context, http.ResponseWriter, any) error {

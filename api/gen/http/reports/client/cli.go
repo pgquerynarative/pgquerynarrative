@@ -25,7 +25,7 @@ func BuildGeneratePayload(reportsGenerateBody string) (*reports.GenerateReportPa
 	{
 		err = json.Unmarshal([]byte(reportsGenerateBody), &body)
 		if err != nil {
-			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"connection_id\": \"Reiciendis nobis iure dolor.\",\n      \"saved_query_id\": \"bc2f52b9-b3e1-45c8-ab6e-2ded7648c1f7\",\n      \"sql\": \"jmu\"\n   }'")
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"connection_id\": \"Recusandae saepe soluta nemo velit facilis iusto.\",\n      \"saved_query_id\": \"88b63004-63ed-465e-99ca-4a145b50d000\",\n      \"sql\": \"2n\"\n   }'")
 		}
 		err = goa.MergeErrors(err, goa.ValidatePattern("body.sql", body.SQL, "^[^;]+$"))
 		if utf8.RuneCountInString(body.SQL) < 1 {

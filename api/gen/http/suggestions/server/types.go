@@ -38,6 +38,12 @@ type QueriesResponseBody struct {
 	Suggestions []*QuerySuggestionResponseBody `form:"suggestions" json:"suggestions" xml:"suggestions"`
 }
 
+// QuestionsResponseBody is the type of the "suggestions" service "questions"
+// endpoint HTTP response body.
+type QuestionsResponseBody struct {
+	Questions []string `form:"questions" json:"questions" xml:"questions"`
+}
+
 // SimilarResponseBody is the type of the "suggestions" service "similar"
 // endpoint HTTP response body.
 type SimilarResponseBody struct {
@@ -290,6 +296,21 @@ func NewQueriesResponseBody(res *suggestions.SuggestedQueriesResult) *QueriesRes
 	return body
 }
 
+// NewQuestionsResponseBody builds the HTTP response body from the result of
+// the "questions" endpoint of the "suggestions" service.
+func NewQuestionsResponseBody(res *suggestions.SuggestedQuestionsResult) *QuestionsResponseBody {
+	body := &QuestionsResponseBody{}
+	if res.Questions != nil {
+		body.Questions = make([]string, len(res.Questions))
+		for i, val := range res.Questions {
+			body.Questions[i] = val
+		}
+	} else {
+		body.Questions = []string{}
+	}
+	return body
+}
+
 // NewSimilarResponseBody builds the HTTP response body from the result of the
 // "similar" endpoint of the "suggestions" service.
 func NewSimilarResponseBody(res *suggestions.SuggestedQueriesResult) *SimilarResponseBody {
@@ -380,6 +401,15 @@ func NewExplainValidationErrorResponseBody(res *suggestions.ValidationError) *Ex
 func NewQueriesPayload(intent *string, limit int32) *suggestions.QueriesPayload {
 	v := &suggestions.QueriesPayload{}
 	v.Intent = intent
+	v.Limit = limit
+
+	return v
+}
+
+// NewQuestionsPayload builds a suggestions service questions endpoint payload.
+func NewQuestionsPayload(connectionID *string, limit int32) *suggestions.QuestionsPayload {
+	v := &suggestions.QuestionsPayload{}
+	v.ConnectionID = connectionID
 	v.Limit = limit
 
 	return v

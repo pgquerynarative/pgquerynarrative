@@ -92,6 +92,79 @@ func DecodeQueriesResponse(decoder func(*http.Response) goahttp.Decoder, restore
 	}
 }
 
+// BuildQuestionsRequest instantiates a HTTP request object with method and
+// path set to call the "suggestions" service "questions" endpoint
+func (c *Client) BuildQuestionsRequest(ctx context.Context, v any) (*http.Request, error) {
+	u := &url.URL{Scheme: c.scheme, Host: c.host, Path: QuestionsSuggestionsPath()}
+	req, err := http.NewRequest("GET", u.String(), nil)
+	if err != nil {
+		return nil, goahttp.ErrInvalidURL("suggestions", "questions", u.String(), err)
+	}
+	if ctx != nil {
+		req = req.WithContext(ctx)
+	}
+
+	return req, nil
+}
+
+// EncodeQuestionsRequest returns an encoder for requests sent to the
+// suggestions questions server.
+func EncodeQuestionsRequest(encoder func(*http.Request) goahttp.Encoder) func(*http.Request, any) error {
+	return func(req *http.Request, v any) error {
+		p, ok := v.(*suggestions.QuestionsPayload)
+		if !ok {
+			return goahttp.ErrInvalidType("suggestions", "questions", "*suggestions.QuestionsPayload", v)
+		}
+		values := req.URL.Query()
+		if p.ConnectionID != nil {
+			values.Add("connection_id", *p.ConnectionID)
+		}
+		values.Add("limit", fmt.Sprintf("%v", p.Limit))
+		req.URL.RawQuery = values.Encode()
+		return nil
+	}
+}
+
+// DecodeQuestionsResponse returns a decoder for responses returned by the
+// suggestions questions endpoint. restoreBody controls whether the response
+// body should be restored after having been read.
+func DecodeQuestionsResponse(decoder func(*http.Response) goahttp.Decoder, restoreBody bool) func(*http.Response) (any, error) {
+	return func(resp *http.Response) (any, error) {
+		if restoreBody {
+			b, err := io.ReadAll(resp.Body)
+			if err != nil {
+				return nil, err
+			}
+			resp.Body = io.NopCloser(bytes.NewBuffer(b))
+			defer func() {
+				resp.Body = io.NopCloser(bytes.NewBuffer(b))
+			}()
+		} else {
+			defer resp.Body.Close()
+		}
+		switch resp.StatusCode {
+		case http.StatusOK:
+			var (
+				body QuestionsResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("suggestions", "questions", err)
+			}
+			err = ValidateQuestionsResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("suggestions", "questions", err)
+			}
+			res := NewQuestionsSuggestedQuestionsResultOK(&body)
+			return res, nil
+		default:
+			body, _ := io.ReadAll(resp.Body)
+			return nil, goahttp.ErrInvalidResponse("suggestions", "questions", resp.StatusCode, string(body))
+		}
+	}
+}
+
 // BuildSimilarRequest instantiates a HTTP request object with method and path
 // set to call the "suggestions" service "similar" endpoint
 func (c *Client) BuildSimilarRequest(ctx context.Context, v any) (*http.Request, error) {
