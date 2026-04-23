@@ -3,6 +3,7 @@
 GO ?= go
 GOLANGCI_LINT ?= golangci-lint
 GOA ?= goa
+GOA_VERSION ?= v3.24.1
 # Use a user-writable module cache to avoid permission issues with system GOMODCACHE (e.g. root-owned ~/go/pkg/mod).
 GOMODCACHE ?= $(HOME)/.gomodcache
 export GOMODCACHE
@@ -144,7 +145,7 @@ generate:
 	@echo "🔧 Generating API code..."
 	@if ! command -v goa >/dev/null 2>&1; then \
 		echo "Installing Goa..."; \
-		$(GO) install goa.design/goa/v3/cmd/goa@latest; \
+		$(GO) install goa.design/goa/v3/cmd/goa@$(GOA_VERSION); \
 	fi
 	$(GO) generate ./...
 	$(GOA) gen github.com/pgquerynarrative/pgquerynarrative/api/design

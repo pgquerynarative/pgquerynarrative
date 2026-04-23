@@ -85,8 +85,8 @@ func (s *ReportsService) Generate(ctx context.Context, payload *reports.Generate
 		columnTypes[i] = col.Type
 	}
 
-	// Chart suggestions from result shape
-	chartSuggestions := suggestToReports(charts.Suggest(columnNames, columnTypes, queryResult.Rows))
+	// Rule-based chart suggestions from result shape (base ordering).
+	ruleSuggestions := charts.Suggest(columnNames, columnTypes, queryResult.Rows)
 
 	// Profile columns
 	profiles := metrics.ProfileColumns(columnNames, queryResult.Rows)
@@ -128,6 +128,10 @@ func (s *ReportsService) Generate(ctx context.Context, payload *reports.Generate
 		// or temporarily unavailable.
 		narrative = buildFallbackNarrative(queryResult.RowCount, calcMetrics.PerfSuggestions)
 	}
+	// Optional LLM pass: reorder/add one primary chart recommendation on top
+	// of rules so chart choice can better align with the generated story.
+	finalSuggestions := s.applyLLMChartRecommendation(ctx, narrative.Headline, columnNames, columnTypes, queryResult.RowCount, ruleSuggestions)
+	chartSuggestions := suggestToReports(finalSuggestions)
 
 	// Convert metrics to API format
 	metricsData := ConvertMetrics(calcMetrics)
@@ -193,6 +197,119 @@ func suggestToReports(in []charts.Suggestion) []*reports.ChartSuggestion {
 		}
 	}
 	return out
+}
+
+func (s *ReportsService) applyLLMChartRecommendation(ctx context.Context, headline string, columnNames, columnTypes []string, rowCount int, base []charts.Suggestion) []charts.Suggestion {
+	if len(base) == 0 || s.llmClient == nil {
+		return base
+	}
+	prompt := buildChartRecommendationPrompt(headline, columnNames, columnTypes, rowCount, base)
+	raw, err := s.llmClient.Generate(ctx, prompt)
+	if err != nil {
+		return base
+	}
+	chartType, reason := parseChartRecommendation(raw)
+	if chartType == "" {
+		return base
+	}
+	label := chartTypeLabel(chartType)
+	if label == "" {
+		return base
+	}
+	if strings.TrimSpace(reason) == "" {
+		reason = "LLM recommended this chart to support the narrative emphasis."
+	}
+	// Move suggested chart to front if it already exists, otherwise prepend.
+	out := make([]charts.Suggestion, 0, len(base)+1)
+	out = append(out, charts.Suggestion{
+		ChartType: chartType,
+		Label:     label,
+		Reason:    reason,
+	})
+	for _, s := range base {
+		if s.ChartType == chartType {
+			continue
+		}
+		out = append(out, s)
+	}
+	return out
+}
+
+func buildChartRecommendationPrompt(headline string, columnNames, columnTypes []string, rowCount int, base []charts.Suggestion) string {
+	var b strings.Builder
+	b.WriteString("You are selecting one best chart type for a report.\n")
+	b.WriteString("Allowed chart_type values: bar, line, pie, area, table.\n")
+	b.WriteString("Return STRICT JSON only with keys chart_type and reason.\n")
+	b.WriteString(`Example: {"chart_type":"line","reason":"Shows time trend clearly."}` + "\n\n")
+	b.WriteString("Narrative headline: ")
+	b.WriteString(headline)
+	b.WriteString("\nRow count: ")
+	b.WriteString(strconv.Itoa(rowCount))
+	b.WriteString("\nColumns:\n")
+	for i := range columnNames {
+		b.WriteString("- ")
+		b.WriteString(columnNames[i])
+		if i < len(columnTypes) {
+			b.WriteString(" (")
+			b.WriteString(columnTypes[i])
+			b.WriteString(")")
+		}
+		b.WriteString("\n")
+	}
+	b.WriteString("Rule-based suggestions:\n")
+	for _, s := range base {
+		b.WriteString("- ")
+		b.WriteString(s.ChartType)
+		b.WriteString(": ")
+		b.WriteString(s.Reason)
+		b.WriteString("\n")
+	}
+	return b.String()
+}
+
+func parseChartRecommendation(raw string) (chartType, reason string) {
+	type rec struct {
+		ChartType string `json:"chart_type"`
+		Reason    string `json:"reason"`
+	}
+	trimmed := strings.TrimSpace(raw)
+	var r rec
+	if err := json.Unmarshal([]byte(trimmed), &r); err == nil {
+		return normalizeChartType(r.ChartType), strings.TrimSpace(r.Reason)
+	}
+	lower := strings.ToLower(trimmed)
+	for _, t := range []string{"line", "bar", "pie", "area", "table"} {
+		if strings.Contains(lower, t) {
+			return t, strings.TrimSpace(trimmed)
+		}
+	}
+	return "", ""
+}
+
+func normalizeChartType(v string) string {
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case "bar", "line", "pie", "area", "table":
+		return strings.ToLower(strings.TrimSpace(v))
+	default:
+		return ""
+	}
+}
+
+func chartTypeLabel(chartType string) string {
+	switch chartType {
+	case "bar":
+		return "Bar chart"
+	case "line":
+		return "Line chart"
+	case "pie":
+		return "Pie chart"
+	case "area":
+		return "Area chart"
+	case "table":
+		return "Table"
+	default:
+		return ""
+	}
 }
 
 func (s *ReportsService) storeReport(ctx context.Context, payload *reports.GenerateReportPayload, narrative *story.NarrativeContent, calcMetrics *metrics.Metrics, queryResult *queryrunner.Result, providerName, modelName string) (string, error) {

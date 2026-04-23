@@ -85,7 +85,18 @@ function ReportDetail() {
       {report.chart_suggestions && report.chart_suggestions.length > 0 && (
         <Card>
           <CardHeader><CardTitle className="text-sm">Suggested Charts</CardTitle></CardHeader>
-          <CardContent><div className="flex flex-wrap gap-2">{report.chart_suggestions.map((s, i) => <Badge key={i} variant="outline">{s.label}</Badge>)}</div></CardContent>
+          <CardContent className="space-y-3">
+            <div className="rounded-md border border-primary/20 bg-primary/5 p-3">
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">Recommended</p>
+              <p className="text-sm font-medium mt-1">{report.chart_suggestions[0]?.label}</p>
+              {report.chart_suggestions[0]?.reason && (
+                <p className="text-xs text-muted-foreground mt-1">{report.chart_suggestions[0].reason}</p>
+              )}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {report.chart_suggestions.map((s, i) => <Badge key={i} variant="outline">{s.label}</Badge>)}
+            </div>
+          </CardContent>
         </Card>
       )}
 

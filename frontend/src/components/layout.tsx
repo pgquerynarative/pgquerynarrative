@@ -1,4 +1,4 @@
-import { NavLink, Outlet } from "react-router-dom";
+import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { useTheme } from "@/contexts/theme-context";
 import { LayoutDashboard, Terminal, Bookmark, FileText, Settings, PanelLeftClose, PanelLeft, Moon, Sun } from "lucide-react";
@@ -15,6 +15,11 @@ const navItems = [
 export default function Layout() {
   const [collapsed, setCollapsed] = useState(false);
   const { theme, setTheme } = useTheme();
+  const location = useLocation();
+  const currentPageLabel =
+    navItems.find((item) => item.to !== "/" && location.pathname.startsWith(item.to))?.label ||
+    navItems.find((item) => item.to === location.pathname)?.label ||
+    "Dashboard";
 
   return (
     <div className="flex h-screen overflow-hidden relative z-10 text-foreground">
@@ -90,7 +95,13 @@ export default function Layout() {
 
       {/* Main: content above background layers; id for skip link target */}
       <main id="main-content" className="flex-1 overflow-auto min-h-0 border-l border-transparent dark:border-border/30" tabIndex={-1}>
-        <div className="max-w-6xl mx-auto px-6 py-8">
+        <div className="sticky top-0 z-20 border-b border-border/70 bg-background/85 backdrop-blur supports-[backdrop-filter]:bg-background/70">
+          <div className="max-w-7xl mx-auto px-5 md:px-8 py-3 flex items-center justify-between">
+            <p className="text-sm font-semibold tracking-tight">{currentPageLabel}</p>
+            <p className="text-xs text-muted-foreground">PgQueryNarrative</p>
+          </div>
+        </div>
+        <div className="max-w-7xl mx-auto px-5 md:px-8 py-6 md:py-8">
           <Outlet />
         </div>
       </main>
