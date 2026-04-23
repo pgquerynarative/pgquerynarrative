@@ -17,6 +17,8 @@ make start-docker
 
 Uses root [docker-compose.yml](../../docker-compose.yml) (PostgreSQL + app). App at **http://localhost:8080**. For production image and Compose: [Deployment](../reference/deployment.md).
 
+For multi-database setups, configure `DATABASE_CONNECTIONS_JSON` and `DATABASE_DEFAULT_CONNECTION_ID` before starting (see [Configuration – Multiple database connections](../configuration.md#multiple-database-connections)).
+
 ## Local PostgreSQL
 
 ```bash

@@ -6,17 +6,23 @@ REST API base: `http://localhost:8080/api/v1` (override with [Configuration](../
 
 | Method | Path | Description |
 |--------|------|-------------|
-| POST | `/queries/run` | Body: `{"sql":"...", "limit": 100}`. Run read-only SQL. Returns `columns`, `rows`, `row_count`, `execution_time_ms`, optional `period_comparison`, `chart_suggestions`. |
-| POST | `/queries/saved` | Body: `{"name","sql","tags"}`. Save query. |
-| GET | `/queries/saved` | Query: `limit`, `offset`, `tags`. List saved queries. |
+| POST | `/queries/run` | Body: `{"sql":"...", "limit": 100, "connection_id":"default"}`. `connection_id` optional. Run read-only SQL. Returns `columns`, `rows`, `row_count`, `execution_time_ms`, optional `period_comparison`, `chart_suggestions`. |
+| POST | `/queries/saved` | Body: `{"name","sql","tags","connection_id":"default"}`. `connection_id` optional. Save query. |
+| GET | `/queries/saved` | Query: `limit`, `offset`, `tags`, `connection_id`. List saved queries; optional connection filter. |
 | GET | `/queries/saved/{id}` | Get saved query by ID. |
 | DELETE | `/queries/saved/{id}` | Delete saved query. |
+
+## Connections
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/connections` | Lists configured data connections: `{"items":[{"id","name"}]}`. No secrets returned. |
 
 ## Schema
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/schema` | Allowed schemas, tables, columns. Used by MCP `get_schema`. |
+| GET | `/schema` | Allowed schemas, tables, columns. Query: `connection_id` (optional). Used by MCP `get_schema`. |
 
 ## Suggestions
 
@@ -24,16 +30,16 @@ REST API base: `http://localhost:8080/api/v1` (override with [Configuration](../
 |--------|------|-------------|
 | GET | `/suggestions/queries` | Query: `intent`, `limit` (default 5). Suggested SQL (curated + saved-query match). |
 | GET | `/suggestions/similar` | Query: `text` (required), `limit` (default 5). Saved queries semantically similar to text (embedding-based). Requires [embeddings](../reference/semantic-search-pgvector.md) enabled. |
-| POST | `/suggestions/ask` | Body: `{"question":"..."}`. Natural language → SQL → run → narrative report. Requires [LLM](../getting-started/llm-setup.md). |
+| POST | `/suggestions/ask` | Body: `{"question":"...", "connection_id":"default"}`. `connection_id` optional. Natural language → SQL → run → narrative report. Requires [LLM](../getting-started/llm-setup.md). |
 | POST | `/suggestions/explain` | Body: `{"sql":"..."}`. Plain-English explanation of SQL. Requires [LLM](../getting-started/llm-setup.md). |
 
 ## Reports
 
 | Method | Path | Description |
 |--------|------|-------------|
-| POST | `/reports/generate` | Body: `{"sql":"...", "saved_query_id": "uuid"}`. Generate report (requires [LLM](../getting-started/llm-setup.md)). Returns `narrative`, `metrics`. |
+| POST | `/reports/generate` | Body: `{"sql":"...", "saved_query_id":"uuid", "connection_id":"default"}`. `connection_id` optional. Generate report (requires [LLM](../getting-started/llm-setup.md)). Returns `narrative`, `metrics`. |
 | GET | `/reports/{id}` | Get report. Metrics: `time_series`, `correlations`, `cohorts` (when [cohort shape](../configuration.md#cohort-analysis) present), `data_quality`, `perf_suggestions`, etc. |
-| GET | `/reports` | Query: `limit`, `offset`, `saved_query_id`. List reports. |
+| GET | `/reports` | Query: `limit`, `offset`, `saved_query_id`, `connection_id`. List reports; optional connection filter. |
 
 ## Errors
 

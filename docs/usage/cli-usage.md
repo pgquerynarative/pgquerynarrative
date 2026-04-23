@@ -2,6 +2,13 @@
 
 Command-line access to the PgQueryNarrative API. The app must be running ([Quick start](../getting-started/quickstart.md): `make start-docker` or `make start-local`). The CLI runs in a container (Docker) or on the host (local binary). It calls the same [REST API](../api/README.md) used by the web UI.
 
+## Multi-connection note
+
+The legacy `make cli` wrapper does not yet expose a dedicated `--connection-id` flag. For connection-specific automation, use:
+
+- REST API calls with `connection_id` (see [API examples](../api/examples.md)), or
+- MCP tools (`run_query`, `generate_report`, `list_saved_queries`, `list_reports`, `get_schema`, `list_schemas`, `ask_question`) with optional `connection_id`.
+
 ## Commands
 
 | Command | Description | API equivalent |
