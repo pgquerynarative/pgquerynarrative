@@ -1,6 +1,7 @@
 package web
 
 import (
+	"context"
 	"fmt"
 	"html/template"
 	"io"
@@ -107,6 +108,50 @@ func (h *Handlers) ExportReportPDF(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed to generate PDF", http.StatusInternalServerError)
 		return
 	}
+}
+
+// ExportSharedReportPDF serves a shared report by token as a PDF file.
+func (h *Handlers) ExportSharedReportPDF(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	token := r.URL.Query().Get("token")
+	if token == "" {
+		http.Error(w, "missing share token", http.StatusBadRequest)
+		return
+	}
+	report, err := h.getSharedReport(r.Context(), token)
+	if err != nil {
+		if _, ok := err.(*reports.NotFoundError); ok {
+			http.Error(w, "shared report not found or expired", http.StatusNotFound)
+			return
+		}
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	filenameID := report.ID
+	if len(filenameID) > 8 {
+		filenameID = filenameID[:8]
+	}
+	w.Header().Set("Content-Type", "application/pdf")
+	w.Header().Set("Content-Disposition", "attachment; filename=\"shared-report-"+filenameID+".pdf\"")
+	if err := BuildReportPDF(w, report); err != nil {
+		http.Error(w, "failed to generate PDF", http.StatusInternalServerError)
+		return
+	}
+}
+
+func (h *Handlers) getSharedReport(ctx context.Context, token string) (*reports.Report, error) {
+	got, err := h.reportsEndpoints.GetShared(ctx, &reports.GetSharedPayload{Token: token})
+	if err != nil {
+		return nil, err
+	}
+	report, ok := got.(*reports.Report)
+	if !ok {
+		return nil, fmt.Errorf("invalid shared report payload")
+	}
+	return report, nil
 }
 
 // buildExportHTML returns a complete HTML document with embedded styles for the report body.

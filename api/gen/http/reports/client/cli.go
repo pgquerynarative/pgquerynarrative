@@ -25,7 +25,7 @@ func BuildGeneratePayload(reportsGenerateBody string) (*reports.GenerateReportPa
 	{
 		err = json.Unmarshal([]byte(reportsGenerateBody), &body)
 		if err != nil {
-			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"connection_id\": \"Quo autem.\",\n      \"saved_query_id\": \"42a84903-bf11-4b1d-b1ff-b7e1bd975212\",\n      \"sql\": \"ia\"\n   }'")
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"connection_id\": \"Facere cum ipsa.\",\n      \"saved_query_id\": \"72ca9077-1e04-4424-aa78-914369755265\",\n      \"sql\": \"qa\"\n   }'")
 		}
 		err = goa.MergeErrors(err, goa.ValidatePattern("body.sql", body.SQL, "^[^;]+$"))
 		if utf8.RuneCountInString(body.SQL) < 1 {
@@ -193,7 +193,7 @@ func BuildRewritePayload(reportsRewriteBody string) (*reports.RewritePayload, er
 	{
 		err = json.Unmarshal([]byte(reportsRewriteBody), &body)
 		if err != nil {
-			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"instruction\": \"iqe\",\n      \"report_id\": \"9535071d-2b7c-4cfd-9306-3f78bbbfffbe\"\n   }'")
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"instruction\": \"hn\",\n      \"report_id\": \"ede6b654-26dd-4125-99f2-28318302cea5\"\n   }'")
 		}
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.report_id", body.ReportID, goa.FormatUUID))
 		if utf8.RuneCountInString(body.Instruction) < 1 {
@@ -210,6 +210,59 @@ func BuildRewritePayload(reportsRewriteBody string) (*reports.RewritePayload, er
 		ReportID:    body.ReportID,
 		Instruction: body.Instruction,
 	}
+
+	return v, nil
+}
+
+// BuildCreateSharePayload builds the payload for the reports create_share
+// endpoint from CLI flags.
+func BuildCreateSharePayload(reportsCreateShareBody string) (*reports.CreateSharePayload, error) {
+	var err error
+	var body CreateShareRequestBody
+	{
+		err = json.Unmarshal([]byte(reportsCreateShareBody), &body)
+		if err != nil {
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"expires_in_hours\": 332,\n      \"report_id\": \"872f4935-8232-42b3-bd95-bf617fcbcdae\"\n   }'")
+		}
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.report_id", body.ReportID, goa.FormatUUID))
+		if body.ExpiresInHours != nil {
+			if *body.ExpiresInHours < 1 {
+				err = goa.MergeErrors(err, goa.InvalidRangeError("body.expires_in_hours", *body.ExpiresInHours, 1, true))
+			}
+		}
+		if body.ExpiresInHours != nil {
+			if *body.ExpiresInHours > 720 {
+				err = goa.MergeErrors(err, goa.InvalidRangeError("body.expires_in_hours", *body.ExpiresInHours, 720, false))
+			}
+		}
+		if err != nil {
+			return nil, err
+		}
+	}
+	v := &reports.CreateSharePayload{
+		ReportID:       body.ReportID,
+		ExpiresInHours: body.ExpiresInHours,
+	}
+
+	return v, nil
+}
+
+// BuildGetSharedPayload builds the payload for the reports get_shared endpoint
+// from CLI flags.
+func BuildGetSharedPayload(reportsGetSharedToken string) (*reports.GetSharedPayload, error) {
+	var err error
+	var token string
+	{
+		token = reportsGetSharedToken
+		if utf8.RuneCountInString(token) < 12 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("token", token, utf8.RuneCountInString(token), 12, true))
+		}
+		if err != nil {
+			return nil, err
+		}
+	}
+	v := &reports.GetSharedPayload{}
+	v.Token = token
 
 	return v, nil
 }

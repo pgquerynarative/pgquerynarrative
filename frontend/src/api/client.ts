@@ -74,6 +74,11 @@ export interface SimilarReportItem {
   created_at: string;
   similarity: number;
 }
+export interface ReportShareLink {
+  token: string;
+  url: string;
+  expires_at?: string;
+}
 
 export interface AskResult {
   question: string;
@@ -138,6 +143,12 @@ export const api = {
     request<{ items: SimilarReportItem[] }>(`/reports/similar?text=${encodeURIComponent(text)}&limit=${limit}${connectionId ? `&connection_id=${encodeURIComponent(connectionId)}` : ""}`),
 
   getReport: (id: string) => request<Report>(`/reports/${id}`),
+  getSharedReport: (token: string) => request<Report>(`/reports/shared/${encodeURIComponent(token)}`),
+  createShareLink: (reportId: string, expiresInHours?: number) =>
+    request<ReportShareLink>("/reports/share", {
+      method: "POST",
+      body: JSON.stringify({ report_id: reportId, expires_in_hours: expiresInHours }),
+    }),
   rewriteReport: (reportId: string, instruction: string) =>
     request<NarrativeContent>("/reports/rewrite", {
       method: "POST",

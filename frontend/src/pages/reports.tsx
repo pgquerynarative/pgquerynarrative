@@ -26,22 +26,27 @@ type MetricsPayload = {
 };
 
 function ReportDetail() {
-  const { id } = useParams<{ id: string }>();
+  const { id, token } = useParams<{ id?: string; token?: string }>();
   const [report, setReport] = useState<Report | null>(null);
   const [loading, setLoading] = useState(true);
   const [rewriteInstruction, setRewriteInstruction] = useState("");
   const [rewriteLoading, setRewriteLoading] = useState(false);
   const [rewriteError, setRewriteError] = useState("");
+  const [shareLoading, setShareLoading] = useState(false);
+  const [shareExpiry, setShareExpiry] = useState("168");
+  const [shareMessage, setShareMessage] = useState("");
 
   useEffect(() => {
-    if (!id) return;
-    api.getReport(id).then(setReport).catch(() => {}).finally(() => setLoading(false));
-  }, [id]);
+    if (!id && !token) return;
+    const loader = token ? api.getSharedReport(token) : api.getReport(id!);
+    loader.then(setReport).catch(() => {}).finally(() => setLoading(false));
+  }, [id, token]);
 
   if (loading) return <div className="space-y-4"><Skeleton className="h-8 w-64" /><Skeleton className="h-64 w-full" /></div>;
   if (!report) return <p className="text-muted-foreground">Report not found.</p>;
 
   const { narrative } = report;
+  const isSharedView = Boolean(token);
   const applyRewrite = async (instruction: string) => {
     const trimmed = instruction.trim();
     if (!trimmed) return;
@@ -55,6 +60,22 @@ function ReportDetail() {
       setRewriteError(e instanceof Error ? e.message : "Failed to rewrite narrative");
     } finally {
       setRewriteLoading(false);
+    }
+  };
+  const createShareLink = async () => {
+    if (!id) return;
+    setShareLoading(true);
+    setShareMessage("");
+    try {
+      const expiry = Number(shareExpiry);
+      const result = await api.createShareLink(id, Number.isFinite(expiry) && expiry > 0 ? expiry : undefined);
+      const absolute = `${window.location.origin}${result.url}`;
+      await navigator.clipboard.writeText(absolute);
+      setShareMessage(`Share link copied${result.expires_at ? ` (expires ${new Date(result.expires_at).toLocaleString()})` : ""}`);
+    } catch (e) {
+      setShareMessage(e instanceof Error ? e.message : "Failed to create share link");
+    } finally {
+      setShareLoading(false);
     }
   };
 
@@ -72,10 +93,30 @@ function ReportDetail() {
           </div>
         </div>
         <div className="flex gap-2">
-          <a href={`/web/reports/export?id=${report.id}`} download><Button variant="outline" size="sm"><Download className="h-4 w-4" /> HTML</Button></a>
-          <a href={`/web/reports/export/pdf?id=${report.id}`} download><Button variant="outline" size="sm"><Download className="h-4 w-4" /> PDF</Button></a>
+          {!isSharedView && <a href={`/web/reports/export?id=${report.id}`} download><Button variant="outline" size="sm"><Download className="h-4 w-4" /> HTML</Button></a>}
+          <a href={isSharedView ? `/web/reports/export/shared/pdf?token=${encodeURIComponent(token ?? "")}` : `/web/reports/export/pdf?id=${report.id}`} download><Button variant="outline" size="sm"><Download className="h-4 w-4" /> PDF</Button></a>
         </div>
       </div>
+      {!isSharedView && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm">Share Report</CardTitle>
+            <CardDescription>Create a read-only link with optional expiry.</CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-wrap gap-2 items-center">
+            <select className="h-10 rounded-md border border-input bg-background px-3 text-sm" value={shareExpiry} onChange={(e) => setShareExpiry(e.target.value)}>
+              <option value="24">24 hours</option>
+              <option value="72">3 days</option>
+              <option value="168">7 days</option>
+              <option value="720">30 days</option>
+            </select>
+            <Button onClick={() => { void createShareLink(); }} disabled={shareLoading}>
+              Create & Copy Link
+            </Button>
+            {shareMessage && <p className="text-xs text-muted-foreground">{shareMessage}</p>}
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader><CardTitle className="text-sm text-muted-foreground">SQL Query</CardTitle></CardHeader>
@@ -83,7 +124,7 @@ function ReportDetail() {
       </Card>
 
       {/* Narrative sections */}
-      <Card className="border-primary/20">
+      {!isSharedView && <Card className="border-primary/20">
         <CardHeader>
           <CardTitle className="text-sm">Refine Narrative</CardTitle>
           <CardDescription>Rewrite for different audiences without rerunning the query.</CardDescription>
@@ -109,7 +150,7 @@ function ReportDetail() {
           </div>
           {rewriteError && <p className="text-xs text-destructive">{rewriteError}</p>}
         </CardContent>
-      </Card>
+      </Card>}
       <Card className="border-primary/20">
         <CardContent className="p-6 space-y-5">
           {narrative?.headline && <h2 className="text-xl font-semibold">{narrative.headline}</h2>}
@@ -403,6 +444,6 @@ function ReportList() {
 }
 
 export default function Reports() {
-  const { id } = useParams();
-  return id ? <ReportDetail /> : <ReportList />;
+  const { id, token } = useParams();
+  return id || token ? <ReportDetail /> : <ReportList />;
 }

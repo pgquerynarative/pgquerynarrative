@@ -15,21 +15,25 @@ import (
 
 // Endpoints wraps the "reports" service endpoints.
 type Endpoints struct {
-	Generate goa.Endpoint
-	Get      goa.Endpoint
-	List     goa.Endpoint
-	Similar  goa.Endpoint
-	Rewrite  goa.Endpoint
+	Generate    goa.Endpoint
+	Get         goa.Endpoint
+	List        goa.Endpoint
+	Similar     goa.Endpoint
+	Rewrite     goa.Endpoint
+	CreateShare goa.Endpoint
+	GetShared   goa.Endpoint
 }
 
 // NewEndpoints wraps the methods of the "reports" service with endpoints.
 func NewEndpoints(s Service) *Endpoints {
 	return &Endpoints{
-		Generate: NewGenerateEndpoint(s),
-		Get:      NewGetEndpoint(s),
-		List:     NewListEndpoint(s),
-		Similar:  NewSimilarEndpoint(s),
-		Rewrite:  NewRewriteEndpoint(s),
+		Generate:    NewGenerateEndpoint(s),
+		Get:         NewGetEndpoint(s),
+		List:        NewListEndpoint(s),
+		Similar:     NewSimilarEndpoint(s),
+		Rewrite:     NewRewriteEndpoint(s),
+		CreateShare: NewCreateShareEndpoint(s),
+		GetShared:   NewGetSharedEndpoint(s),
 	}
 }
 
@@ -40,6 +44,8 @@ func (e *Endpoints) Use(m func(goa.Endpoint) goa.Endpoint) {
 	e.List = m(e.List)
 	e.Similar = m(e.Similar)
 	e.Rewrite = m(e.Rewrite)
+	e.CreateShare = m(e.CreateShare)
+	e.GetShared = m(e.GetShared)
 }
 
 // NewGenerateEndpoint returns an endpoint function that calls the method
@@ -84,5 +90,23 @@ func NewRewriteEndpoint(s Service) goa.Endpoint {
 	return func(ctx context.Context, req any) (any, error) {
 		p := req.(*RewritePayload)
 		return s.Rewrite(ctx, p)
+	}
+}
+
+// NewCreateShareEndpoint returns an endpoint function that calls the method
+// "create_share" of service "reports".
+func NewCreateShareEndpoint(s Service) goa.Endpoint {
+	return func(ctx context.Context, req any) (any, error) {
+		p := req.(*CreateSharePayload)
+		return s.CreateShare(ctx, p)
+	}
+}
+
+// NewGetSharedEndpoint returns an endpoint function that calls the method
+// "get_shared" of service "reports".
+func NewGetSharedEndpoint(s Service) goa.Endpoint {
+	return func(ctx context.Context, req any) (any, error) {
+		p := req.(*GetSharedPayload)
+		return s.GetShared(ctx, p)
 	}
 }

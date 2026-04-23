@@ -35,3 +35,13 @@ func SimilarReportsPath() string {
 func RewriteReportsPath() string {
 	return "/api/v1/reports/rewrite"
 }
+
+// CreateShareReportsPath returns the URL path to the reports service create_share HTTP endpoint.
+func CreateShareReportsPath() string {
+	return "/api/v1/reports/share"
+}
+
+// GetSharedReportsPath returns the URL path to the reports service get_shared HTTP endpoint.
+func GetSharedReportsPath(token string) string {
+	return fmt.Sprintf("/api/v1/reports/shared/%v", token)
+}

@@ -2,7 +2,9 @@ package service
 
 import (
 	"context"
+	"crypto/rand"
 	"database/sql"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -751,6 +753,66 @@ func (s *ReportsService) Rewrite(ctx context.Context, payload *reports.RewritePa
 		Limitations:     rewritten.Limitations,
 		Recommendations: rewritten.Recommendations,
 	}, nil
+}
+
+// CreateShare creates or refreshes a shareable read-only token for a report.
+func (s *ReportsService) CreateShare(ctx context.Context, payload *reports.CreateSharePayload) (*reports.ReportShareLink, error) {
+	var exists bool
+	if err := s.appPool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM app.reports WHERE id = $1)`, payload.ReportID).Scan(&exists); err != nil {
+		return nil, err
+	}
+	if !exists {
+		return nil, &reports.NotFoundError{Name: "not_found", Message: "report not found", Code: strPtr("NOT_FOUND")}
+	}
+	token, err := newShareToken()
+	if err != nil {
+		return nil, err
+	}
+	var expiresAt sql.NullTime
+	err = s.appPool.QueryRow(ctx, `
+		INSERT INTO app.report_share_tokens (report_id, token, expires_at)
+		VALUES ($1, $2, CASE WHEN $3::int IS NULL THEN NULL ELSE NOW() + ($3::text || ' hours')::interval END)
+		ON CONFLICT (report_id) DO UPDATE SET token = EXCLUDED.token, expires_at = EXCLUDED.expires_at, created_at = NOW()
+		RETURNING expires_at
+	`, payload.ReportID, token, payload.ExpiresInHours).Scan(&expiresAt)
+	if err != nil {
+		return nil, err
+	}
+	link := &reports.ReportShareLink{
+		Token: token,
+		URL:   "/shared/" + token,
+	}
+	if expiresAt.Valid {
+		t := expiresAt.Time.UTC().Format(time.RFC3339)
+		link.ExpiresAt = &t
+	}
+	return link, nil
+}
+
+// GetShared fetches a report through a valid share token.
+func (s *ReportsService) GetShared(ctx context.Context, payload *reports.GetSharedPayload) (*reports.Report, error) {
+	var reportID string
+	err := s.appPool.QueryRow(ctx, `
+		SELECT report_id
+		FROM app.report_share_tokens
+		WHERE token = $1
+		  AND (expires_at IS NULL OR expires_at > NOW())
+	`, payload.Token).Scan(&reportID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, &reports.NotFoundError{Name: "not_found", Message: "shared report link is invalid or expired", Code: strPtr("NOT_FOUND")}
+		}
+		return nil, err
+	}
+	return s.Get(ctx, &reports.GetPayload{ID: reportID})
+}
+
+func newShareToken() (string, error) {
+	b := make([]byte, 24)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return base64.RawURLEncoding.EncodeToString(b), nil
 }
 
 // BuildPerfSuggestions returns performance suggestions from query result. Exported for testing.

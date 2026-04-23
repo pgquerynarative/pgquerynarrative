@@ -29,6 +29,14 @@ type RewriteRequestBody struct {
 	Instruction string `form:"instruction" json:"instruction" xml:"instruction"`
 }
 
+// CreateShareRequestBody is the type of the "reports" service "create_share"
+// endpoint HTTP request body.
+type CreateShareRequestBody struct {
+	ReportID string `form:"report_id" json:"report_id" xml:"report_id"`
+	// Optional expiry in hours (1-720). Omit for no expiry.
+	ExpiresInHours *int32 `form:"expires_in_hours,omitempty" json:"expires_in_hours,omitempty" xml:"expires_in_hours,omitempty"`
+}
+
 // GenerateResponseBody is the type of the "reports" service "generate"
 // endpoint HTTP response body.
 type GenerateResponseBody struct {
@@ -85,6 +93,30 @@ type RewriteResponseBody struct {
 	Recommendations []string `form:"recommendations,omitempty" json:"recommendations,omitempty" xml:"recommendations,omitempty"`
 }
 
+// CreateShareResponseBody is the type of the "reports" service "create_share"
+// endpoint HTTP response body.
+type CreateShareResponseBody struct {
+	Token     *string `form:"token,omitempty" json:"token,omitempty" xml:"token,omitempty"`
+	URL       *string `form:"url,omitempty" json:"url,omitempty" xml:"url,omitempty"`
+	ExpiresAt *string `form:"expires_at,omitempty" json:"expires_at,omitempty" xml:"expires_at,omitempty"`
+}
+
+// GetSharedResponseBody is the type of the "reports" service "get_shared"
+// endpoint HTTP response body.
+type GetSharedResponseBody struct {
+	ID           *string                       `form:"id,omitempty" json:"id,omitempty" xml:"id,omitempty"`
+	SavedQueryID *string                       `form:"saved_query_id,omitempty" json:"saved_query_id,omitempty" xml:"saved_query_id,omitempty"`
+	SQL          *string                       `form:"sql,omitempty" json:"sql,omitempty" xml:"sql,omitempty"`
+	ConnectionID *string                       `form:"connection_id,omitempty" json:"connection_id,omitempty" xml:"connection_id,omitempty"`
+	Narrative    *NarrativeContentResponseBody `form:"narrative,omitempty" json:"narrative,omitempty" xml:"narrative,omitempty"`
+	Metrics      *MetricsDataResponseBody      `form:"metrics,omitempty" json:"metrics,omitempty" xml:"metrics,omitempty"`
+	// Suggested chart types based on result shape
+	ChartSuggestions []*ChartSuggestionResponseBody `form:"chart_suggestions,omitempty" json:"chart_suggestions,omitempty" xml:"chart_suggestions,omitempty"`
+	CreatedAt        *string                        `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
+	LlmModel         *string                        `form:"llm_model,omitempty" json:"llm_model,omitempty" xml:"llm_model,omitempty"`
+	LlmProvider      *string                        `form:"llm_provider,omitempty" json:"llm_provider,omitempty" xml:"llm_provider,omitempty"`
+}
+
 // GenerateLlmErrorResponseBody is the type of the "reports" service "generate"
 // endpoint HTTP response body for the "llm_error" error.
 type GenerateLlmErrorResponseBody struct {
@@ -128,6 +160,22 @@ type RewriteNotFoundResponseBody struct {
 // RewriteValidationErrorResponseBody is the type of the "reports" service
 // "rewrite" endpoint HTTP response body for the "validation_error" error.
 type RewriteValidationErrorResponseBody struct {
+	Name    *string `form:"name,omitempty" json:"name,omitempty" xml:"name,omitempty"`
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+	Code    *string `form:"code,omitempty" json:"code,omitempty" xml:"code,omitempty"`
+}
+
+// CreateShareNotFoundResponseBody is the type of the "reports" service
+// "create_share" endpoint HTTP response body for the "not_found" error.
+type CreateShareNotFoundResponseBody struct {
+	Name    *string `form:"name,omitempty" json:"name,omitempty" xml:"name,omitempty"`
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+	Code    *string `form:"code,omitempty" json:"code,omitempty" xml:"code,omitempty"`
+}
+
+// GetSharedNotFoundResponseBody is the type of the "reports" service
+// "get_shared" endpoint HTTP response body for the "not_found" error.
+type GetSharedNotFoundResponseBody struct {
 	Name    *string `form:"name,omitempty" json:"name,omitempty" xml:"name,omitempty"`
 	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
 	Code    *string `form:"code,omitempty" json:"code,omitempty" xml:"code,omitempty"`
@@ -333,6 +381,16 @@ func NewRewriteRequestBody(p *reports.RewritePayload) *RewriteRequestBody {
 	return body
 }
 
+// NewCreateShareRequestBody builds the HTTP request body from the payload of
+// the "create_share" endpoint of the "reports" service.
+func NewCreateShareRequestBody(p *reports.CreateSharePayload) *CreateShareRequestBody {
+	body := &CreateShareRequestBody{
+		ReportID:       p.ReportID,
+		ExpiresInHours: p.ExpiresInHours,
+	}
+	return body
+}
+
 // NewGenerateReportOK builds a "reports" service "generate" endpoint result
 // from a HTTP "OK" response.
 func NewGenerateReportOK(body *GenerateResponseBody) *reports.Report {
@@ -525,6 +583,70 @@ func NewRewriteValidationError(body *RewriteValidationErrorResponseBody) *report
 	return v
 }
 
+// NewCreateShareReportShareLinkOK builds a "reports" service "create_share"
+// endpoint result from a HTTP "OK" response.
+func NewCreateShareReportShareLinkOK(body *CreateShareResponseBody) *reports.ReportShareLink {
+	v := &reports.ReportShareLink{
+		Token:     *body.Token,
+		URL:       *body.URL,
+		ExpiresAt: body.ExpiresAt,
+	}
+
+	return v
+}
+
+// NewCreateShareNotFound builds a reports service create_share endpoint
+// not_found error.
+func NewCreateShareNotFound(body *CreateShareNotFoundResponseBody) *reports.NotFoundError {
+	v := &reports.NotFoundError{
+		Name:    *body.Name,
+		Message: *body.Message,
+		Code:    body.Code,
+	}
+
+	return v
+}
+
+// NewGetSharedReportOK builds a "reports" service "get_shared" endpoint result
+// from a HTTP "OK" response.
+func NewGetSharedReportOK(body *GetSharedResponseBody) *reports.Report {
+	v := &reports.Report{
+		ID:           *body.ID,
+		SavedQueryID: body.SavedQueryID,
+		SQL:          *body.SQL,
+		ConnectionID: *body.ConnectionID,
+		CreatedAt:    *body.CreatedAt,
+		LlmModel:     *body.LlmModel,
+		LlmProvider:  *body.LlmProvider,
+	}
+	v.Narrative = unmarshalNarrativeContentResponseBodyToReportsNarrativeContent(body.Narrative)
+	v.Metrics = unmarshalMetricsDataResponseBodyToReportsMetricsData(body.Metrics)
+	if body.ChartSuggestions != nil {
+		v.ChartSuggestions = make([]*reports.ChartSuggestion, len(body.ChartSuggestions))
+		for i, val := range body.ChartSuggestions {
+			if val == nil {
+				v.ChartSuggestions[i] = nil
+				continue
+			}
+			v.ChartSuggestions[i] = unmarshalChartSuggestionResponseBodyToReportsChartSuggestion(val)
+		}
+	}
+
+	return v
+}
+
+// NewGetSharedNotFound builds a reports service get_shared endpoint not_found
+// error.
+func NewGetSharedNotFound(body *GetSharedNotFoundResponseBody) *reports.NotFoundError {
+	v := &reports.NotFoundError{
+		Name:    *body.Name,
+		Message: *body.Message,
+		Code:    body.Code,
+	}
+
+	return v
+}
+
 // ValidateGenerateResponseBody runs the validations defined on
 // GenerateResponseBody
 func ValidateGenerateResponseBody(body *GenerateResponseBody) (err error) {
@@ -685,6 +807,77 @@ func ValidateRewriteResponseBody(body *RewriteResponseBody) (err error) {
 	return
 }
 
+// ValidateCreateShareResponseBody runs the validations defined on
+// create_share_response_body
+func ValidateCreateShareResponseBody(body *CreateShareResponseBody) (err error) {
+	if body.Token == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("token", "body"))
+	}
+	if body.URL == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("url", "body"))
+	}
+	if body.ExpiresAt != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.expires_at", *body.ExpiresAt, goa.FormatDateTime))
+	}
+	return
+}
+
+// ValidateGetSharedResponseBody runs the validations defined on
+// get_shared_response_body
+func ValidateGetSharedResponseBody(body *GetSharedResponseBody) (err error) {
+	if body.ID == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("id", "body"))
+	}
+	if body.SQL == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("sql", "body"))
+	}
+	if body.ConnectionID == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("connection_id", "body"))
+	}
+	if body.Narrative == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("narrative", "body"))
+	}
+	if body.Metrics == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("metrics", "body"))
+	}
+	if body.CreatedAt == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("created_at", "body"))
+	}
+	if body.LlmModel == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("llm_model", "body"))
+	}
+	if body.LlmProvider == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("llm_provider", "body"))
+	}
+	if body.ID != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.id", *body.ID, goa.FormatUUID))
+	}
+	if body.SavedQueryID != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.saved_query_id", *body.SavedQueryID, goa.FormatUUID))
+	}
+	if body.Narrative != nil {
+		if err2 := ValidateNarrativeContentResponseBody(body.Narrative); err2 != nil {
+			err = goa.MergeErrors(err, err2)
+		}
+	}
+	if body.Metrics != nil {
+		if err2 := ValidateMetricsDataResponseBody(body.Metrics); err2 != nil {
+			err = goa.MergeErrors(err, err2)
+		}
+	}
+	for _, e := range body.ChartSuggestions {
+		if e != nil {
+			if err2 := ValidateChartSuggestionResponseBody(e); err2 != nil {
+				err = goa.MergeErrors(err, err2)
+			}
+		}
+	}
+	if body.CreatedAt != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.created_at", *body.CreatedAt, goa.FormatDateTime))
+	}
+	return
+}
+
 // ValidateGenerateLlmErrorResponseBody runs the validations defined on
 // generate_llm_error_response_body
 func ValidateGenerateLlmErrorResponseBody(body *GenerateLlmErrorResponseBody) (err error) {
@@ -748,6 +941,30 @@ func ValidateRewriteNotFoundResponseBody(body *RewriteNotFoundResponseBody) (err
 // ValidateRewriteValidationErrorResponseBody runs the validations defined on
 // rewrite_validation_error_response_body
 func ValidateRewriteValidationErrorResponseBody(body *RewriteValidationErrorResponseBody) (err error) {
+	if body.Name == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("name", "body"))
+	}
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
+// ValidateCreateShareNotFoundResponseBody runs the validations defined on
+// create_share_not_found_response_body
+func ValidateCreateShareNotFoundResponseBody(body *CreateShareNotFoundResponseBody) (err error) {
+	if body.Name == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("name", "body"))
+	}
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
+// ValidateGetSharedNotFoundResponseBody runs the validations defined on
+// get_shared_not_found_response_body
+func ValidateGetSharedNotFoundResponseBody(body *GetSharedNotFoundResponseBody) (err error) {
 	if body.Name == nil {
 		err = goa.MergeErrors(err, goa.MissingFieldError("name", "body"))
 	}

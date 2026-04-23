@@ -23,6 +23,10 @@ type Service interface {
 	Similar(context.Context, *SimilarPayload) (res *ReportSimilarResult, err error)
 	// Rewrite an existing report narrative using a user instruction.
 	Rewrite(context.Context, *RewritePayload) (res *NarrativeContent, err error)
+	// Create or refresh a shareable read-only token link for a report.
+	CreateShare(context.Context, *CreateSharePayload) (res *ReportShareLink, err error)
+	// Fetch a report by valid share token.
+	GetShared(context.Context, *GetSharedPayload) (res *Report, err error)
 }
 
 // APIName is the name of the API as defined in the design.
@@ -39,7 +43,7 @@ const ServiceName = "reports"
 // MethodNames lists the service method names as defined in the design. These
 // are the same values that are set in the endpoint request contexts under the
 // MethodKey key.
-var MethodNames = [5]string{"generate", "get", "list", "similar", "rewrite"}
+var MethodNames = [7]string{"generate", "get", "list", "similar", "rewrite", "create_share", "get_shared"}
 
 type AggregateData struct {
 	Sum   *float64
@@ -96,6 +100,14 @@ type CorrelationPairData struct {
 	Spearman float64
 }
 
+// CreateSharePayload is the payload type of the reports service create_share
+// method.
+type CreateSharePayload struct {
+	ReportID string
+	// Optional expiry in hours (1-720). Omit for no expiry.
+	ExpiresInHours *int32
+}
+
 // GenerateReportPayload is the payload type of the reports service generate
 // method.
 type GenerateReportPayload struct {
@@ -107,6 +119,12 @@ type GenerateReportPayload struct {
 // GetPayload is the payload type of the reports service get method.
 type GetPayload struct {
 	ID string
+}
+
+// GetSharedPayload is the payload type of the reports service get_shared
+// method.
+type GetSharedPayload struct {
+	Token string
 }
 
 type LLMError struct {
@@ -182,6 +200,14 @@ type ReportList struct {
 	Items  []*Report
 	Limit  int32
 	Offset int32
+}
+
+// ReportShareLink is the result type of the reports service create_share
+// method.
+type ReportShareLink struct {
+	Token     string
+	URL       string
+	ExpiresAt *string
 }
 
 // ReportSimilarResult is the result type of the reports service similar method.

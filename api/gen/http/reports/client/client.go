@@ -35,6 +35,14 @@ type Client struct {
 	// endpoint.
 	RewriteDoer goahttp.Doer
 
+	// CreateShare Doer is the HTTP client used to make requests to the
+	// create_share endpoint.
+	CreateShareDoer goahttp.Doer
+
+	// GetShared Doer is the HTTP client used to make requests to the get_shared
+	// endpoint.
+	GetSharedDoer goahttp.Doer
+
 	// RestoreResponseBody controls whether the response bodies are reset after
 	// decoding so they can be read again.
 	RestoreResponseBody bool
@@ -60,6 +68,8 @@ func NewClient(
 		ListDoer:            doer,
 		SimilarDoer:         doer,
 		RewriteDoer:         doer,
+		CreateShareDoer:     doer,
+		GetSharedDoer:       doer,
 		RestoreResponseBody: restoreBody,
 		scheme:              scheme,
 		host:                host,
@@ -178,6 +188,49 @@ func (c *Client) Rewrite() goa.Endpoint {
 		resp, err := c.RewriteDoer.Do(req)
 		if err != nil {
 			return nil, goahttp.ErrRequestError("reports", "rewrite", err)
+		}
+		return decodeResponse(resp)
+	}
+}
+
+// CreateShare returns an endpoint that makes HTTP requests to the reports
+// service create_share server.
+func (c *Client) CreateShare() goa.Endpoint {
+	var (
+		encodeRequest  = EncodeCreateShareRequest(c.encoder)
+		decodeResponse = DecodeCreateShareResponse(c.decoder, c.RestoreResponseBody)
+	)
+	return func(ctx context.Context, v any) (any, error) {
+		req, err := c.BuildCreateShareRequest(ctx, v)
+		if err != nil {
+			return nil, err
+		}
+		err = encodeRequest(req, v)
+		if err != nil {
+			return nil, err
+		}
+		resp, err := c.CreateShareDoer.Do(req)
+		if err != nil {
+			return nil, goahttp.ErrRequestError("reports", "create_share", err)
+		}
+		return decodeResponse(resp)
+	}
+}
+
+// GetShared returns an endpoint that makes HTTP requests to the reports
+// service get_shared server.
+func (c *Client) GetShared() goa.Endpoint {
+	var (
+		decodeResponse = DecodeGetSharedResponse(c.decoder, c.RestoreResponseBody)
+	)
+	return func(ctx context.Context, v any) (any, error) {
+		req, err := c.BuildGetSharedRequest(ctx, v)
+		if err != nil {
+			return nil, err
+		}
+		resp, err := c.GetSharedDoer.Do(req)
+		if err != nil {
+			return nil, goahttp.ErrRequestError("reports", "get_shared", err)
 		}
 		return decodeResponse(resp)
 	}

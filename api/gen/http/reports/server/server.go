@@ -18,12 +18,14 @@ import (
 
 // Server lists the reports service endpoint HTTP handlers.
 type Server struct {
-	Mounts   []*MountPoint
-	Generate http.Handler
-	Get      http.Handler
-	List     http.Handler
-	Similar  http.Handler
-	Rewrite  http.Handler
+	Mounts      []*MountPoint
+	Generate    http.Handler
+	Get         http.Handler
+	List        http.Handler
+	Similar     http.Handler
+	Rewrite     http.Handler
+	CreateShare http.Handler
+	GetShared   http.Handler
 }
 
 // MountPoint holds information about the mounted endpoints.
@@ -58,12 +60,16 @@ func New(
 			{"List", "GET", "/api/v1/reports"},
 			{"Similar", "GET", "/api/v1/reports/similar"},
 			{"Rewrite", "POST", "/api/v1/reports/rewrite"},
+			{"CreateShare", "POST", "/api/v1/reports/share"},
+			{"GetShared", "GET", "/api/v1/reports/shared/{token}"},
 		},
-		Generate: NewGenerateHandler(e.Generate, mux, decoder, encoder, errhandler, formatter),
-		Get:      NewGetHandler(e.Get, mux, decoder, encoder, errhandler, formatter),
-		List:     NewListHandler(e.List, mux, decoder, encoder, errhandler, formatter),
-		Similar:  NewSimilarHandler(e.Similar, mux, decoder, encoder, errhandler, formatter),
-		Rewrite:  NewRewriteHandler(e.Rewrite, mux, decoder, encoder, errhandler, formatter),
+		Generate:    NewGenerateHandler(e.Generate, mux, decoder, encoder, errhandler, formatter),
+		Get:         NewGetHandler(e.Get, mux, decoder, encoder, errhandler, formatter),
+		List:        NewListHandler(e.List, mux, decoder, encoder, errhandler, formatter),
+		Similar:     NewSimilarHandler(e.Similar, mux, decoder, encoder, errhandler, formatter),
+		Rewrite:     NewRewriteHandler(e.Rewrite, mux, decoder, encoder, errhandler, formatter),
+		CreateShare: NewCreateShareHandler(e.CreateShare, mux, decoder, encoder, errhandler, formatter),
+		GetShared:   NewGetSharedHandler(e.GetShared, mux, decoder, encoder, errhandler, formatter),
 	}
 }
 
@@ -77,6 +83,8 @@ func (s *Server) Use(m func(http.Handler) http.Handler) {
 	s.List = m(s.List)
 	s.Similar = m(s.Similar)
 	s.Rewrite = m(s.Rewrite)
+	s.CreateShare = m(s.CreateShare)
+	s.GetShared = m(s.GetShared)
 }
 
 // MethodNames returns the methods served.
@@ -89,6 +97,8 @@ func Mount(mux goahttp.Muxer, h *Server) {
 	MountListHandler(mux, h.List)
 	MountSimilarHandler(mux, h.Similar)
 	MountRewriteHandler(mux, h.Rewrite)
+	MountCreateShareHandler(mux, h.CreateShare)
+	MountGetSharedHandler(mux, h.GetShared)
 }
 
 // Mount configures the mux to serve the reports endpoints.
@@ -338,6 +348,112 @@ func NewRewriteHandler(
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := context.WithValue(r.Context(), goahttp.AcceptTypeKey, r.Header.Get("Accept"))
 		ctx = context.WithValue(ctx, goa.MethodKey, "rewrite")
+		ctx = context.WithValue(ctx, goa.ServiceKey, "reports")
+		payload, err := decodeRequest(r)
+		if err != nil {
+			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+			return
+		}
+		res, err := endpoint(ctx, payload)
+		if err != nil {
+			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+			return
+		}
+		if err := encodeResponse(ctx, w, res); err != nil {
+			if errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+		}
+	})
+}
+
+// MountCreateShareHandler configures the mux to serve the "reports" service
+// "create_share" endpoint.
+func MountCreateShareHandler(mux goahttp.Muxer, h http.Handler) {
+	f, ok := h.(http.HandlerFunc)
+	if !ok {
+		f = func(w http.ResponseWriter, r *http.Request) {
+			h.ServeHTTP(w, r)
+		}
+	}
+	mux.Handle("POST", "/api/v1/reports/share", f)
+}
+
+// NewCreateShareHandler creates a HTTP handler which loads the HTTP request
+// and calls the "reports" service "create_share" endpoint.
+func NewCreateShareHandler(
+	endpoint goa.Endpoint,
+	mux goahttp.Muxer,
+	decoder func(*http.Request) goahttp.Decoder,
+	encoder func(context.Context, http.ResponseWriter) goahttp.Encoder,
+	errhandler func(context.Context, http.ResponseWriter, error),
+	formatter func(ctx context.Context, err error) goahttp.Statuser,
+) http.Handler {
+	var (
+		decodeRequest  = DecodeCreateShareRequest(mux, decoder)
+		encodeResponse = EncodeCreateShareResponse(encoder)
+		encodeError    = EncodeCreateShareError(encoder, formatter)
+	)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := context.WithValue(r.Context(), goahttp.AcceptTypeKey, r.Header.Get("Accept"))
+		ctx = context.WithValue(ctx, goa.MethodKey, "create_share")
+		ctx = context.WithValue(ctx, goa.ServiceKey, "reports")
+		payload, err := decodeRequest(r)
+		if err != nil {
+			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+			return
+		}
+		res, err := endpoint(ctx, payload)
+		if err != nil {
+			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+			return
+		}
+		if err := encodeResponse(ctx, w, res); err != nil {
+			if errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+		}
+	})
+}
+
+// MountGetSharedHandler configures the mux to serve the "reports" service
+// "get_shared" endpoint.
+func MountGetSharedHandler(mux goahttp.Muxer, h http.Handler) {
+	f, ok := h.(http.HandlerFunc)
+	if !ok {
+		f = func(w http.ResponseWriter, r *http.Request) {
+			h.ServeHTTP(w, r)
+		}
+	}
+	mux.Handle("GET", "/api/v1/reports/shared/{token}", f)
+}
+
+// NewGetSharedHandler creates a HTTP handler which loads the HTTP request and
+// calls the "reports" service "get_shared" endpoint.
+func NewGetSharedHandler(
+	endpoint goa.Endpoint,
+	mux goahttp.Muxer,
+	decoder func(*http.Request) goahttp.Decoder,
+	encoder func(context.Context, http.ResponseWriter) goahttp.Encoder,
+	errhandler func(context.Context, http.ResponseWriter, error),
+	formatter func(ctx context.Context, err error) goahttp.Statuser,
+) http.Handler {
+	var (
+		decodeRequest  = DecodeGetSharedRequest(mux, decoder)
+		encodeResponse = EncodeGetSharedResponse(encoder)
+		encodeError    = EncodeGetSharedError(encoder, formatter)
+	)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := context.WithValue(r.Context(), goahttp.AcceptTypeKey, r.Header.Get("Accept"))
+		ctx = context.WithValue(ctx, goa.MethodKey, "get_shared")
 		ctx = context.WithValue(ctx, goa.ServiceKey, "reports")
 		payload, err := decodeRequest(r)
 		if err != nil {
