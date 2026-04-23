@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -126,6 +127,7 @@ func (s *ReportsService) Generate(ctx context.Context, payload *reports.Generate
 	// Calculate metrics
 	calcMetrics := metrics.CalculateMetrics(columnNames, queryResult.Rows, profiles, s.metricsOpts)
 	calcMetrics.PerfSuggestions = BuildPerfSuggestions(queryResult)
+	s.enrichTimeSeriesExplanations(ctx, calcMetrics)
 
 	// Optional RAG: retrieve similar past queries and add to prompt context
 	var similarContext string
@@ -199,6 +201,149 @@ func (s *ReportsService) Generate(ctx context.Context, payload *reports.Generate
 		LlmModel:         modelName,
 		LlmProvider:      providerName,
 	}, nil
+}
+
+func (s *ReportsService) enrichTimeSeriesExplanations(ctx context.Context, m *metrics.Metrics) {
+	if s.llmClient == nil || m == nil || len(m.TimeSeries) == 0 {
+		return
+	}
+	for measure, ts := range m.TimeSeries {
+		if ts.TrendSummary != nil {
+			if explanation := s.generateTrendExplanation(ctx, measure, ts); explanation != "" {
+				ts.TrendSummary.Explanation = explanation
+			}
+		}
+		if len(ts.Anomalies) > 0 {
+			for i := range ts.Anomalies {
+				if explanation := s.generateAnomalyExplanation(ctx, measure, ts, i); explanation != "" {
+					ts.Anomalies[i].Explanation = explanation
+				}
+			}
+		}
+		m.TimeSeries[measure] = ts
+	}
+}
+
+func (s *ReportsService) generateTrendExplanation(ctx context.Context, measure string, ts metrics.TimeSeriesMetric) string {
+	if ts.TrendSummary == nil {
+		return ""
+	}
+	var b strings.Builder
+	b.WriteString("Explain this time-series trend in exactly one sentence, under 28 words.\n")
+	b.WriteString("Do not mention SQL or statistical jargon unless required.\n")
+	b.WriteString("Measure: ")
+	b.WriteString(measure)
+	b.WriteString("\nDirection: ")
+	b.WriteString(ts.TrendSummary.Direction)
+	b.WriteString("\nSummary: ")
+	b.WriteString(ts.TrendSummary.Summary)
+	b.WriteString("\nRecent points:\n")
+	for _, p := range tailPeriodPoints(ts.Periods, 5) {
+		b.WriteString("- ")
+		b.WriteString(p.Label)
+		b.WriteString(": ")
+		b.WriteString(formatFloatForPrompt(p.Value))
+		b.WriteString("\n")
+	}
+	raw, err := s.llmClient.Generate(ctx, b.String())
+	if err != nil {
+		return ""
+	}
+	return normalizeOneSentence(raw)
+}
+
+func (s *ReportsService) generateAnomalyExplanation(ctx context.Context, measure string, ts metrics.TimeSeriesMetric, idx int) string {
+	if idx < 0 || idx >= len(ts.Anomalies) {
+		return ""
+	}
+	a := ts.Anomalies[idx]
+	var b strings.Builder
+	b.WriteString("Explain this anomaly in exactly one sentence, under 28 words.\n")
+	b.WriteString("Use plain business language and mention likely context from nearby periods.\n")
+	b.WriteString("Measure: ")
+	b.WriteString(measure)
+	b.WriteString("\nAnomaly period: ")
+	b.WriteString(a.PeriodLabel)
+	b.WriteString("\nAnomaly value: ")
+	b.WriteString(formatFloatForPrompt(a.Value))
+	b.WriteString("\nReason: ")
+	b.WriteString(a.Reason)
+	b.WriteString("\nNeighboring points:\n")
+	for _, p := range neighboringPoints(ts.Periods, a.PeriodLabel, 2) {
+		b.WriteString("- ")
+		b.WriteString(p.Label)
+		b.WriteString(": ")
+		b.WriteString(formatFloatForPrompt(p.Value))
+		b.WriteString("\n")
+	}
+	raw, err := s.llmClient.Generate(ctx, b.String())
+	if err != nil {
+		return ""
+	}
+	return normalizeOneSentence(raw)
+}
+
+func tailPeriodPoints(points []metrics.PeriodPoint, n int) []metrics.PeriodPoint {
+	if n <= 0 || len(points) == 0 {
+		return nil
+	}
+	if len(points) <= n {
+		return points
+	}
+	return points[len(points)-n:]
+}
+
+func neighboringPoints(points []metrics.PeriodPoint, periodLabel string, radius int) []metrics.PeriodPoint {
+	if len(points) == 0 {
+		return nil
+	}
+	index := -1
+	for i := range points {
+		if points[i].Label == periodLabel {
+			index = i
+			break
+		}
+	}
+	if index == -1 {
+		return tailPeriodPoints(points, 5)
+	}
+	start := index - radius
+	if start < 0 {
+		start = 0
+	}
+	end := index + radius + 1
+	if end > len(points) {
+		end = len(points)
+	}
+	return points[start:end]
+}
+
+func normalizeOneSentence(raw string) string {
+	text := strings.TrimSpace(raw)
+	text = strings.TrimPrefix(text, "- ")
+	text = strings.TrimLeft(text, "0123456789.) ")
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return ""
+	}
+	if i := strings.Index(text, "\n"); i >= 0 {
+		text = strings.TrimSpace(text[:i])
+	}
+	if !strings.HasSuffix(text, ".") && !strings.HasSuffix(text, "!") && !strings.HasSuffix(text, "?") {
+		text += "."
+	}
+	return text
+}
+
+func formatFloatForPrompt(v float64) string {
+	return fmt.Sprintf("%.4g", v)
+}
+
+func strPtrIfNotEmpty(s string) *string {
+	if strings.TrimSpace(s) == "" {
+		return nil
+	}
+	return strPtr(s)
 }
 
 func (s *ReportsService) storeReportEmbedding(ctx context.Context, reportID string, narrative *story.NarrativeContent, modelName string) {
@@ -648,6 +793,7 @@ func ConvertMetrics(m *metrics.Metrics) *reports.MetricsData {
 					PeriodLabel: ts.Anomalies[i].PeriodLabel,
 					Value:       ts.Anomalies[i].Value,
 					Reason:      ts.Anomalies[i].Reason,
+					Explanation: strPtrIfNotEmpty(ts.Anomalies[i].Explanation),
 				}
 			}
 		}
@@ -658,6 +804,7 @@ func ConvertMetrics(m *metrics.Metrics) *reports.MetricsData {
 				Summary:     ts.TrendSummary.Summary,
 				Slope:       &ts.TrendSummary.Slope,
 				PeriodsUsed: &pu,
+				Explanation: strPtrIfNotEmpty(ts.TrendSummary.Explanation),
 			}
 		}
 		if ts.NextPeriodForecast != nil {

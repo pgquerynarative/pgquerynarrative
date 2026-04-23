@@ -60,6 +60,8 @@ type AnomalyPointData struct {
 	PeriodLabel string
 	Value       float64
 	Reason      string
+	// One-sentence explanation for why this period may be anomalous
+	Explanation *string
 }
 
 // AskPayload is the payload type of the suggestions service ask method.
@@ -278,6 +280,8 @@ type TrendSummaryData struct {
 	PeriodsUsed *int32
 	// Human-readable trend description
 	Summary string
+	// One-sentence explanation of what the trend suggests
+	Explanation *string
 }
 
 type ValidationError struct {

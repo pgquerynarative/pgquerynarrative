@@ -326,11 +326,11 @@ func copyMetricsToSuggestions(m *reports.MetricsData) *suggestions.MetricsData {
 				}
 				for _, a := range v.Anomalies {
 					if a != nil {
-						ts.Anomalies = append(ts.Anomalies, &suggestions.AnomalyPointData{PeriodLabel: a.PeriodLabel, Value: a.Value, Reason: a.Reason})
+						ts.Anomalies = append(ts.Anomalies, &suggestions.AnomalyPointData{PeriodLabel: a.PeriodLabel, Value: a.Value, Reason: a.Reason, Explanation: a.Explanation})
 					}
 				}
 				if v.TrendSummary != nil {
-					ts.TrendSummary = &suggestions.TrendSummaryData{Direction: v.TrendSummary.Direction, Slope: v.TrendSummary.Slope, PeriodsUsed: v.TrendSummary.PeriodsUsed, Summary: v.TrendSummary.Summary}
+					ts.TrendSummary = &suggestions.TrendSummaryData{Direction: v.TrendSummary.Direction, Slope: v.TrendSummary.Slope, PeriodsUsed: v.TrendSummary.PeriodsUsed, Summary: v.TrendSummary.Summary, Explanation: v.TrendSummary.Explanation}
 				}
 				out.TimeSeries[k] = ts
 			}
