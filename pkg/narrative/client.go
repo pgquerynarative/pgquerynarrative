@@ -19,6 +19,7 @@ import (
 	pkgsuggestions "github.com/pgquerynarrative/pgquerynarrative/app/suggestions"
 	"github.com/pgquerynarrative/pgquerynarrative/gen/connections"
 	"github.com/pgquerynarrative/pgquerynarrative/gen/dashboards"
+	"github.com/pgquerynarrative/pgquerynarrative/gen/schedules"
 )
 
 // Client provides access to narrative capabilities: running queries, generating
@@ -31,6 +32,7 @@ type Client struct {
 	queriesService     *service.QueriesService
 	reportsService     *service.ReportsService
 	dashboardsService  *service.DashboardsService
+	schedulesService   *service.SchedulesService
 	schemaService      *service.SchemaService
 	connectionsService *service.ConnectionsService
 	suggestionsService suggestions.Service
@@ -128,12 +130,14 @@ func NewClient(ctx context.Context, cfg Config) (*Client, error) {
 	suggestionsService := &service.SuggestionsServiceWrapper{Suggester: suggester, AskSvc: askService}
 	connectionsService := service.NewConnectionsService(connectionItems)
 	dashboardsService := service.NewDashboardsService(pools.App, reportsService, queriesService)
+	schedulesService := service.NewSchedulesService(pools.App, queriesService, reportsService)
 
 	return &Client{
 		pools:              pools,
 		queriesService:     queriesService,
 		reportsService:     reportsService,
 		dashboardsService:  dashboardsService,
+		schedulesService:   schedulesService,
 		schemaService:      schemaService,
 		connectionsService: connectionsService,
 		suggestionsService: suggestionsService,
@@ -143,6 +147,11 @@ func NewClient(ctx context.Context, cfg Config) (*Client, error) {
 // DashboardsService returns the dashboards service for use with Goa endpoints.
 func (c *Client) DashboardsService() dashboards.Service {
 	return c.dashboardsService
+}
+
+// SchedulesService returns the schedules service for use with Goa endpoints.
+func (c *Client) SchedulesService() schedules.Service {
+	return c.schedulesService
 }
 
 func newLLMClient(cfg LLMConfig) llm.Client {

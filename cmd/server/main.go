@@ -36,6 +36,8 @@ import (
 	"github.com/pgquerynarrative/pgquerynarrative/gen/dashboards"
 	connectionsServer "github.com/pgquerynarrative/pgquerynarrative/gen/http/connections/server"
 	dashboardsServer "github.com/pgquerynarrative/pgquerynarrative/gen/http/dashboards/server"
+	schedulesServer "github.com/pgquerynarrative/pgquerynarrative/gen/http/schedules/server"
+	"github.com/pgquerynarrative/pgquerynarrative/gen/schedules"
 	"github.com/pgquerynarrative/pgquerynarrative/pkg/narrative"
 	"github.com/pgquerynarrative/pgquerynarrative/web"
 	goahttp "goa.design/goa/v3/http"
@@ -72,11 +74,12 @@ func main() {
 	connectionsEndpoints := connections.NewEndpoints(client.ConnectionsService())
 	reportsEndpoints := reports.NewEndpoints(client.ReportsService())
 	dashboardsEndpoints := dashboards.NewEndpoints(client.DashboardsService())
+	schedulesEndpoints := schedules.NewEndpoints(client.SchedulesService())
 	schemaEndpoints := schema.NewEndpoints(client.SchemaService())
 	suggestionsEndpoints := suggestions.NewEndpoints(client.SuggestionsService())
 
 	// Configure HTTP server
-	httpServer := setupHTTPServer(cfg, client, queriesEndpoints, connectionsEndpoints, reportsEndpoints, dashboardsEndpoints, schemaEndpoints, suggestionsEndpoints, appLogger)
+	httpServer := setupHTTPServer(cfg, client, queriesEndpoints, connectionsEndpoints, reportsEndpoints, dashboardsEndpoints, schedulesEndpoints, schemaEndpoints, suggestionsEndpoints, appLogger)
 
 	// Start server in a goroutine
 	go func() {
@@ -116,6 +119,7 @@ func setupHTTPServer(
 	connectionsEndpoints *connections.Endpoints,
 	reportsEndpoints *reports.Endpoints,
 	dashboardsEndpoints *dashboards.Endpoints,
+	schedulesEndpoints *schedules.Endpoints,
 	schemaEndpoints *schema.Endpoints,
 	suggestionsEndpoints *suggestions.Endpoints,
 	appLogger *logger.Logger,
@@ -135,6 +139,8 @@ func setupHTTPServer(
 	reportsServer.Mount(mux, reportsHTTP)
 	dashboardsHTTP := dashboardsServer.New(dashboardsEndpoints, mux, dec, enc, errHandler, nil)
 	dashboardsServer.Mount(mux, dashboardsHTTP)
+	schedulesHTTP := schedulesServer.New(schedulesEndpoints, mux, dec, enc, errHandler, nil)
+	schedulesServer.Mount(mux, schedulesHTTP)
 	schemaHTTP := schemaServer.New(schemaEndpoints, mux, dec, enc, errHandler, nil)
 	schemaServer.Mount(mux, schemaHTTP)
 	suggestionsHTTP := suggestionsServer.New(suggestionsEndpoints, mux, dec, enc, errHandler, nil)

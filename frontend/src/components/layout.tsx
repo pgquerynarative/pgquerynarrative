@@ -1,7 +1,7 @@
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { useTheme } from "@/contexts/theme-context";
-import { LayoutDashboard, Terminal, Bookmark, FileText, Settings, PanelLeftClose, PanelLeft, Moon, Sun, PanelsTopLeft } from "lucide-react";
+import { LayoutDashboard, Terminal, Bookmark, FileText, Settings, PanelLeftClose, PanelLeft, Moon, Sun, PanelsTopLeft, CalendarClock } from "lucide-react";
 import { useState } from "react";
 
 const navItems = [
@@ -10,6 +10,7 @@ const navItems = [
   { to: "/saved", icon: Bookmark, label: "Saved Queries" },
   { to: "/reports", icon: FileText, label: "Reports" },
   { to: "/dashboards", icon: PanelsTopLeft, label: "Dashboards" },
+  { to: "/schedules", icon: CalendarClock, label: "Schedules" },
   { to: "/settings", icon: Settings, label: "Settings" },
 ];
 

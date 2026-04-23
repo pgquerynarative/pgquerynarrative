@@ -113,6 +113,23 @@ export interface DashboardResolved {
   name: string;
   widgets: DashboardResolvedWidget[];
 }
+export interface Schedule {
+  id: string;
+  name: string;
+  saved_query_id?: string;
+  sql?: string;
+  connection_id: string;
+  cron_expr: string;
+  destination_type: string;
+  destination_target: string;
+  enabled: boolean;
+  last_run_at?: string;
+  last_status?: string;
+  last_error?: string;
+  next_run_at?: string;
+  created_at: string;
+  updated_at: string;
+}
 
 export interface AskResult {
   question: string;
@@ -231,4 +248,10 @@ export const api = {
     request<Dashboard>(`/dashboards/${id}`, { method: "PUT", body: JSON.stringify({ name, widgets }) }),
   deleteDashboard: (id: string) => request<void>(`/dashboards/${id}`, { method: "DELETE" }),
   resolveDashboard: (id: string) => request<DashboardResolved>(`/dashboards/${id}/resolve`),
+
+  listSchedules: () => request<{ items: Schedule[] }>("/schedules"),
+  createSchedule: (payload: Record<string, unknown>) => request<Schedule>("/schedules", { method: "POST", body: JSON.stringify(payload) }),
+  updateSchedule: (id: string, payload: Record<string, unknown>) => request<Schedule>(`/schedules/${id}`, { method: "PUT", body: JSON.stringify(payload) }),
+  deleteSchedule: (id: string) => request<void>(`/schedules/${id}`, { method: "DELETE" }),
+  runScheduleNow: (id: string) => request<{ schedule: Schedule; report_id?: string; delivered: boolean }>(`/schedules/${id}/run`, { method: "POST" }),
 };
