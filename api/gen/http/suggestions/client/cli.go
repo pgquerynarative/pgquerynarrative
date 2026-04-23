@@ -54,6 +54,43 @@ func BuildQueriesPayload(suggestionsQueriesIntent string, suggestionsQueriesLimi
 	return v, nil
 }
 
+// BuildQuestionsPayload builds the payload for the suggestions questions
+// endpoint from CLI flags.
+func BuildQuestionsPayload(suggestionsQuestionsConnectionID string, suggestionsQuestionsLimit string) (*suggestions.QuestionsPayload, error) {
+	var err error
+	var connectionID *string
+	{
+		if suggestionsQuestionsConnectionID != "" {
+			connectionID = &suggestionsQuestionsConnectionID
+		}
+	}
+	var limit int32
+	{
+		if suggestionsQuestionsLimit != "" {
+			var v int64
+			v, err = strconv.ParseInt(suggestionsQuestionsLimit, 10, 32)
+			limit = int32(v)
+			if err != nil {
+				return nil, fmt.Errorf("invalid value for limit, must be INT32")
+			}
+			if limit < 1 {
+				err = goa.MergeErrors(err, goa.InvalidRangeError("limit", limit, 1, true))
+			}
+			if limit > 20 {
+				err = goa.MergeErrors(err, goa.InvalidRangeError("limit", limit, 20, false))
+			}
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+	v := &suggestions.QuestionsPayload{}
+	v.ConnectionID = connectionID
+	v.Limit = limit
+
+	return v, nil
+}
+
 // BuildSimilarPayload builds the payload for the suggestions similar endpoint
 // from CLI flags.
 func BuildSimilarPayload(suggestionsSimilarText string, suggestionsSimilarLimit string) (*suggestions.SimilarPayload, error) {
@@ -99,7 +136,7 @@ func BuildAskPayload(suggestionsAskBody string) (*suggestions.AskPayload, error)
 	{
 		err = json.Unmarshal([]byte(suggestionsAskBody), &body)
 		if err != nil {
-			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"connection_id\": \"Ab qui quo repellat.\",\n      \"question\": \"x\"\n   }'")
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"connection_id\": \"Omnis voluptatem exercitationem.\",\n      \"question\": \"mf\"\n   }'")
 		}
 		if utf8.RuneCountInString(body.Question) < 1 {
 			err = goa.MergeErrors(err, goa.InvalidLengthError("body.question", body.Question, utf8.RuneCountInString(body.Question), 1, true))
@@ -127,7 +164,7 @@ func BuildExplainPayload(suggestionsExplainBody string) (*suggestions.ExplainPay
 	{
 		err = json.Unmarshal([]byte(suggestionsExplainBody), &body)
 		if err != nil {
-			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"sql\": \"2\"\n   }'")
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"sql\": \"bu\"\n   }'")
 		}
 		if utf8.RuneCountInString(body.SQL) < 1 {
 			err = goa.MergeErrors(err, goa.InvalidLengthError("body.sql", body.SQL, utf8.RuneCountInString(body.SQL), 1, true))

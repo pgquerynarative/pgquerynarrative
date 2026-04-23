@@ -29,6 +29,27 @@ var _ = Service("suggestions", func() {
 		})
 	})
 
+	Method("questions", func() {
+		Description("Suggest natural-language questions based on the current schema for discovery and onboarding.")
+		Payload(func() {
+			Attribute("connection_id", String, "Optional connection ID; defaults to server default connection")
+			Attribute("limit", Int32, "Max questions to return", func() {
+				Default(8)
+				Minimum(1)
+				Maximum(20)
+			})
+		})
+		Result(SuggestedQuestionsResult)
+		HTTP(func() {
+			GET("/api/v1/suggestions/questions")
+			Params(func() {
+				Param("connection_id")
+				Param("limit")
+			})
+			Response(StatusOK)
+		})
+	})
+
 	Method("similar", func() {
 		Description("Return saved queries semantically similar to the given text (embedding-based). Requires embeddings to be enabled.")
 		Payload(func() {
@@ -111,6 +132,12 @@ var AskResult = Type("AskResult", func() {
 var SuggestedQueriesResult = Type("SuggestedQueriesResult", func() {
 	Attribute("suggestions", ArrayOf(QuerySuggestion), "Suggested SQL and metadata")
 	Required("suggestions")
+})
+
+// SuggestedQuestionsResult is schema-driven natural-language discovery prompts.
+var SuggestedQuestionsResult = Type("SuggestedQuestionsResult", func() {
+	Attribute("questions", ArrayOf(String))
+	Required("questions")
 })
 
 // QuerySuggestion is one suggested query (sql, title, source).

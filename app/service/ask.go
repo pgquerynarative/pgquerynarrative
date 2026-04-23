@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"strconv"
 	"strings"
 
 	"github.com/pgquerynarrative/pgquerynarrative/api/gen/reports"
@@ -136,6 +137,90 @@ func (s *AskService) Explain(ctx context.Context, payload *suggestions.ExplainPa
 		explanation = "No explanation returned."
 	}
 	return &suggestions.ExplainResult{SQL: sql, Explanation: explanation}, nil
+}
+
+// Questions suggests schema-driven natural-language prompts users can ask.
+func (s *AskService) Questions(ctx context.Context, payload *suggestions.QuestionsPayload) (*suggestions.SuggestedQuestionsResult, error) {
+	schemaResult, err := s.connectionResolver.loaderFor(payload.ConnectionID).Load(ctx)
+	if err != nil {
+		return &suggestions.SuggestedQuestionsResult{Questions: defaultQuestions()}, nil
+	}
+	schemaText := llm.FormatSchemaForPrompt(schemaResult)
+	limit := int(payload.Limit)
+	if limit <= 0 {
+		limit = 8
+	}
+	prompt := buildQuestionDiscoveryPrompt(schemaText, limit)
+	raw, err := s.llmClient.Generate(ctx, prompt)
+	if err != nil {
+		qs := defaultQuestions()
+		if len(qs) > limit {
+			qs = qs[:limit]
+		}
+		return &suggestions.SuggestedQuestionsResult{Questions: qs}, nil
+	}
+	parsed := parseSuggestedQuestions(raw, limit)
+	if len(parsed) == 0 {
+		parsed = defaultQuestions()
+		if len(parsed) > limit {
+			parsed = parsed[:limit]
+		}
+	}
+	return &suggestions.SuggestedQuestionsResult{Questions: parsed}, nil
+}
+
+func buildQuestionDiscoveryPrompt(schemaText string, limit int) string {
+	var b strings.Builder
+	b.WriteString("You suggest practical business analytics questions based on a SQL schema.\n")
+	b.WriteString("Return exactly ")
+	b.WriteString(strconv.Itoa(limit))
+	b.WriteString(" short natural-language questions.\n")
+	b.WriteString("Constraints: no SQL, no numbering, one question per line, under 110 chars each.\n")
+	b.WriteString("Focus on trends, top items, regional breakdowns, category comparisons, and recent period changes.\n\n")
+	b.WriteString("Schema:\n")
+	b.WriteString(schemaText)
+	return b.String()
+}
+
+func parseSuggestedQuestions(raw string, limit int) []string {
+	lines := strings.Split(raw, "\n")
+	out := make([]string, 0, limit)
+	seen := map[string]bool{}
+	for _, line := range lines {
+		q := strings.TrimSpace(line)
+		q = strings.TrimPrefix(q, "- ")
+		q = strings.TrimLeft(q, "0123456789.) ")
+		q = strings.TrimSpace(q)
+		if q == "" {
+			continue
+		}
+		if !strings.HasSuffix(q, "?") {
+			q += "?"
+		}
+		key := strings.ToLower(q)
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		out = append(out, q)
+		if len(out) >= limit {
+			break
+		}
+	}
+	return out
+}
+
+func defaultQuestions() []string {
+	return []string{
+		"What were the top products by revenue in the latest period?",
+		"How has total sales trended over time?",
+		"Which regions are growing fastest month over month?",
+		"Which categories contribute most to total revenue?",
+		"Where do we see the largest decline compared to the previous period?",
+		"Which products have high quantity but low revenue?",
+		"What is the average order value trend by month?",
+		"Which segment should we prioritize based on recent performance?",
+	}
 }
 
 // reportToSuggestions copies a reports.Report into a suggestions.Report (same design, different packages).
@@ -312,4 +397,9 @@ func (w *SuggestionsServiceWrapper) Ask(ctx context.Context, p *suggestions.AskP
 // Explain delegates to the AskService.
 func (w *SuggestionsServiceWrapper) Explain(ctx context.Context, p *suggestions.ExplainPayload) (*suggestions.ExplainResult, error) {
 	return w.AskSvc.Explain(ctx, p)
+}
+
+// Questions delegates schema-driven discovery prompts to AskService.
+func (w *SuggestionsServiceWrapper) Questions(ctx context.Context, p *suggestions.QuestionsPayload) (*suggestions.SuggestedQuestionsResult, error) {
+	return w.AskSvc.Questions(ctx, p)
 }

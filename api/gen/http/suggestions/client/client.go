@@ -21,6 +21,10 @@ type Client struct {
 	// endpoint.
 	QueriesDoer goahttp.Doer
 
+	// Questions Doer is the HTTP client used to make requests to the questions
+	// endpoint.
+	QuestionsDoer goahttp.Doer
+
 	// Similar Doer is the HTTP client used to make requests to the similar
 	// endpoint.
 	SimilarDoer goahttp.Doer
@@ -53,6 +57,7 @@ func NewClient(
 ) *Client {
 	return &Client{
 		QueriesDoer:         doer,
+		QuestionsDoer:       doer,
 		SimilarDoer:         doer,
 		AskDoer:             doer,
 		ExplainDoer:         doer,
@@ -83,6 +88,30 @@ func (c *Client) Queries() goa.Endpoint {
 		resp, err := c.QueriesDoer.Do(req)
 		if err != nil {
 			return nil, goahttp.ErrRequestError("suggestions", "queries", err)
+		}
+		return decodeResponse(resp)
+	}
+}
+
+// Questions returns an endpoint that makes HTTP requests to the suggestions
+// service questions server.
+func (c *Client) Questions() goa.Endpoint {
+	var (
+		encodeRequest  = EncodeQuestionsRequest(c.encoder)
+		decodeResponse = DecodeQuestionsResponse(c.decoder, c.RestoreResponseBody)
+	)
+	return func(ctx context.Context, v any) (any, error) {
+		req, err := c.BuildQuestionsRequest(ctx, v)
+		if err != nil {
+			return nil, err
+		}
+		err = encodeRequest(req, v)
+		if err != nil {
+			return nil, err
+		}
+		resp, err := c.QuestionsDoer.Do(req)
+		if err != nil {
+			return nil, goahttp.ErrRequestError("suggestions", "questions", err)
 		}
 		return decodeResponse(resp)
 	}

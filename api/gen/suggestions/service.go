@@ -17,6 +17,9 @@ type Service interface {
 	// Return suggested SQL queries: curated examples plus saved queries matching
 	// optional intent.
 	Queries(context.Context, *QueriesPayload) (res *SuggestedQueriesResult, err error)
+	// Suggest natural-language questions based on the current schema for discovery
+	// and onboarding.
+	Questions(context.Context, *QuestionsPayload) (res *SuggestedQuestionsResult, err error)
 	// Return saved queries semantically similar to the given text
 	// (embedding-based). Requires embeddings to be enabled.
 	Similar(context.Context, *SimilarPayload) (res *SuggestedQueriesResult, err error)
@@ -41,7 +44,7 @@ const ServiceName = "suggestions"
 // MethodNames lists the service method names as defined in the design. These
 // are the same values that are set in the endpoint request contexts under the
 // MethodKey key.
-var MethodNames = [4]string{"queries", "similar", "ask", "explain"}
+var MethodNames = [5]string{"queries", "questions", "similar", "ask", "explain"}
 
 type AggregateData struct {
 	Sum   *float64
@@ -185,6 +188,15 @@ type QuerySuggestion struct {
 	Source string
 }
 
+// QuestionsPayload is the payload type of the suggestions service questions
+// method.
+type QuestionsPayload struct {
+	// Optional connection ID; defaults to server default connection
+	ConnectionID *string
+	// Max questions to return
+	Limit int32
+}
+
 type Report struct {
 	ID           string
 	SavedQueryID *string
@@ -212,6 +224,12 @@ type SimilarPayload struct {
 type SuggestedQueriesResult struct {
 	// Suggested SQL and metadata
 	Suggestions []*QuerySuggestion
+}
+
+// SuggestedQuestionsResult is the result type of the suggestions service
+// questions method.
+type SuggestedQuestionsResult struct {
+	Questions []string
 }
 
 type TimeSeriesData struct {

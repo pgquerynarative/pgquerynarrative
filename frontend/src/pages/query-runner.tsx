@@ -48,6 +48,7 @@ export default function QueryRunner() {
   const [history, setHistory] = useState<string[]>(loadHistory);
   const [suggestions, setSuggestions] = useState<{ sql: string; title: string; source: string }[]>([]);
   const [suggestionsLoading, setSuggestionsLoading] = useState(true);
+  const [questionSuggestions, setQuestionSuggestions] = useState<string[]>([]);
   const [saveName, setSaveName] = useState("");
   const [saveTags, setSaveTags] = useState("");
   const [saveLoading, setSaveLoading] = useState(false);
@@ -73,6 +74,10 @@ export default function QueryRunner() {
   useEffect(() => {
     api.getSuggestions(6).then((r) => setSuggestions(r.suggestions ?? [])).catch(() => {}).finally(() => setSuggestionsLoading(false));
   }, []);
+
+  useEffect(() => {
+    api.getSuggestedQuestions(8, connectionId || undefined).then((r) => setQuestionSuggestions(r.questions ?? [])).catch(() => {});
+  }, [connectionId]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -169,8 +174,9 @@ export default function QueryRunner() {
     }
   }, [sql, saveName, saveTags, connectionId]);
 
-  const ask = useCallback(async () => {
-    if (!question.trim()) {
+  const ask = useCallback(async (questionOverride?: string) => {
+    const text = (questionOverride ?? question).trim();
+    if (!text) {
       setError("Enter a question.");
       return;
     }
@@ -180,9 +186,10 @@ export default function QueryRunner() {
     setReport(null);
     setChartType(null);
     try {
-      const r = await api.ask(question.trim(), connectionId || undefined);
+      const r = await api.ask(text, connectionId || undefined);
       setSql(r.sql);
       setReport(r.report);
+      setQuestion(text);
       announce("Answer and report generated.", "polite");
     } catch (e) {
       const msg = e instanceof ApiError
@@ -238,11 +245,28 @@ export default function QueryRunner() {
             className="flex-1 min-w-[240px]"
             disabled={askLoading}
           />
-          <Button onClick={ask} disabled={askLoading}>
+          <Button onClick={() => { void ask(); }} disabled={askLoading}>
             {askLoading ? <span className="animate-spin h-4 w-4 border-2 border-current border-t-transparent rounded-full" /> : <Sparkles className="h-4 w-4" />}
             Ask
           </Button>
         </CardContent>
+        {questionSuggestions.length > 0 && (
+          <CardContent className="pt-0">
+            <div className="flex flex-wrap gap-2">
+              {questionSuggestions.map((q, i) => (
+                <Button
+                  key={i}
+                  variant="outline"
+                  size="sm"
+                  onClick={() => { void ask(q); }}
+                  className="text-left font-normal h-auto py-2 px-3 whitespace-normal"
+                >
+                  <span className="truncate max-w-[340px] block">{q}</span>
+                </Button>
+              ))}
+            </div>
+          </CardContent>
+        )}
       </Card>
 
       {/* Query suggestions */}

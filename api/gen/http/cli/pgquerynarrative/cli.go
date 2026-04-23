@@ -29,7 +29,7 @@ func UsageCommands() []string {
 	return []string{
 		"connections list",
 		"schema get",
-		"suggestions (queries|similar|ask|explain)",
+		"suggestions (queries|questions|similar|ask|explain)",
 		"reports (generate|get|list|similar)",
 		"queries (run|list-saved|save|get-saved|delete-saved)",
 	}
@@ -38,10 +38,10 @@ func UsageCommands() []string {
 // UsageExamples produces an example of a valid invocation of the CLI tool.
 func UsageExamples() string {
 	return os.Args[0] + " " + "connections list" + "\n" +
-		os.Args[0] + " " + "schema get --connection-id \"Est et voluptatem.\"" + "\n" +
-		os.Args[0] + " " + "suggestions queries --intent \"Ex et.\" --limit 8" + "\n" +
-		os.Args[0] + " " + "reports generate --body '{\n      \"connection_id\": \"Reiciendis nobis iure dolor.\",\n      \"saved_query_id\": \"bc2f52b9-b3e1-45c8-ab6e-2ded7648c1f7\",\n      \"sql\": \"jmu\"\n   }'" + "\n" +
-		os.Args[0] + " " + "queries run --body '{\n      \"connection_id\": \"Qui non.\",\n      \"limit\": 376,\n      \"sql\": \"tz\"\n   }'" + "\n" +
+		os.Args[0] + " " + "schema get --connection-id \"Saepe officia unde ut.\"" + "\n" +
+		os.Args[0] + " " + "suggestions queries --intent \"Porro sit quibusdam minima deleniti.\" --limit 17" + "\n" +
+		os.Args[0] + " " + "reports generate --body '{\n      \"connection_id\": \"Recusandae saepe soluta nemo velit facilis iusto.\",\n      \"saved_query_id\": \"88b63004-63ed-465e-99ca-4a145b50d000\",\n      \"sql\": \"2n\"\n   }'" + "\n" +
+		os.Args[0] + " " + "queries run --body '{\n      \"connection_id\": \"Quod consectetur.\",\n      \"limit\": 513,\n      \"sql\": \"f\"\n   }'" + "\n" +
 		""
 }
 
@@ -69,6 +69,10 @@ func ParseEndpoint(
 		suggestionsQueriesFlags      = flag.NewFlagSet("queries", flag.ExitOnError)
 		suggestionsQueriesIntentFlag = suggestionsQueriesFlags.String("intent", "", "")
 		suggestionsQueriesLimitFlag  = suggestionsQueriesFlags.String("limit", "5", "")
+
+		suggestionsQuestionsFlags            = flag.NewFlagSet("questions", flag.ExitOnError)
+		suggestionsQuestionsConnectionIDFlag = suggestionsQuestionsFlags.String("connection-id", "", "")
+		suggestionsQuestionsLimitFlag        = suggestionsQuestionsFlags.String("limit", "8", "")
 
 		suggestionsSimilarFlags     = flag.NewFlagSet("similar", flag.ExitOnError)
 		suggestionsSimilarTextFlag  = suggestionsSimilarFlags.String("text", "", "")
@@ -127,6 +131,7 @@ func ParseEndpoint(
 
 	suggestionsFlags.Usage = suggestionsUsage
 	suggestionsQueriesFlags.Usage = suggestionsQueriesUsage
+	suggestionsQuestionsFlags.Usage = suggestionsQuestionsUsage
 	suggestionsSimilarFlags.Usage = suggestionsSimilarUsage
 	suggestionsAskFlags.Usage = suggestionsAskUsage
 	suggestionsExplainFlags.Usage = suggestionsExplainUsage
@@ -202,6 +207,9 @@ func ParseEndpoint(
 			switch epn {
 			case "queries":
 				epf = suggestionsQueriesFlags
+
+			case "questions":
+				epf = suggestionsQuestionsFlags
 
 			case "similar":
 				epf = suggestionsSimilarFlags
@@ -288,6 +296,9 @@ func ParseEndpoint(
 			case "queries":
 				endpoint = c.Queries()
 				data, err = suggestionsc.BuildQueriesPayload(*suggestionsQueriesIntentFlag, *suggestionsQueriesLimitFlag)
+			case "questions":
+				endpoint = c.Questions()
+				data, err = suggestionsc.BuildQuestionsPayload(*suggestionsQuestionsConnectionIDFlag, *suggestionsQuestionsLimitFlag)
 			case "similar":
 				endpoint = c.Similar()
 				data, err = suggestionsc.BuildSimilarPayload(*suggestionsSimilarTextFlag, *suggestionsSimilarLimitFlag)
@@ -394,7 +405,7 @@ func schemaGetUsage() {
 
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, "Example:")
-	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "schema get --connection-id \"Est et voluptatem.\"")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "schema get --connection-id \"Saepe officia unde ut.\"")
 }
 
 // suggestionsUsage displays the usage of the suggestions command and its
@@ -404,6 +415,7 @@ func suggestionsUsage() {
 	fmt.Fprintf(os.Stderr, "Usage:\n    %s [globalflags] suggestions COMMAND [flags]\n\n", os.Args[0])
 	fmt.Fprintln(os.Stderr, "COMMAND:")
 	fmt.Fprintln(os.Stderr, `    queries: Return suggested SQL queries: curated examples plus saved queries matching optional intent.`)
+	fmt.Fprintln(os.Stderr, `    questions: Suggest natural-language questions based on the current schema for discovery and onboarding.`)
 	fmt.Fprintln(os.Stderr, `    similar: Return saved queries semantically similar to the given text (embedding-based). Requires embeddings to be enabled.`)
 	fmt.Fprintln(os.Stderr, `    ask: Natural language to SQL and report in one step: ask a question, get a generated SELECT, run it, and return the narrative report. Requires LLM.`)
 	fmt.Fprintln(os.Stderr, `    explain: Explain a SQL query in plain English (one or two sentences). Requires LLM.`)
@@ -428,7 +440,27 @@ func suggestionsQueriesUsage() {
 
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, "Example:")
-	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "suggestions queries --intent \"Ex et.\" --limit 8")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "suggestions queries --intent \"Porro sit quibusdam minima deleniti.\" --limit 17")
+}
+
+func suggestionsQuestionsUsage() {
+	// Header with flags
+	fmt.Fprintf(os.Stderr, "%s [flags] suggestions questions", os.Args[0])
+	fmt.Fprint(os.Stderr, " -connection-id STRING")
+	fmt.Fprint(os.Stderr, " -limit INT32")
+	fmt.Fprintln(os.Stderr)
+
+	// Description
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, `Suggest natural-language questions based on the current schema for discovery and onboarding.`)
+
+	// Flags list
+	fmt.Fprintln(os.Stderr, `    -connection-id STRING: `)
+	fmt.Fprintln(os.Stderr, `    -limit INT32: `)
+
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, "Example:")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "suggestions questions --connection-id \"Rerum cupiditate quidem laudantium maiores molestiae facilis.\" --limit 9")
 }
 
 func suggestionsSimilarUsage() {
@@ -448,7 +480,7 @@ func suggestionsSimilarUsage() {
 
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, "Example:")
-	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "suggestions similar --text \"Doloribus quia excepturi non.\" --limit 15")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "suggestions similar --text \"Rerum libero commodi iusto facere aut.\" --limit 8")
 }
 
 func suggestionsAskUsage() {
@@ -466,7 +498,7 @@ func suggestionsAskUsage() {
 
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, "Example:")
-	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "suggestions ask --body '{\n      \"connection_id\": \"Ab qui quo repellat.\",\n      \"question\": \"x\"\n   }'")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "suggestions ask --body '{\n      \"connection_id\": \"Omnis voluptatem exercitationem.\",\n      \"question\": \"mf\"\n   }'")
 }
 
 func suggestionsExplainUsage() {
@@ -484,7 +516,7 @@ func suggestionsExplainUsage() {
 
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, "Example:")
-	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "suggestions explain --body '{\n      \"sql\": \"2\"\n   }'")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "suggestions explain --body '{\n      \"sql\": \"bu\"\n   }'")
 }
 
 // reportsUsage displays the usage of the reports command and its subcommands.
@@ -515,7 +547,7 @@ func reportsGenerateUsage() {
 
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, "Example:")
-	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "reports generate --body '{\n      \"connection_id\": \"Reiciendis nobis iure dolor.\",\n      \"saved_query_id\": \"bc2f52b9-b3e1-45c8-ab6e-2ded7648c1f7\",\n      \"sql\": \"jmu\"\n   }'")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "reports generate --body '{\n      \"connection_id\": \"Recusandae saepe soluta nemo velit facilis iusto.\",\n      \"saved_query_id\": \"88b63004-63ed-465e-99ca-4a145b50d000\",\n      \"sql\": \"2n\"\n   }'")
 }
 
 func reportsGetUsage() {
@@ -533,7 +565,7 @@ func reportsGetUsage() {
 
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, "Example:")
-	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "reports get --id \"9daf63e8-83b0-4c87-b91f-763b6a01b141\"")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "reports get --id \"45363de2-403e-4cc9-b197-c990f3176174\"")
 }
 
 func reportsListUsage() {
@@ -557,7 +589,7 @@ func reportsListUsage() {
 
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, "Example:")
-	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "reports list --saved-query-id \"2cf833c0-bb90-426c-b317-95a32250100c\" --connection-id \"Repellat eos in exercitationem sunt ea.\" --limit 69 --offset 555293543")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "reports list --saved-query-id \"5f5ca199-d1fd-49a7-88a8-cedbd290bc36\" --connection-id \"Velit error asperiores.\" --limit 23 --offset 278393861")
 }
 
 func reportsSimilarUsage() {
@@ -579,7 +611,7 @@ func reportsSimilarUsage() {
 
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, "Example:")
-	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "reports similar --text \"7ob\" --connection-id \"Sit doloribus.\" --limit 18")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "reports similar --text \"8\" --connection-id \"Doloribus nihil est nulla at.\" --limit 6")
 }
 
 // queriesUsage displays the usage of the queries command and its subcommands.
@@ -611,7 +643,7 @@ func queriesRunUsage() {
 
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, "Example:")
-	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "queries run --body '{\n      \"connection_id\": \"Qui non.\",\n      \"limit\": 376,\n      \"sql\": \"tz\"\n   }'")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "queries run --body '{\n      \"connection_id\": \"Quod consectetur.\",\n      \"limit\": 513,\n      \"sql\": \"f\"\n   }'")
 }
 
 func queriesListSavedUsage() {
@@ -635,7 +667,7 @@ func queriesListSavedUsage() {
 
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, "Example:")
-	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "queries list-saved --tags '[\n      \"Ut aspernatur hic.\",\n      \"Aliquid nihil illum aliquid fugiat in est.\",\n      \"Dolores dignissimos doloribus.\",\n      \"Recusandae illum non nihil qui.\"\n   ]' --connection-id \"Aspernatur et repellendus nihil incidunt rerum nihil.\" --limit 65 --offset 1653975428")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "queries list-saved --tags '[\n      \"In cumque quaerat odio cupiditate itaque.\",\n      \"Soluta tempore officiis quia sunt quae quae.\"\n   ]' --connection-id \"Voluptas eveniet ipsam nihil tenetur.\" --limit 27 --offset 889217042")
 }
 
 func queriesSaveUsage() {
@@ -653,7 +685,7 @@ func queriesSaveUsage() {
 
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, "Example:")
-	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "queries save --body '{\n      \"connection_id\": \"Aspernatur aut illum sunt sed et.\",\n      \"description\": \"97m\",\n      \"name\": \"x16\",\n      \"sql\": \"v\",\n      \"tags\": [\n         \"Maiores dolorum id.\",\n         \"Ea occaecati quia cum facilis illo quis.\",\n         \"Ipsum corrupti sapiente.\"\n      ]\n   }'")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "queries save --body '{\n      \"connection_id\": \"Odio laudantium consequuntur ex quos ad.\",\n      \"description\": \"kde\",\n      \"name\": \"m\",\n      \"sql\": \"0i\",\n      \"tags\": [\n         \"Laboriosam rerum et ducimus.\",\n         \"Nihil harum tenetur.\",\n         \"Tenetur molestias fugit id voluptatem.\",\n         \"Quas neque nobis est voluptas eveniet.\"\n      ]\n   }'")
 }
 
 func queriesGetSavedUsage() {
@@ -671,7 +703,7 @@ func queriesGetSavedUsage() {
 
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, "Example:")
-	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "queries get-saved --id \"b35cb4e1-d23b-479f-882d-8d878bbbf2cf\"")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "queries get-saved --id \"7b373b8b-4353-4369-9932-05803ead4652\"")
 }
 
 func queriesDeleteSavedUsage() {
@@ -689,5 +721,5 @@ func queriesDeleteSavedUsage() {
 
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, "Example:")
-	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "queries delete-saved --id \"a1114d73-f940-4dff-b0d2-2881c32db7fb\"")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "queries delete-saved --id \"9b43775a-33c8-4536-bb8f-f9ef1216b890\"")
 }

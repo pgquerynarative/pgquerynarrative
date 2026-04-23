@@ -12,6 +12,11 @@ func QueriesSuggestionsPath() string {
 	return "/api/v1/suggestions/queries"
 }
 
+// QuestionsSuggestionsPath returns the URL path to the suggestions service questions HTTP endpoint.
+func QuestionsSuggestionsPath() string {
+	return "/api/v1/suggestions/questions"
+}
+
 // SimilarSuggestionsPath returns the URL path to the suggestions service similar HTTP endpoint.
 func SimilarSuggestionsPath() string {
 	return "/api/v1/suggestions/similar"

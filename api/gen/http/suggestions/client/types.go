@@ -36,6 +36,12 @@ type QueriesResponseBody struct {
 	Suggestions []*QuerySuggestionResponseBody `form:"suggestions,omitempty" json:"suggestions,omitempty" xml:"suggestions,omitempty"`
 }
 
+// QuestionsResponseBody is the type of the "suggestions" service "questions"
+// endpoint HTTP response body.
+type QuestionsResponseBody struct {
+	Questions []string `form:"questions,omitempty" json:"questions,omitempty" xml:"questions,omitempty"`
+}
+
 // SimilarResponseBody is the type of the "suggestions" service "similar"
 // endpoint HTTP response body.
 type SimilarResponseBody struct {
@@ -304,6 +310,18 @@ func NewQueriesSuggestedQueriesResultOK(body *QueriesResponseBody) *suggestions.
 	return v
 }
 
+// NewQuestionsSuggestedQuestionsResultOK builds a "suggestions" service
+// "questions" endpoint result from a HTTP "OK" response.
+func NewQuestionsSuggestedQuestionsResultOK(body *QuestionsResponseBody) *suggestions.SuggestedQuestionsResult {
+	v := &suggestions.SuggestedQuestionsResult{}
+	v.Questions = make([]string, len(body.Questions))
+	for i, val := range body.Questions {
+		v.Questions[i] = val
+	}
+
+	return v
+}
+
 // NewSimilarSuggestedQueriesResultOK builds a "suggestions" service "similar"
 // endpoint result from a HTTP "OK" response.
 func NewSimilarSuggestedQueriesResultOK(body *SimilarResponseBody) *suggestions.SuggestedQueriesResult {
@@ -402,6 +420,15 @@ func ValidateQueriesResponseBody(body *QueriesResponseBody) (err error) {
 				err = goa.MergeErrors(err, err2)
 			}
 		}
+	}
+	return
+}
+
+// ValidateQuestionsResponseBody runs the validations defined on
+// QuestionsResponseBody
+func ValidateQuestionsResponseBody(body *QuestionsResponseBody) (err error) {
+	if body.Questions == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("questions", "body"))
 	}
 	return
 }
