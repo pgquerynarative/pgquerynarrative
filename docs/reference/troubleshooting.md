@@ -21,6 +21,7 @@ Common issues and fixes. For deployment and monitoring see [Deployment](deployme
 |-------|----------|
 | **PostgreSQL connection refused** | **Docker:** [Quick start](../getting-started/quickstart.md) – `make start-docker`. **Local:** start Postgres (e.g. `brew services start postgresql@18`), then `make start-local`. |
 | **Role does not exist / permission denied** | Run `make db-init` then `make migrate`, or `make start-local` once (see [Installation](../getting-started/installation.md)). If `demo.sales` denied: grant SELECT to `pgquerynarrative_readonly` on the table. |
+| **Unexpected results from wrong data source** | Set `connection_id` explicitly in API/MCP calls. If omitted or unknown, server falls back to `DATABASE_DEFAULT_CONNECTION_ID` (see [Configuration – Multiple database connections](../configuration.md#multiple-database-connections)). |
 
 ---
 

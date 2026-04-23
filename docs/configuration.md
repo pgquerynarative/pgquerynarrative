@@ -51,6 +51,48 @@ PgQueryNarrative is configured via **environment variables** only. Sensible defa
 | `DATABASE_MAX_CONNECTIONS` | `10` | Max connection pool size. |
 | `QUERY_TIMEOUT` | `30s` | Query execution timeout. |
 | `DATABASE_ALLOWED_SCHEMAS` | `public,demo` | Comma-separated schemas queries may access. Use your own schemas here (e.g. `public` or `public,analytics`). |
+| `DATABASE_DEFAULT_CONNECTION_ID` | `default` | Default data connection ID used when `connection_id` is omitted in API/UI/MCP requests. |
+| `DATABASE_CONNECTIONS_JSON` | (empty) | Optional JSON array of additional read-only data connections. Each item supports: `id`, `name`, `host`, `port`, `database`, `readOnlyUser`, `readOnlyPassword`, `sslMode`, `queryTimeout`, `allowedSchemas`. |
+
+### Multiple database connections {#multiple-database-connections}
+
+PgQueryNarrative supports multiple read-only data connections for query/report/schema flows. App tables (`saved_queries`, `reports`, audit, embeddings) stay in the single app DB configured by `DATABASE_*`.
+
+- If `DATABASE_CONNECTIONS_JSON` is empty, one `default` connection is derived from `DATABASE_HOST`, `DATABASE_PORT`, `DATABASE_NAME`, and read-only credentials.
+- If `DATABASE_CONNECTIONS_JSON` is set, those connections are added on top of `default`.
+- Requests may pass `connection_id`; when omitted or unknown, server falls back to `DATABASE_DEFAULT_CONNECTION_ID`.
+
+Example:
+
+```bash
+export DATABASE_DEFAULT_CONNECTION_ID=default
+export DATABASE_CONNECTIONS_JSON='[
+  {
+    "id": "staging",
+    "name": "Staging",
+    "host": "staging-db.internal",
+    "port": 5432,
+    "database": "analytics_staging",
+    "readOnlyUser": "analytics_ro",
+    "readOnlyPassword": "secret",
+    "sslMode": "require",
+    "queryTimeout": "30s",
+    "allowedSchemas": ["public","analytics"]
+  },
+  {
+    "id": "prod",
+    "name": "Production",
+    "host": "prod-db.internal",
+    "port": 5432,
+    "database": "analytics_prod",
+    "readOnlyUser": "analytics_ro",
+    "readOnlyPassword": "secret",
+    "sslMode": "require",
+    "queryTimeout": "30s",
+    "allowedSchemas": ["public","analytics"]
+  }
+]'
+```
 
 ---
 
@@ -95,7 +137,7 @@ For [LLM setup – MCP](getting-started/llm-setup.md#mcp-claude-desktop--cursor)
    }
    ```
    If the app is not at http://localhost:8080, set `"env": { "PGQUERYNARRATIVE_URL": "http://localhost:PORT" }`. If the app has auth enabled (`SECURITY_AUTH_ENABLED=true`), set `"env": { "PGQUERYNARRATIVE_API_KEY": "your-secret-key" }` (same value as `SECURITY_API_KEY`). See `config/mcp-example.json`.
-4. Restart the client. Available tools: `run_query`, `generate_report`, `list_saved_queries`, `get_report`, `list_reports`, `get_schema`, `get_context`, `suggest_queries`, `list_schemas`, `ask_question`, `explain_sql`. See [How to use MCP tools](getting-started/llm-setup.md#how-to-use-mcp-tools-in-cursor--claude) below.
+4. Restart the client. Available tools: `run_query`, `generate_report`, `list_saved_queries`, `get_report`, `list_reports`, `get_schema`, `list_connections`, `get_context`, `suggest_queries`, `list_schemas`, `ask_question`, `explain_sql`. For multi-connection setups, these tools accept optional `connection_id` on relevant calls.
 
 ---
 
