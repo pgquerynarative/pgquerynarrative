@@ -126,6 +126,7 @@ func (s *ReportsService) Generate(ctx context.Context, payload *reports.Generate
 	// Calculate metrics
 	calcMetrics := metrics.CalculateMetrics(columnNames, queryResult.Rows, profiles, s.metricsOpts)
 	calcMetrics.PerfSuggestions = BuildPerfSuggestions(queryResult)
+	s.enrichTimeSeriesExplanations(ctx, calcMetrics)
 
 	// Optional RAG: retrieve similar past queries and add to prompt context
 	var similarContext string
@@ -282,6 +283,156 @@ func (s *ReportsService) applyLLMChartRecommendation(ctx context.Context, headli
 		out = append(out, s)
 	}
 	return out
+}
+
+func (s *ReportsService) enrichTimeSeriesExplanations(ctx context.Context, m *metrics.Metrics) {
+	if s.llmClient == nil || m == nil || len(m.TimeSeries) == 0 {
+		return
+	}
+	const maxAnomalyExplanations = 8
+	anomalyCalls := 0
+	for measure, ts := range m.TimeSeries {
+		updated := ts
+		if updated.TrendSummary != nil {
+			if explanation := s.explainTrend(ctx, measure, updated); explanation != "" {
+				updated.TrendSummary.Explanation = explanation
+			}
+		}
+		if len(updated.Anomalies) > 0 {
+			for i := range updated.Anomalies {
+				if anomalyCalls >= maxAnomalyExplanations {
+					break
+				}
+				explanation := s.explainAnomaly(ctx, measure, updated, updated.Anomalies[i])
+				if explanation == "" {
+					continue
+				}
+				updated.Anomalies[i].Explanation = explanation
+				anomalyCalls++
+			}
+		}
+		m.TimeSeries[measure] = updated
+	}
+}
+
+func (s *ReportsService) explainTrend(ctx context.Context, measure string, ts metrics.TimeSeriesMetric) string {
+	if ts.TrendSummary == nil {
+		return ""
+	}
+	var b strings.Builder
+	b.WriteString("You explain a business trend in exactly one sentence.\n")
+	b.WriteString("Keep it factual and tied to the provided values. No hedging lists or markdown.\n")
+	b.WriteString("Measure: ")
+	b.WriteString(measure)
+	b.WriteString("\nDirection: ")
+	b.WriteString(ts.TrendSummary.Direction)
+	b.WriteString("\nSummary: ")
+	b.WriteString(ts.TrendSummary.Summary)
+	b.WriteString("\nRecent points: ")
+	b.WriteString(formatRecentPeriodPoints(ts.Periods, 5))
+	raw, err := s.llmClient.Generate(ctx, b.String())
+	if err != nil {
+		return ""
+	}
+	return cleanSingleSentence(raw)
+}
+
+func (s *ReportsService) explainAnomaly(ctx context.Context, measure string, ts metrics.TimeSeriesMetric, a metrics.AnomalyPoint) string {
+	var b strings.Builder
+	b.WriteString("You explain a time-series anomaly in exactly one sentence.\n")
+	b.WriteString("Use only provided context. Be concise and business-friendly.\n")
+	b.WriteString("Measure: ")
+	b.WriteString(measure)
+	b.WriteString("\nAnomaly period: ")
+	b.WriteString(a.PeriodLabel)
+	b.WriteString("\nValue: ")
+	b.WriteString(formatFloat(a.Value))
+	b.WriteString("\nReason: ")
+	b.WriteString(a.Reason)
+	b.WriteString("\nSurrounding points: ")
+	b.WriteString(formatContextPoints(ts.Periods, a.PeriodLabel, 2))
+	raw, err := s.llmClient.Generate(ctx, b.String())
+	if err != nil {
+		return ""
+	}
+	return cleanSingleSentence(raw)
+}
+
+func formatRecentPeriodPoints(points []metrics.PeriodPoint, max int) string {
+	if len(points) == 0 {
+		return "none"
+	}
+	start := len(points) - max
+	if start < 0 {
+		start = 0
+	}
+	return formatPoints(points[start:])
+}
+
+func formatContextPoints(points []metrics.PeriodPoint, center string, radius int) string {
+	if len(points) == 0 {
+		return "none"
+	}
+	idx := -1
+	for i := range points {
+		if points[i].Label == center {
+			idx = i
+			break
+		}
+	}
+	if idx == -1 {
+		return formatRecentPeriodPoints(points, 5)
+	}
+	start := idx - radius
+	if start < 0 {
+		start = 0
+	}
+	end := idx + radius + 1
+	if end > len(points) {
+		end = len(points)
+	}
+	return formatPoints(points[start:end])
+}
+
+func formatPoints(points []metrics.PeriodPoint) string {
+	var b strings.Builder
+	for i, p := range points {
+		if i > 0 {
+			b.WriteString("; ")
+		}
+		b.WriteString(p.Label)
+		b.WriteString("=")
+		b.WriteString(formatFloat(p.Value))
+	}
+	return b.String()
+}
+
+func cleanSingleSentence(raw string) string {
+	s := strings.TrimSpace(raw)
+	if s == "" {
+		return ""
+	}
+	s = strings.TrimPrefix(s, "- ")
+	s = strings.TrimLeft(s, "0123456789.) ")
+	s = strings.TrimSpace(s)
+	s = strings.ReplaceAll(s, "\n", " ")
+	s = strings.Join(strings.Fields(s), " ")
+	if s == "" {
+		return ""
+	}
+	return s
+}
+
+func formatFloat(v float64) string {
+	return strconv.FormatFloat(v, 'f', 2, 64)
+}
+
+func strPtrIfNonEmpty(v string) *string {
+	v = strings.TrimSpace(v)
+	if v == "" {
+		return nil
+	}
+	return &v
 }
 
 func buildChartRecommendationPrompt(headline string, columnNames, columnTypes []string, rowCount int, base []charts.Suggestion) string {
@@ -648,6 +799,7 @@ func ConvertMetrics(m *metrics.Metrics) *reports.MetricsData {
 					PeriodLabel: ts.Anomalies[i].PeriodLabel,
 					Value:       ts.Anomalies[i].Value,
 					Reason:      ts.Anomalies[i].Reason,
+					Explanation: strPtrIfNonEmpty(ts.Anomalies[i].Explanation),
 				}
 			}
 		}
@@ -658,6 +810,7 @@ func ConvertMetrics(m *metrics.Metrics) *reports.MetricsData {
 				Summary:     ts.TrendSummary.Summary,
 				Slope:       &ts.TrendSummary.Slope,
 				PeriodsUsed: &pu,
+				Explanation: strPtrIfNonEmpty(ts.TrendSummary.Explanation),
 			}
 		}
 		if ts.NextPeriodForecast != nil {

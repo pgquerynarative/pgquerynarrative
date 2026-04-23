@@ -14,8 +14,8 @@ type TimeSeriesEntry = {
   next_period_forecast?: number | null;
   forecast_ci_lower?: number | null;
   forecast_ci_upper?: number | null;
-  trend_summary?: { summary?: string } | null;
-  anomalies?: Array<{ period_label?: string; value?: number; reason?: string }> | null;
+  trend_summary?: { summary?: string; explanation?: string } | null;
+  anomalies?: Array<{ period_label?: string; value?: number; reason?: string; explanation?: string }> | null;
 };
 type CohortPeriodPoint = { period_label?: string; periodLabel?: string; value?: number };
 type CohortEntry = { cohort_label?: string; cohortLabel?: string; periods?: CohortPeriodPoint[]; retention_pct?: number | null; retentionPct?: number | null };
@@ -151,8 +151,8 @@ function ReportMetricsCard({ metrics }: { metrics?: MetricsPayload | null }) {
               const forecast = val(d, "next_period_forecast", "nextPeriodForecast") as number | null | undefined;
               const ciLower = val(d, "forecast_ci_lower", "forecastCiLower") as number | null | undefined;
               const ciUpper = val(d, "forecast_ci_upper", "forecastCiUpper") as number | null | undefined;
-              const trendSummary = (val(d, "trend_summary", "trendSummary") as { summary?: string } | null) ?? null;
-              const anomalies = (val(d, "anomalies", "anomalies") as Array<{ period_label?: string; value?: number; reason?: string }> | null) ?? null;
+              const trendSummary = (val(d, "trend_summary", "trendSummary") as { summary?: string; explanation?: string } | null) ?? null;
+              const anomalies = (val(d, "anomalies", "anomalies") as Array<{ period_label?: string; value?: number; reason?: string; explanation?: string }> | null) ?? null;
               return (
                 <div key={measure} className="rounded-md border border-border bg-muted/30 p-3 space-y-1.5 text-sm">
                   <p className="font-medium">{measure}</p>
@@ -163,13 +163,19 @@ function ReportMetricsCard({ metrics }: { metrics?: MetricsPayload | null }) {
                     <p className="text-muted-foreground text-xs">Interval: {formatNum(ciLower)} – {formatNum(ciUpper)}</p>
                   )}
                   {trendSummary?.summary && <p className="text-xs">{trendSummary.summary}</p>}
+                  {trendSummary?.explanation && <p className="text-xs text-muted-foreground">{trendSummary.explanation}</p>}
                   {anomalies && anomalies.length > 0 && (
                     <div className="pt-1">
                       <p className="text-xs font-medium text-muted-foreground mb-1">Anomalies</p>
                       <ul className="list-disc list-inside text-xs space-y-0.5">
                         {anomalies.map((a, i) => {
                           const label = String((a as Record<string, unknown>).period_label ?? (a as Record<string, unknown>).periodLabel ?? "—");
-                          return <li key={i}>{label}: {formatNum(a.value)} — {a.reason ?? ""}</li>;
+                          return (
+                            <li key={i}>
+                              {label}: {formatNum(a.value)} - {a.reason ?? ""}
+                              {a.explanation ? ` (${a.explanation})` : ""}
+                            </li>
+                          );
                         })}
                       </ul>
                     </div>

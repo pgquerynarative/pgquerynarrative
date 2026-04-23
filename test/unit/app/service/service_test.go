@@ -128,6 +128,46 @@ func TestConvertMetrics_TimeSeriesNextPeriodForecast(t *testing.T) {
 	}
 }
 
+func TestConvertMetrics_TrendAndAnomalyExplanations(t *testing.T) {
+	m := &metrics.Metrics{
+		Aggregates:  map[string]metrics.Aggregates{},
+		DataQuality: map[string]metrics.ColumnQuality{},
+		TimeSeries: map[string]metrics.TimeSeriesMetric{
+			"revenue": {
+				CurrentPeriod: 100,
+				Trend:         "up",
+				TrendSummary: &metrics.TrendSummary{
+					Direction:   "increasing",
+					Slope:       4.2,
+					PeriodsUsed: 6,
+					Summary:     "Increasing over recent periods.",
+					Explanation: "Sustained demand has pushed results upward.",
+				},
+				Anomalies: []metrics.AnomalyPoint{
+					{
+						PeriodLabel: "2026-03",
+						Value:       250,
+						Reason:      "High: 2.5σ from mean",
+						Explanation: "A one-time campaign likely caused a temporary spike.",
+					},
+				},
+			},
+		},
+	}
+
+	out := service.ConvertMetrics(m)
+	ts := out.TimeSeries["revenue"]
+	if ts == nil || ts.TrendSummary == nil {
+		t.Fatal("expected trend summary for revenue")
+	}
+	if ts.TrendSummary.Explanation == nil || *ts.TrendSummary.Explanation == "" {
+		t.Fatal("expected trend explanation to be present")
+	}
+	if len(ts.Anomalies) == 0 || ts.Anomalies[0].Explanation == nil || *ts.Anomalies[0].Explanation == "" {
+		t.Fatal("expected anomaly explanation to be present")
+	}
+}
+
 func TestConvertMetrics_PeriodLabels(t *testing.T) {
 	m := &metrics.Metrics{
 		Aggregates:          map[string]metrics.Aggregates{},
