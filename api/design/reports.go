@@ -225,6 +225,7 @@ var AnomalyPointData = Type("AnomalyPointData", func() {
 	Attribute("period_label", String)
 	Attribute("value", Float64)
 	Attribute("reason", String)
+	Attribute("explanation", String, "One-sentence explanation for why this period may be anomalous")
 	Required("period_label", "value", "reason")
 })
 
@@ -233,6 +234,7 @@ var TrendSummaryData = Type("TrendSummaryData", func() {
 	Attribute("slope", Float64, "Change per period from linear regression")
 	Attribute("periods_used", Int32)
 	Attribute("summary", String, "Human-readable trend description")
+	Attribute("explanation", String, "One-sentence explanation of what the trend suggests")
 	Required("direction", "summary")
 })
 

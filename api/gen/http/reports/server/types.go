@@ -183,6 +183,8 @@ type AnomalyPointDataResponseBody struct {
 	PeriodLabel string  `form:"period_label" json:"period_label" xml:"period_label"`
 	Value       float64 `form:"value" json:"value" xml:"value"`
 	Reason      string  `form:"reason" json:"reason" xml:"reason"`
+	// One-sentence explanation for why this period may be anomalous
+	Explanation *string `form:"explanation,omitempty" json:"explanation,omitempty" xml:"explanation,omitempty"`
 }
 
 // TrendSummaryDataResponseBody is used to define fields on response body types.
@@ -194,6 +196,8 @@ type TrendSummaryDataResponseBody struct {
 	PeriodsUsed *int32   `form:"periods_used,omitempty" json:"periods_used,omitempty" xml:"periods_used,omitempty"`
 	// Human-readable trend description
 	Summary string `form:"summary" json:"summary" xml:"summary"`
+	// One-sentence explanation of what the trend suggests
+	Explanation *string `form:"explanation,omitempty" json:"explanation,omitempty" xml:"explanation,omitempty"`
 }
 
 // CorrelationPairDataResponseBody is used to define fields on response body

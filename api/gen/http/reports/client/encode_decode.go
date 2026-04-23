@@ -583,6 +583,7 @@ func unmarshalAnomalyPointDataResponseBodyToReportsAnomalyPointData(v *AnomalyPo
 		PeriodLabel: *v.PeriodLabel,
 		Value:       *v.Value,
 		Reason:      *v.Reason,
+		Explanation: v.Explanation,
 	}
 
 	return res
@@ -600,6 +601,7 @@ func unmarshalTrendSummaryDataResponseBodyToReportsTrendSummaryData(v *TrendSumm
 		Slope:       v.Slope,
 		PeriodsUsed: v.PeriodsUsed,
 		Summary:     *v.Summary,
+		Explanation: v.Explanation,
 	}
 
 	return res

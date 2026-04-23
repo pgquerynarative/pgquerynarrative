@@ -622,6 +622,7 @@ func marshalSuggestionsAnomalyPointDataToAnomalyPointDataResponseBody(v *suggest
 		PeriodLabel: v.PeriodLabel,
 		Value:       v.Value,
 		Reason:      v.Reason,
+		Explanation: v.Explanation,
 	}
 
 	return res
@@ -639,6 +640,7 @@ func marshalSuggestionsTrendSummaryDataToTrendSummaryDataResponseBody(v *suggest
 		Slope:       v.Slope,
 		PeriodsUsed: v.PeriodsUsed,
 		Summary:     v.Summary,
+		Explanation: v.Explanation,
 	}
 
 	return res
