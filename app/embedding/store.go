@@ -22,6 +22,16 @@ type SimilarQuery struct {
 	Score        float64
 }
 
+// SimilarReport holds a report and its similarity score (0-1, higher is more similar).
+type SimilarReport struct {
+	ReportID     string
+	Headline     string
+	SQL          string
+	ConnectionID string
+	CreatedAt    string
+	Similarity   float64
+}
+
 type scoredQuery struct {
 	sim   SimilarQuery
 	score float64
@@ -227,4 +237,64 @@ func sortByScoreDesc(list []scoredQuery) {
 			list[j], list[j-1] = list[j-1], list[j]
 		}
 	}
+}
+
+// UpsertReport saves or replaces the embedding for a generated report.
+func (s *Store) UpsertReport(ctx context.Context, reportID string, embedding []float32, model string) error {
+	raw, err := json.Marshal(embedding)
+	if err != nil {
+		return fmt.Errorf("marshal report embedding: %w", err)
+	}
+	vectorLiteral := formatVectorForPG(embedding)
+	_, err = s.appPool.Exec(ctx, `
+		INSERT INTO app.report_embeddings (report_id, embedding, model, updated_at, embedding_vector)
+		VALUES ($1::uuid, $2::jsonb, $3, NOW(), $4::vector(768))
+		ON CONFLICT (report_id) DO UPDATE SET
+			embedding = EXCLUDED.embedding,
+			model = EXCLUDED.model,
+			updated_at = NOW(),
+			embedding_vector = EXCLUDED.embedding_vector
+	`, reportID, raw, model, vectorLiteral)
+	if err != nil {
+		_, fallbackErr := s.appPool.Exec(ctx, `
+			INSERT INTO app.report_embeddings (report_id, embedding, model, updated_at)
+			VALUES ($1::uuid, $2::jsonb, $3, NOW())
+			ON CONFLICT (report_id) DO UPDATE SET embedding = EXCLUDED.embedding, model = EXCLUDED.model, updated_at = NOW()
+		`, reportID, raw, model)
+		if fallbackErr != nil {
+			return fmt.Errorf("upsert report embedding: %w", fallbackErr)
+		}
+	}
+	return nil
+}
+
+// FindSimilarReports returns reports most similar to the given embedding.
+func (s *Store) FindSimilarReports(ctx context.Context, queryEmbedding []float32, connectionID string, limit int) ([]SimilarReport, error) {
+	if limit <= 0 {
+		limit = 5
+	}
+	vectorLiteral := formatVectorForPG(queryEmbedding)
+	rows, err := s.appPool.Query(ctx, `
+		SELECT re.report_id::text, COALESCE(r.narrative_md, ''), r.sql, r.connection_id, r.created_at::text,
+		       (1 - (re.embedding_vector <=> $1::vector(768))) AS score
+		FROM app.report_embeddings re
+		JOIN app.reports r ON r.id = re.report_id
+		WHERE re.embedding_vector IS NOT NULL
+		  AND ($2 = '' OR r.connection_id = $2)
+		ORDER BY re.embedding_vector <=> $1::vector(768)
+		LIMIT $3
+	`, vectorLiteral, connectionID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := make([]SimilarReport, 0, limit)
+	for rows.Next() {
+		var r SimilarReport
+		if scanErr := rows.Scan(&r.ReportID, &r.Headline, &r.SQL, &r.ConnectionID, &r.CreatedAt, &r.Similarity); scanErr != nil {
+			return nil, scanErr
+		}
+		out = append(out, r)
+	}
+	return out, rows.Err()
 }

@@ -18,6 +18,7 @@ type Endpoints struct {
 	Generate goa.Endpoint
 	Get      goa.Endpoint
 	List     goa.Endpoint
+	Similar  goa.Endpoint
 }
 
 // NewEndpoints wraps the methods of the "reports" service with endpoints.
@@ -26,6 +27,7 @@ func NewEndpoints(s Service) *Endpoints {
 		Generate: NewGenerateEndpoint(s),
 		Get:      NewGetEndpoint(s),
 		List:     NewListEndpoint(s),
+		Similar:  NewSimilarEndpoint(s),
 	}
 }
 
@@ -34,6 +36,7 @@ func (e *Endpoints) Use(m func(goa.Endpoint) goa.Endpoint) {
 	e.Generate = m(e.Generate)
 	e.Get = m(e.Get)
 	e.List = m(e.List)
+	e.Similar = m(e.Similar)
 }
 
 // NewGenerateEndpoint returns an endpoint function that calls the method
@@ -60,5 +63,14 @@ func NewListEndpoint(s Service) goa.Endpoint {
 	return func(ctx context.Context, req any) (any, error) {
 		p := req.(*ListPayload)
 		return s.List(ctx, p)
+	}
+}
+
+// NewSimilarEndpoint returns an endpoint function that calls the method
+// "similar" of service "reports".
+func NewSimilarEndpoint(s Service) goa.Endpoint {
+	return func(ctx context.Context, req any) (any, error) {
+		p := req.(*SimilarPayload)
+		return s.Similar(ctx, p)
 	}
 }

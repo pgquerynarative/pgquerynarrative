@@ -13,6 +13,7 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"unicode/utf8"
 
 	reports "github.com/pgquerynarrative/pgquerynarrative/api/gen/reports"
 	goahttp "goa.design/goa/v3/http"
@@ -234,6 +235,70 @@ func DecodeListRequest(mux goahttp.Muxer, decoder func(*http.Request) goahttp.De
 			return nil, err
 		}
 		payload := NewListPayload(savedQueryID, connectionID, limit, offset)
+
+		return payload, nil
+	}
+}
+
+// EncodeSimilarResponse returns an encoder for responses returned by the
+// reports similar endpoint.
+func EncodeSimilarResponse(encoder func(context.Context, http.ResponseWriter) goahttp.Encoder) func(context.Context, http.ResponseWriter, any) error {
+	return func(ctx context.Context, w http.ResponseWriter, v any) error {
+		res, _ := v.(*reports.ReportSimilarResult)
+		enc := encoder(ctx, w)
+		body := NewSimilarResponseBody(res)
+		w.WriteHeader(http.StatusOK)
+		return enc.Encode(body)
+	}
+}
+
+// DecodeSimilarRequest returns a decoder for requests sent to the reports
+// similar endpoint.
+func DecodeSimilarRequest(mux goahttp.Muxer, decoder func(*http.Request) goahttp.Decoder) func(*http.Request) (*reports.SimilarPayload, error) {
+	return func(r *http.Request) (*reports.SimilarPayload, error) {
+		var (
+			text         string
+			connectionID *string
+			limit        int32
+			err          error
+		)
+		qp := r.URL.Query()
+		text = qp.Get("text")
+		if text == "" {
+			err = goa.MergeErrors(err, goa.MissingFieldError("text", "query string"))
+		}
+		if utf8.RuneCountInString(text) < 1 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("text", text, utf8.RuneCountInString(text), 1, true))
+		}
+		if utf8.RuneCountInString(text) > 2000 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("text", text, utf8.RuneCountInString(text), 2000, false))
+		}
+		connectionIDRaw := qp.Get("connection_id")
+		if connectionIDRaw != "" {
+			connectionID = &connectionIDRaw
+		}
+		{
+			limitRaw := qp.Get("limit")
+			if limitRaw == "" {
+				limit = 5
+			} else {
+				v, err2 := strconv.ParseInt(limitRaw, 10, 32)
+				if err2 != nil {
+					err = goa.MergeErrors(err, goa.InvalidFieldTypeError("limit", limitRaw, "integer"))
+				}
+				limit = int32(v)
+			}
+		}
+		if limit < 1 {
+			err = goa.MergeErrors(err, goa.InvalidRangeError("limit", limit, 1, true))
+		}
+		if limit > 20 {
+			err = goa.MergeErrors(err, goa.InvalidRangeError("limit", limit, 20, false))
+		}
+		if err != nil {
+			return nil, err
+		}
+		payload := NewSimilarPayload(text, connectionID, limit)
 
 		return payload, nil
 	}
@@ -610,6 +675,22 @@ func marshalReportsReportToReportResponseBody(v *reports.Report) *ReportResponse
 			}
 			res.ChartSuggestions[i] = marshalReportsChartSuggestionToChartSuggestionResponseBody(val)
 		}
+	}
+
+	return res
+}
+
+// marshalReportsSimilarReportItemToSimilarReportItemResponseBody builds a
+// value of type *SimilarReportItemResponseBody from a value of type
+// *reports.SimilarReportItem.
+func marshalReportsSimilarReportItemToSimilarReportItemResponseBody(v *reports.SimilarReportItem) *SimilarReportItemResponseBody {
+	res := &SimilarReportItemResponseBody{
+		ID:           v.ID,
+		Headline:     v.Headline,
+		SQL:          v.SQL,
+		ConnectionID: v.ConnectionID,
+		CreatedAt:    v.CreatedAt,
+		Similarity:   v.Similarity,
 	}
 
 	return res

@@ -19,6 +19,8 @@ type Service interface {
 	Get(context.Context, *GetPayload) (res *Report, err error)
 	// List generated reports
 	List(context.Context, *ListPayload) (res *ReportList, err error)
+	// Find reports semantically similar to input text
+	Similar(context.Context, *SimilarPayload) (res *ReportSimilarResult, err error)
 }
 
 // APIName is the name of the API as defined in the design.
@@ -35,7 +37,7 @@ const ServiceName = "reports"
 // MethodNames lists the service method names as defined in the design. These
 // are the same values that are set in the endpoint request contexts under the
 // MethodKey key.
-var MethodNames = [3]string{"generate", "get", "list"}
+var MethodNames = [4]string{"generate", "get", "list", "similar"}
 
 type AggregateData struct {
 	Sum   *float64
@@ -175,6 +177,27 @@ type ReportList struct {
 	Items  []*Report
 	Limit  int32
 	Offset int32
+}
+
+// ReportSimilarResult is the result type of the reports service similar method.
+type ReportSimilarResult struct {
+	Items []*SimilarReportItem
+}
+
+// SimilarPayload is the payload type of the reports service similar method.
+type SimilarPayload struct {
+	Text         string
+	ConnectionID *string
+	Limit        int32
+}
+
+type SimilarReportItem struct {
+	ID           string
+	Headline     string
+	SQL          string
+	ConnectionID string
+	CreatedAt    string
+	Similarity   float64
 }
 
 type TimeSeriesData struct {

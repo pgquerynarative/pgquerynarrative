@@ -66,6 +66,33 @@ var _ = Service("reports", func() {
 			})
 		})
 	})
+
+	Method("similar", func() {
+		Description("Find reports semantically similar to input text")
+		Payload(func() {
+			Attribute("text", String, func() {
+				MinLength(1)
+				MaxLength(2000)
+			})
+			Attribute("connection_id", String)
+			Attribute("limit", Int32, func() {
+				Default(5)
+				Minimum(1)
+				Maximum(20)
+			})
+			Required("text")
+		})
+		Result(ReportSimilarResult)
+		HTTP(func() {
+			GET("/api/v1/reports/similar")
+			Params(func() {
+				Param("text")
+				Param("connection_id")
+				Param("limit")
+			})
+			Response(StatusOK)
+		})
+	})
 })
 
 var GenerateReportPayload = Type("GenerateReportPayload", func() {
@@ -214,6 +241,25 @@ var ReportList = Type("ReportList", func() {
 	Attribute("limit", Int32)
 	Attribute("offset", Int32)
 	Required("items", "limit", "offset")
+})
+
+var SimilarReportItem = Type("SimilarReportItem", func() {
+	Attribute("id", String, func() {
+		Format(FormatUUID)
+	})
+	Attribute("headline", String)
+	Attribute("sql", String)
+	Attribute("connection_id", String)
+	Attribute("created_at", String, func() {
+		Format(FormatDateTime)
+	})
+	Attribute("similarity", Float64)
+	Required("id", "headline", "sql", "connection_id", "created_at", "similarity")
+})
+
+var ReportSimilarResult = Type("ReportSimilarResult", func() {
+	Attribute("items", ArrayOf(SimilarReportItem))
+	Required("items")
 })
 
 var LLMError = Type("LLMError", func() {

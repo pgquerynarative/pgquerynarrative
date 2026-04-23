@@ -281,6 +281,80 @@ func DecodeListResponse(decoder func(*http.Response) goahttp.Decoder, restoreBod
 	}
 }
 
+// BuildSimilarRequest instantiates a HTTP request object with method and path
+// set to call the "reports" service "similar" endpoint
+func (c *Client) BuildSimilarRequest(ctx context.Context, v any) (*http.Request, error) {
+	u := &url.URL{Scheme: c.scheme, Host: c.host, Path: SimilarReportsPath()}
+	req, err := http.NewRequest("GET", u.String(), nil)
+	if err != nil {
+		return nil, goahttp.ErrInvalidURL("reports", "similar", u.String(), err)
+	}
+	if ctx != nil {
+		req = req.WithContext(ctx)
+	}
+
+	return req, nil
+}
+
+// EncodeSimilarRequest returns an encoder for requests sent to the reports
+// similar server.
+func EncodeSimilarRequest(encoder func(*http.Request) goahttp.Encoder) func(*http.Request, any) error {
+	return func(req *http.Request, v any) error {
+		p, ok := v.(*reports.SimilarPayload)
+		if !ok {
+			return goahttp.ErrInvalidType("reports", "similar", "*reports.SimilarPayload", v)
+		}
+		values := req.URL.Query()
+		values.Add("text", p.Text)
+		if p.ConnectionID != nil {
+			values.Add("connection_id", *p.ConnectionID)
+		}
+		values.Add("limit", fmt.Sprintf("%v", p.Limit))
+		req.URL.RawQuery = values.Encode()
+		return nil
+	}
+}
+
+// DecodeSimilarResponse returns a decoder for responses returned by the
+// reports similar endpoint. restoreBody controls whether the response body
+// should be restored after having been read.
+func DecodeSimilarResponse(decoder func(*http.Response) goahttp.Decoder, restoreBody bool) func(*http.Response) (any, error) {
+	return func(resp *http.Response) (any, error) {
+		if restoreBody {
+			b, err := io.ReadAll(resp.Body)
+			if err != nil {
+				return nil, err
+			}
+			resp.Body = io.NopCloser(bytes.NewBuffer(b))
+			defer func() {
+				resp.Body = io.NopCloser(bytes.NewBuffer(b))
+			}()
+		} else {
+			defer resp.Body.Close()
+		}
+		switch resp.StatusCode {
+		case http.StatusOK:
+			var (
+				body SimilarResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("reports", "similar", err)
+			}
+			err = ValidateSimilarResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("reports", "similar", err)
+			}
+			res := NewSimilarReportSimilarResultOK(&body)
+			return res, nil
+		default:
+			body, _ := io.ReadAll(resp.Body)
+			return nil, goahttp.ErrInvalidResponse("reports", "similar", resp.StatusCode, string(body))
+		}
+	}
+}
+
 // unmarshalNarrativeContentResponseBodyToReportsNarrativeContent builds a
 // value of type *reports.NarrativeContent from a value of type
 // *NarrativeContentResponseBody.
@@ -644,6 +718,22 @@ func unmarshalReportResponseBodyToReportsReport(v *ReportResponseBody) *reports.
 			}
 			res.ChartSuggestions[i] = unmarshalChartSuggestionResponseBodyToReportsChartSuggestion(val)
 		}
+	}
+
+	return res
+}
+
+// unmarshalSimilarReportItemResponseBodyToReportsSimilarReportItem builds a
+// value of type *reports.SimilarReportItem from a value of type
+// *SimilarReportItemResponseBody.
+func unmarshalSimilarReportItemResponseBodyToReportsSimilarReportItem(v *SimilarReportItemResponseBody) *reports.SimilarReportItem {
+	res := &reports.SimilarReportItem{
+		ID:           *v.ID,
+		Headline:     *v.Headline,
+		SQL:          *v.SQL,
+		ConnectionID: *v.ConnectionID,
+		CreatedAt:    *v.CreatedAt,
+		Similarity:   *v.Similarity,
 	}
 
 	return res

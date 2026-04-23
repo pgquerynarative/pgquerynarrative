@@ -60,6 +60,12 @@ type ListResponseBody struct {
 	Offset *int32                `form:"offset,omitempty" json:"offset,omitempty" xml:"offset,omitempty"`
 }
 
+// SimilarResponseBody is the type of the "reports" service "similar" endpoint
+// HTTP response body.
+type SimilarResponseBody struct {
+	Items []*SimilarReportItemResponseBody `form:"items,omitempty" json:"items,omitempty" xml:"items,omitempty"`
+}
+
 // GenerateLlmErrorResponseBody is the type of the "reports" service "generate"
 // endpoint HTTP response body for the "llm_error" error.
 type GenerateLlmErrorResponseBody struct {
@@ -248,6 +254,17 @@ type ReportResponseBody struct {
 	LlmProvider      *string                        `form:"llm_provider,omitempty" json:"llm_provider,omitempty" xml:"llm_provider,omitempty"`
 }
 
+// SimilarReportItemResponseBody is used to define fields on response body
+// types.
+type SimilarReportItemResponseBody struct {
+	ID           *string  `form:"id,omitempty" json:"id,omitempty" xml:"id,omitempty"`
+	Headline     *string  `form:"headline,omitempty" json:"headline,omitempty" xml:"headline,omitempty"`
+	SQL          *string  `form:"sql,omitempty" json:"sql,omitempty" xml:"sql,omitempty"`
+	ConnectionID *string  `form:"connection_id,omitempty" json:"connection_id,omitempty" xml:"connection_id,omitempty"`
+	CreatedAt    *string  `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
+	Similarity   *float64 `form:"similarity,omitempty" json:"similarity,omitempty" xml:"similarity,omitempty"`
+}
+
 // NewGenerateRequestBody builds the HTTP request body from the payload of the
 // "generate" endpoint of the "reports" service.
 func NewGenerateRequestBody(p *reports.GenerateReportPayload) *GenerateRequestBody {
@@ -364,6 +381,22 @@ func NewListReportListOK(body *ListResponseBody) *reports.ReportList {
 			continue
 		}
 		v.Items[i] = unmarshalReportResponseBodyToReportsReport(val)
+	}
+
+	return v
+}
+
+// NewSimilarReportSimilarResultOK builds a "reports" service "similar"
+// endpoint result from a HTTP "OK" response.
+func NewSimilarReportSimilarResultOK(body *SimilarResponseBody) *reports.ReportSimilarResult {
+	v := &reports.ReportSimilarResult{}
+	v.Items = make([]*reports.SimilarReportItem, len(body.Items))
+	for i, val := range body.Items {
+		if val == nil {
+			v.Items[i] = nil
+			continue
+		}
+		v.Items[i] = unmarshalSimilarReportItemResponseBodyToReportsSimilarReportItem(val)
 	}
 
 	return v
@@ -494,6 +527,22 @@ func ValidateListResponseBody(body *ListResponseBody) (err error) {
 	for _, e := range body.Items {
 		if e != nil {
 			if err2 := ValidateReportResponseBody(e); err2 != nil {
+				err = goa.MergeErrors(err, err2)
+			}
+		}
+	}
+	return
+}
+
+// ValidateSimilarResponseBody runs the validations defined on
+// SimilarResponseBody
+func ValidateSimilarResponseBody(body *SimilarResponseBody) (err error) {
+	if body.Items == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("items", "body"))
+	}
+	for _, e := range body.Items {
+		if e != nil {
+			if err2 := ValidateSimilarReportItemResponseBody(e); err2 != nil {
 				err = goa.MergeErrors(err, err2)
 			}
 		}
@@ -781,6 +830,36 @@ func ValidateReportResponseBody(body *ReportResponseBody) (err error) {
 				err = goa.MergeErrors(err, err2)
 			}
 		}
+	}
+	if body.CreatedAt != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.created_at", *body.CreatedAt, goa.FormatDateTime))
+	}
+	return
+}
+
+// ValidateSimilarReportItemResponseBody runs the validations defined on
+// SimilarReportItemResponseBody
+func ValidateSimilarReportItemResponseBody(body *SimilarReportItemResponseBody) (err error) {
+	if body.ID == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("id", "body"))
+	}
+	if body.Headline == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("headline", "body"))
+	}
+	if body.SQL == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("sql", "body"))
+	}
+	if body.ConnectionID == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("connection_id", "body"))
+	}
+	if body.CreatedAt == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("created_at", "body"))
+	}
+	if body.Similarity == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("similarity", "body"))
+	}
+	if body.ID != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.id", *body.ID, goa.FormatUUID))
 	}
 	if body.CreatedAt != nil {
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.created_at", *body.CreatedAt, goa.FormatDateTime))

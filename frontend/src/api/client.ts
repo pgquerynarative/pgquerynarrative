@@ -66,6 +66,15 @@ export interface Report {
   llm_provider: string;
 }
 
+export interface SimilarReportItem {
+  id: string;
+  headline: string;
+  sql: string;
+  connection_id: string;
+  created_at: string;
+  similarity: number;
+}
+
 export interface AskResult {
   question: string;
   sql: string;
@@ -125,6 +134,8 @@ export const api = {
 
   listReports: (limit = 50, offset = 0, connectionId?: string) =>
     request<{ items: Report[]; limit: number; offset: number }>(`/reports?limit=${limit}&offset=${offset}${connectionId ? `&connection_id=${encodeURIComponent(connectionId)}` : ""}`),
+  findSimilarReports: (text: string, limit = 5, connectionId?: string) =>
+    request<{ items: SimilarReportItem[] }>(`/reports/similar?text=${encodeURIComponent(text)}&limit=${limit}${connectionId ? `&connection_id=${encodeURIComponent(connectionId)}` : ""}`),
 
   getReport: (id: string) => request<Report>(`/reports/${id}`),
 

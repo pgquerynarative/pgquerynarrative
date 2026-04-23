@@ -62,6 +62,12 @@ type ListResponseBody struct {
 	Offset int32                 `form:"offset" json:"offset" xml:"offset"`
 }
 
+// SimilarResponseBody is the type of the "reports" service "similar" endpoint
+// HTTP response body.
+type SimilarResponseBody struct {
+	Items []*SimilarReportItemResponseBody `form:"items" json:"items" xml:"items"`
+}
+
 // GenerateLlmErrorResponseBody is the type of the "reports" service "generate"
 // endpoint HTTP response body for the "llm_error" error.
 type GenerateLlmErrorResponseBody struct {
@@ -250,6 +256,17 @@ type ReportResponseBody struct {
 	LlmProvider      string                         `form:"llm_provider" json:"llm_provider" xml:"llm_provider"`
 }
 
+// SimilarReportItemResponseBody is used to define fields on response body
+// types.
+type SimilarReportItemResponseBody struct {
+	ID           string  `form:"id" json:"id" xml:"id"`
+	Headline     string  `form:"headline" json:"headline" xml:"headline"`
+	SQL          string  `form:"sql" json:"sql" xml:"sql"`
+	ConnectionID string  `form:"connection_id" json:"connection_id" xml:"connection_id"`
+	CreatedAt    string  `form:"created_at" json:"created_at" xml:"created_at"`
+	Similarity   float64 `form:"similarity" json:"similarity" xml:"similarity"`
+}
+
 // NewGenerateResponseBody builds the HTTP response body from the result of the
 // "generate" endpoint of the "reports" service.
 func NewGenerateResponseBody(res *reports.Report) *GenerateResponseBody {
@@ -334,6 +351,25 @@ func NewListResponseBody(res *reports.ReportList) *ListResponseBody {
 	return body
 }
 
+// NewSimilarResponseBody builds the HTTP response body from the result of the
+// "similar" endpoint of the "reports" service.
+func NewSimilarResponseBody(res *reports.ReportSimilarResult) *SimilarResponseBody {
+	body := &SimilarResponseBody{}
+	if res.Items != nil {
+		body.Items = make([]*SimilarReportItemResponseBody, len(res.Items))
+		for i, val := range res.Items {
+			if val == nil {
+				body.Items[i] = nil
+				continue
+			}
+			body.Items[i] = marshalReportsSimilarReportItemToSimilarReportItemResponseBody(val)
+		}
+	} else {
+		body.Items = []*SimilarReportItemResponseBody{}
+	}
+	return body
+}
+
 // NewGenerateLlmErrorResponseBody builds the HTTP response body from the
 // result of the "generate" endpoint of the "reports" service.
 func NewGenerateLlmErrorResponseBody(res *reports.LLMError) *GenerateLlmErrorResponseBody {
@@ -393,6 +429,16 @@ func NewListPayload(savedQueryID *string, connectionID *string, limit int32, off
 	v.ConnectionID = connectionID
 	v.Limit = limit
 	v.Offset = offset
+
+	return v
+}
+
+// NewSimilarPayload builds a reports service similar endpoint payload.
+func NewSimilarPayload(text string, connectionID *string, limit int32) *reports.SimilarPayload {
+	v := &reports.SimilarPayload{}
+	v.Text = text
+	v.ConnectionID = connectionID
+	v.Limit = limit
 
 	return v
 }
