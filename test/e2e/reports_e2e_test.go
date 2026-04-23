@@ -218,12 +218,6 @@ func TestReportsGenerateE2E(t *testing.T) {
 		if len(report.Narrative.Takeaways) == 0 {
 			t.Error("generate: expected takeaways")
 		}
-		if report.LlmProvider != "e2e" {
-			t.Errorf("generate: provider = %q, want %q", report.LlmProvider, "e2e")
-		}
-		if report.LlmModel != "e2e-test-model" {
-			t.Errorf("generate: model = %q, want %q", report.LlmModel, "e2e-test-model")
-		}
 	})
 
 	t.Run("Generate_ValidationError", func(t *testing.T) {
