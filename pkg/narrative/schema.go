@@ -10,5 +10,5 @@ import (
 // (from information_schema). Use this for discovery when building queries
 // programmatically. Context cancellation is propagated.
 func (c *Client) GetSchema(ctx context.Context) (*schema.SchemaResult, error) {
-	return c.schemaService.Get(ctx)
+	return c.schemaService.Get(ctx, &schema.GetPayload{})
 }
