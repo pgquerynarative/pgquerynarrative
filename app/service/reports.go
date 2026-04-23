@@ -175,6 +175,7 @@ func (s *ReportsService) Generate(ctx context.Context, payload *reports.Generate
 	if err != nil {
 		return nil, err
 	}
+	s.storeReportEmbedding(ctx, reportID, narrative, modelName)
 	apilog.Request("generate", "report_id="+reportID)
 
 	// Convert narrative to API format
@@ -198,6 +199,21 @@ func (s *ReportsService) Generate(ctx context.Context, payload *reports.Generate
 		LlmModel:         modelName,
 		LlmProvider:      providerName,
 	}, nil
+}
+
+func (s *ReportsService) storeReportEmbedding(ctx context.Context, reportID string, narrative *story.NarrativeContent, modelName string) {
+	if s.embedder == nil || s.embeddingStore == nil || reportID == "" || narrative == nil {
+		return
+	}
+	text := strings.TrimSpace(narrative.Headline + "\n" + strings.Join(narrative.Takeaways, "\n") + "\n" + strings.Join(narrative.Drivers, "\n"))
+	if text == "" {
+		return
+	}
+	vec, err := s.embedder.Embed(ctx, text)
+	if err != nil {
+		return
+	}
+	_ = s.embeddingStore.UpsertReport(ctx, reportID, vec, modelName)
 }
 
 func buildFallbackNarrative(rowCount int, perfSuggestions []string) *story.NarrativeContent {
@@ -522,6 +538,37 @@ func (s *ReportsService) List(ctx context.Context, payload *reports.ListPayload)
 		Limit:  payload.Limit,
 		Offset: payload.Offset,
 	}, nil
+}
+
+// Similar finds reports semantically similar to the provided text.
+func (s *ReportsService) Similar(ctx context.Context, payload *reports.SimilarPayload) (*reports.ReportSimilarResult, error) {
+	if payload.Text == "" || s.embedder == nil || s.embeddingStore == nil {
+		return &reports.ReportSimilarResult{Items: []*reports.SimilarReportItem{}}, nil
+	}
+	vec, err := s.embedder.Embed(ctx, payload.Text)
+	if err != nil {
+		return &reports.ReportSimilarResult{Items: []*reports.SimilarReportItem{}}, nil
+	}
+	connectionID := ""
+	if payload.ConnectionID != nil {
+		connectionID = *payload.ConnectionID
+	}
+	similar, err := s.embeddingStore.FindSimilarReports(ctx, vec, connectionID, int(payload.Limit))
+	if err != nil {
+		return &reports.ReportSimilarResult{Items: []*reports.SimilarReportItem{}}, nil
+	}
+	items := make([]*reports.SimilarReportItem, 0, len(similar))
+	for _, r := range similar {
+		items = append(items, &reports.SimilarReportItem{
+			ID:           r.ReportID,
+			Headline:     r.Headline,
+			SQL:          r.SQL,
+			ConnectionID: r.ConnectionID,
+			CreatedAt:    r.CreatedAt,
+			Similarity:   r.Similarity,
+		})
+	}
+	return &reports.ReportSimilarResult{Items: items}, nil
 }
 
 // BuildPerfSuggestions returns performance suggestions from query result. Exported for testing.

@@ -4,8 +4,9 @@ import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { api, type Report, type ConnectionInfo } from "@/api/client";
-import { FileText, Download, Clock, Cpu, ArrowLeft, BarChart3 } from "lucide-react";
+import { api, type Report, type SimilarReportItem, type ConnectionInfo } from "@/api/client";
+import { FileText, Download, Clock, Cpu, ArrowLeft, BarChart3, Search } from "lucide-react";
+import { Input } from "@/components/ui/input";
 import { buttonVariants } from "@/components/ui/button";
 import { cn, truncate } from "@/lib/utils";
 
@@ -261,14 +262,26 @@ function Li({ children, color }: { children: React.ReactNode; color: string }) {
 
 function ReportList() {
   const [reports, setReports] = useState<Report[]>([]);
+  const [similar, setSimilar] = useState<SimilarReportItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [connections, setConnections] = useState<ConnectionInfo[]>([]);
   const [connectionFilter, setConnectionFilter] = useState("");
+  const [searchText, setSearchText] = useState("");
 
   const load = useCallback(async () => {
-    try { const res = await api.listReports(50, 0, connectionFilter || undefined); setReports(res.items || []); } catch {}
+    try {
+      if (searchText.trim()) {
+        const res = await api.findSimilarReports(searchText.trim(), 20, connectionFilter || undefined);
+        setSimilar(res.items || []);
+        setReports([]);
+      } else {
+        const res = await api.listReports(50, 0, connectionFilter || undefined);
+        setReports(res.items || []);
+        setSimilar([]);
+      }
+    } catch {}
     finally { setLoading(false); }
-  }, [connectionFilter]);
+  }, [connectionFilter, searchText]);
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => {
@@ -290,10 +303,19 @@ function ReportList() {
           </select>
         </div>
       )}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Input
+          placeholder="Find reports like: revenue decline in west region"
+          value={searchText}
+          onChange={(e) => setSearchText(e.target.value)}
+          className="pl-10"
+        />
+      </div>
 
       {loading ? (
         <div className="space-y-3">{[1,2,3].map(i => <Skeleton key={i} className="h-20 w-full" />)}</div>
-      ) : reports.length === 0 ? (
+      ) : reports.length === 0 && similar.length === 0 ? (
         <Card>
           <CardContent className="py-16 text-center space-y-4">
             <FileText className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
@@ -303,16 +325,17 @@ function ReportList() {
         </Card>
       ) : (
         <div className="space-y-3">
-          {reports.map((r) => (
+          {(searchText.trim() ? similar : reports).map((r) => (
             <Link key={r.id} to={`/reports/${r.id}`}>
               <Card className="hover:border-primary/30 transition-colors cursor-pointer">
                 <CardContent className="p-5 flex items-center justify-between">
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium">{r.narrative?.headline || truncate(r.sql, 60)}</p>
+                    <p className="text-sm font-medium">{("headline" in r && r.headline) || ("narrative" in r ? r.narrative?.headline : "") || truncate(r.sql, 60)}</p>
                     <div className="flex items-center gap-3 mt-1.5">
                       <span className="text-xs text-muted-foreground flex items-center gap-1"><Clock className="h-3 w-3" />{new Date(r.created_at).toLocaleDateString()}</span>
-                      <Badge variant="secondary" className="text-[10px]">{r.llm_provider}</Badge>
+                      {"llm_provider" in r && <Badge variant="secondary" className="text-[10px]">{r.llm_provider}</Badge>}
                       <Badge variant="outline" className="text-[10px]">{r.connection_id}</Badge>
+                      {"similarity" in r && <Badge variant="secondary" className="text-[10px]">{Math.round((r.similarity ?? 0) * 100)}% match</Badge>}
                     </div>
                   </div>
                   <FileText className="h-5 w-5 text-brand-cyan flex-shrink-0 ml-4" />

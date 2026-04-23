@@ -25,7 +25,7 @@ func BuildGeneratePayload(reportsGenerateBody string) (*reports.GenerateReportPa
 	{
 		err = json.Unmarshal([]byte(reportsGenerateBody), &body)
 		if err != nil {
-			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"connection_id\": \"Exercitationem ut modi quia exercitationem ut.\",\n      \"saved_query_id\": \"8c846872-0be8-4d6c-bed8-dc644f521913\",\n      \"sql\": \"58n\"\n   }'")
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"connection_id\": \"Reiciendis nobis iure dolor.\",\n      \"saved_query_id\": \"bc2f52b9-b3e1-45c8-ab6e-2ded7648c1f7\",\n      \"sql\": \"jmu\"\n   }'")
 		}
 		err = goa.MergeErrors(err, goa.ValidatePattern("body.sql", body.SQL, "^[^;]+$"))
 		if utf8.RuneCountInString(body.SQL) < 1 {
@@ -130,6 +130,57 @@ func BuildListPayload(reportsListSavedQueryID string, reportsListConnectionID st
 	v.ConnectionID = connectionID
 	v.Limit = limit
 	v.Offset = offset
+
+	return v, nil
+}
+
+// BuildSimilarPayload builds the payload for the reports similar endpoint from
+// CLI flags.
+func BuildSimilarPayload(reportsSimilarText string, reportsSimilarConnectionID string, reportsSimilarLimit string) (*reports.SimilarPayload, error) {
+	var err error
+	var text string
+	{
+		text = reportsSimilarText
+		if utf8.RuneCountInString(text) < 1 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("text", text, utf8.RuneCountInString(text), 1, true))
+		}
+		if utf8.RuneCountInString(text) > 2000 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("text", text, utf8.RuneCountInString(text), 2000, false))
+		}
+		if err != nil {
+			return nil, err
+		}
+	}
+	var connectionID *string
+	{
+		if reportsSimilarConnectionID != "" {
+			connectionID = &reportsSimilarConnectionID
+		}
+	}
+	var limit int32
+	{
+		if reportsSimilarLimit != "" {
+			var v int64
+			v, err = strconv.ParseInt(reportsSimilarLimit, 10, 32)
+			limit = int32(v)
+			if err != nil {
+				return nil, fmt.Errorf("invalid value for limit, must be INT32")
+			}
+			if limit < 1 {
+				err = goa.MergeErrors(err, goa.InvalidRangeError("limit", limit, 1, true))
+			}
+			if limit > 20 {
+				err = goa.MergeErrors(err, goa.InvalidRangeError("limit", limit, 20, false))
+			}
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+	v := &reports.SimilarPayload{}
+	v.Text = text
+	v.ConnectionID = connectionID
+	v.Limit = limit
 
 	return v, nil
 }

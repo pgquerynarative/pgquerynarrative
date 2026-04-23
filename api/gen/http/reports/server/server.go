@@ -22,6 +22,7 @@ type Server struct {
 	Generate http.Handler
 	Get      http.Handler
 	List     http.Handler
+	Similar  http.Handler
 }
 
 // MountPoint holds information about the mounted endpoints.
@@ -54,10 +55,12 @@ func New(
 			{"Generate", "POST", "/api/v1/reports/generate"},
 			{"Get", "GET", "/api/v1/reports/{id}"},
 			{"List", "GET", "/api/v1/reports"},
+			{"Similar", "GET", "/api/v1/reports/similar"},
 		},
 		Generate: NewGenerateHandler(e.Generate, mux, decoder, encoder, errhandler, formatter),
 		Get:      NewGetHandler(e.Get, mux, decoder, encoder, errhandler, formatter),
 		List:     NewListHandler(e.List, mux, decoder, encoder, errhandler, formatter),
+		Similar:  NewSimilarHandler(e.Similar, mux, decoder, encoder, errhandler, formatter),
 	}
 }
 
@@ -69,6 +72,7 @@ func (s *Server) Use(m func(http.Handler) http.Handler) {
 	s.Generate = m(s.Generate)
 	s.Get = m(s.Get)
 	s.List = m(s.List)
+	s.Similar = m(s.Similar)
 }
 
 // MethodNames returns the methods served.
@@ -79,6 +83,7 @@ func Mount(mux goahttp.Muxer, h *Server) {
 	MountGenerateHandler(mux, h.Generate)
 	MountGetHandler(mux, h.Get)
 	MountListHandler(mux, h.List)
+	MountSimilarHandler(mux, h.Similar)
 }
 
 // Mount configures the mux to serve the reports endpoints.
@@ -222,6 +227,59 @@ func NewListHandler(
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := context.WithValue(r.Context(), goahttp.AcceptTypeKey, r.Header.Get("Accept"))
 		ctx = context.WithValue(ctx, goa.MethodKey, "list")
+		ctx = context.WithValue(ctx, goa.ServiceKey, "reports")
+		payload, err := decodeRequest(r)
+		if err != nil {
+			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+			return
+		}
+		res, err := endpoint(ctx, payload)
+		if err != nil {
+			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+			return
+		}
+		if err := encodeResponse(ctx, w, res); err != nil {
+			if errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+		}
+	})
+}
+
+// MountSimilarHandler configures the mux to serve the "reports" service
+// "similar" endpoint.
+func MountSimilarHandler(mux goahttp.Muxer, h http.Handler) {
+	f, ok := h.(http.HandlerFunc)
+	if !ok {
+		f = func(w http.ResponseWriter, r *http.Request) {
+			h.ServeHTTP(w, r)
+		}
+	}
+	mux.Handle("GET", "/api/v1/reports/similar", f)
+}
+
+// NewSimilarHandler creates a HTTP handler which loads the HTTP request and
+// calls the "reports" service "similar" endpoint.
+func NewSimilarHandler(
+	endpoint goa.Endpoint,
+	mux goahttp.Muxer,
+	decoder func(*http.Request) goahttp.Decoder,
+	encoder func(context.Context, http.ResponseWriter) goahttp.Encoder,
+	errhandler func(context.Context, http.ResponseWriter, error),
+	formatter func(ctx context.Context, err error) goahttp.Statuser,
+) http.Handler {
+	var (
+		decodeRequest  = DecodeSimilarRequest(mux, decoder)
+		encodeResponse = EncodeSimilarResponse(encoder)
+		encodeError    = goahttp.ErrorEncoder(encoder, formatter)
+	)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := context.WithValue(r.Context(), goahttp.AcceptTypeKey, r.Header.Get("Accept"))
+		ctx = context.WithValue(ctx, goa.MethodKey, "similar")
 		ctx = context.WithValue(ctx, goa.ServiceKey, "reports")
 		payload, err := decodeRequest(r)
 		if err != nil {

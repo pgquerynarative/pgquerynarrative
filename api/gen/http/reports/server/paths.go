@@ -25,3 +25,8 @@ func GetReportsPath(id string) string {
 func ListReportsPath() string {
 	return "/api/v1/reports"
 }
+
+// SimilarReportsPath returns the URL path to the reports service similar HTTP endpoint.
+func SimilarReportsPath() string {
+	return "/api/v1/reports/similar"
+}

@@ -18,14 +18,16 @@ type Client struct {
 	GenerateEndpoint goa.Endpoint
 	GetEndpoint      goa.Endpoint
 	ListEndpoint     goa.Endpoint
+	SimilarEndpoint  goa.Endpoint
 }
 
 // NewClient initializes a "reports" service client given the endpoints.
-func NewClient(generate, get, list goa.Endpoint) *Client {
+func NewClient(generate, get, list, similar goa.Endpoint) *Client {
 	return &Client{
 		GenerateEndpoint: generate,
 		GetEndpoint:      get,
 		ListEndpoint:     list,
+		SimilarEndpoint:  similar,
 	}
 }
 
@@ -64,4 +66,14 @@ func (c *Client) List(ctx context.Context, p *ListPayload) (res *ReportList, err
 		return
 	}
 	return ires.(*ReportList), nil
+}
+
+// Similar calls the "similar" endpoint of the "reports" service.
+func (c *Client) Similar(ctx context.Context, p *SimilarPayload) (res *ReportSimilarResult, err error) {
+	var ires any
+	ires, err = c.SimilarEndpoint(ctx, p)
+	if err != nil {
+		return
+	}
+	return ires.(*ReportSimilarResult), nil
 }
