@@ -25,7 +25,7 @@ func BuildGeneratePayload(reportsGenerateBody string) (*reports.GenerateReportPa
 	{
 		err = json.Unmarshal([]byte(reportsGenerateBody), &body)
 		if err != nil {
-			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"connection_id\": \"Rerum aut architecto ea perspiciatis.\",\n      \"saved_query_id\": \"8280866f-cdd9-4665-a610-7eed06fe5656\",\n      \"sql\": \"q9\"\n   }'")
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"connection_id\": \"Quo autem.\",\n      \"saved_query_id\": \"42a84903-bf11-4b1d-b1ff-b7e1bd975212\",\n      \"sql\": \"ia\"\n   }'")
 		}
 		err = goa.MergeErrors(err, goa.ValidatePattern("body.sql", body.SQL, "^[^;]+$"))
 		if utf8.RuneCountInString(body.SQL) < 1 {
@@ -181,6 +181,35 @@ func BuildSimilarPayload(reportsSimilarText string, reportsSimilarConnectionID s
 	v.Text = text
 	v.ConnectionID = connectionID
 	v.Limit = limit
+
+	return v, nil
+}
+
+// BuildRewritePayload builds the payload for the reports rewrite endpoint from
+// CLI flags.
+func BuildRewritePayload(reportsRewriteBody string) (*reports.RewritePayload, error) {
+	var err error
+	var body RewriteRequestBody
+	{
+		err = json.Unmarshal([]byte(reportsRewriteBody), &body)
+		if err != nil {
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"instruction\": \"iqe\",\n      \"report_id\": \"9535071d-2b7c-4cfd-9306-3f78bbbfffbe\"\n   }'")
+		}
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.report_id", body.ReportID, goa.FormatUUID))
+		if utf8.RuneCountInString(body.Instruction) < 1 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.instruction", body.Instruction, utf8.RuneCountInString(body.Instruction), 1, true))
+		}
+		if utf8.RuneCountInString(body.Instruction) > 1000 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.instruction", body.Instruction, utf8.RuneCountInString(body.Instruction), 1000, false))
+		}
+		if err != nil {
+			return nil, err
+		}
+	}
+	v := &reports.RewritePayload{
+		ReportID:    body.ReportID,
+		Instruction: body.Instruction,
+	}
 
 	return v, nil
 }

@@ -716,6 +716,43 @@ func (s *ReportsService) Similar(ctx context.Context, payload *reports.SimilarPa
 	return &reports.ReportSimilarResult{Items: items}, nil
 }
 
+// Rewrite rewrites an existing report narrative according to instruction.
+func (s *ReportsService) Rewrite(ctx context.Context, payload *reports.RewritePayload) (*reports.NarrativeContent, error) {
+	instruction := strings.TrimSpace(payload.Instruction)
+	if instruction == "" {
+		return nil, &reports.ValidationError{Name: "validation_error", Message: "instruction is required", Code: strPtr("VALIDATION_ERROR")}
+	}
+	row := s.appPool.QueryRow(ctx, `
+		SELECT narrative_json, metrics
+		FROM app.reports
+		WHERE id = $1
+	`, payload.ReportID)
+	var narrativeJSON []byte
+	var metricsJSON []byte
+	if err := row.Scan(&narrativeJSON, &metricsJSON); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, &reports.NotFoundError{Name: "not_found", Message: "report not found", Code: strPtr("NOT_FOUND")}
+		}
+		return nil, err
+	}
+	prompt := llm.BuildNarrativeRewritePrompt(instruction, string(narrativeJSON), string(metricsJSON))
+	raw, err := s.llmClient.Generate(ctx, prompt)
+	if err != nil {
+		return nil, &reports.LLMError{Name: "llm_error", Message: err.Error(), Code: strPtr("LLM_ERROR")}
+	}
+	rewritten, err := story.ParseNarrative(raw)
+	if err != nil {
+		return nil, &reports.LLMError{Name: "llm_error", Message: "failed to parse rewritten narrative", Code: strPtr("LLM_ERROR")}
+	}
+	return &reports.NarrativeContent{
+		Headline:        rewritten.Headline,
+		Takeaways:       rewritten.Takeaways,
+		Drivers:         rewritten.Drivers,
+		Limitations:     rewritten.Limitations,
+		Recommendations: rewritten.Recommendations,
+	}, nil
+}
+
 // BuildPerfSuggestions returns performance suggestions from query result. Exported for testing.
 func BuildPerfSuggestions(r *queryrunner.Result) []string {
 	var suggestions []string

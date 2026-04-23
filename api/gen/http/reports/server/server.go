@@ -23,6 +23,7 @@ type Server struct {
 	Get      http.Handler
 	List     http.Handler
 	Similar  http.Handler
+	Rewrite  http.Handler
 }
 
 // MountPoint holds information about the mounted endpoints.
@@ -56,11 +57,13 @@ func New(
 			{"Get", "GET", "/api/v1/reports/{id}"},
 			{"List", "GET", "/api/v1/reports"},
 			{"Similar", "GET", "/api/v1/reports/similar"},
+			{"Rewrite", "POST", "/api/v1/reports/rewrite"},
 		},
 		Generate: NewGenerateHandler(e.Generate, mux, decoder, encoder, errhandler, formatter),
 		Get:      NewGetHandler(e.Get, mux, decoder, encoder, errhandler, formatter),
 		List:     NewListHandler(e.List, mux, decoder, encoder, errhandler, formatter),
 		Similar:  NewSimilarHandler(e.Similar, mux, decoder, encoder, errhandler, formatter),
+		Rewrite:  NewRewriteHandler(e.Rewrite, mux, decoder, encoder, errhandler, formatter),
 	}
 }
 
@@ -73,6 +76,7 @@ func (s *Server) Use(m func(http.Handler) http.Handler) {
 	s.Get = m(s.Get)
 	s.List = m(s.List)
 	s.Similar = m(s.Similar)
+	s.Rewrite = m(s.Rewrite)
 }
 
 // MethodNames returns the methods served.
@@ -84,6 +88,7 @@ func Mount(mux goahttp.Muxer, h *Server) {
 	MountGetHandler(mux, h.Get)
 	MountListHandler(mux, h.List)
 	MountSimilarHandler(mux, h.Similar)
+	MountRewriteHandler(mux, h.Rewrite)
 }
 
 // Mount configures the mux to serve the reports endpoints.
@@ -280,6 +285,59 @@ func NewSimilarHandler(
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := context.WithValue(r.Context(), goahttp.AcceptTypeKey, r.Header.Get("Accept"))
 		ctx = context.WithValue(ctx, goa.MethodKey, "similar")
+		ctx = context.WithValue(ctx, goa.ServiceKey, "reports")
+		payload, err := decodeRequest(r)
+		if err != nil {
+			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+			return
+		}
+		res, err := endpoint(ctx, payload)
+		if err != nil {
+			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+			return
+		}
+		if err := encodeResponse(ctx, w, res); err != nil {
+			if errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+		}
+	})
+}
+
+// MountRewriteHandler configures the mux to serve the "reports" service
+// "rewrite" endpoint.
+func MountRewriteHandler(mux goahttp.Muxer, h http.Handler) {
+	f, ok := h.(http.HandlerFunc)
+	if !ok {
+		f = func(w http.ResponseWriter, r *http.Request) {
+			h.ServeHTTP(w, r)
+		}
+	}
+	mux.Handle("POST", "/api/v1/reports/rewrite", f)
+}
+
+// NewRewriteHandler creates a HTTP handler which loads the HTTP request and
+// calls the "reports" service "rewrite" endpoint.
+func NewRewriteHandler(
+	endpoint goa.Endpoint,
+	mux goahttp.Muxer,
+	decoder func(*http.Request) goahttp.Decoder,
+	encoder func(context.Context, http.ResponseWriter) goahttp.Encoder,
+	errhandler func(context.Context, http.ResponseWriter, error),
+	formatter func(ctx context.Context, err error) goahttp.Statuser,
+) http.Handler {
+	var (
+		decodeRequest  = DecodeRewriteRequest(mux, decoder)
+		encodeResponse = EncodeRewriteResponse(encoder)
+		encodeError    = EncodeRewriteError(encoder, formatter)
+	)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := context.WithValue(r.Context(), goahttp.AcceptTypeKey, r.Header.Get("Accept"))
+		ctx = context.WithValue(ctx, goa.MethodKey, "rewrite")
 		ctx = context.WithValue(ctx, goa.ServiceKey, "reports")
 		payload, err := decodeRequest(r)
 		if err != nil {

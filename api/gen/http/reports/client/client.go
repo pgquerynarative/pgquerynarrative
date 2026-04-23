@@ -31,6 +31,10 @@ type Client struct {
 	// endpoint.
 	SimilarDoer goahttp.Doer
 
+	// Rewrite Doer is the HTTP client used to make requests to the rewrite
+	// endpoint.
+	RewriteDoer goahttp.Doer
+
 	// RestoreResponseBody controls whether the response bodies are reset after
 	// decoding so they can be read again.
 	RestoreResponseBody bool
@@ -55,6 +59,7 @@ func NewClient(
 		GetDoer:             doer,
 		ListDoer:            doer,
 		SimilarDoer:         doer,
+		RewriteDoer:         doer,
 		RestoreResponseBody: restoreBody,
 		scheme:              scheme,
 		host:                host,
@@ -149,6 +154,30 @@ func (c *Client) Similar() goa.Endpoint {
 		resp, err := c.SimilarDoer.Do(req)
 		if err != nil {
 			return nil, goahttp.ErrRequestError("reports", "similar", err)
+		}
+		return decodeResponse(resp)
+	}
+}
+
+// Rewrite returns an endpoint that makes HTTP requests to the reports service
+// rewrite server.
+func (c *Client) Rewrite() goa.Endpoint {
+	var (
+		encodeRequest  = EncodeRewriteRequest(c.encoder)
+		decodeResponse = DecodeRewriteResponse(c.decoder, c.RestoreResponseBody)
+	)
+	return func(ctx context.Context, v any) (any, error) {
+		req, err := c.BuildRewriteRequest(ctx, v)
+		if err != nil {
+			return nil, err
+		}
+		err = encodeRequest(req, v)
+		if err != nil {
+			return nil, err
+		}
+		resp, err := c.RewriteDoer.Do(req)
+		if err != nil {
+			return nil, goahttp.ErrRequestError("reports", "rewrite", err)
 		}
 		return decodeResponse(resp)
 	}

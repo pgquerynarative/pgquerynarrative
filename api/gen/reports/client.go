@@ -19,15 +19,17 @@ type Client struct {
 	GetEndpoint      goa.Endpoint
 	ListEndpoint     goa.Endpoint
 	SimilarEndpoint  goa.Endpoint
+	RewriteEndpoint  goa.Endpoint
 }
 
 // NewClient initializes a "reports" service client given the endpoints.
-func NewClient(generate, get, list, similar goa.Endpoint) *Client {
+func NewClient(generate, get, list, similar, rewrite goa.Endpoint) *Client {
 	return &Client{
 		GenerateEndpoint: generate,
 		GetEndpoint:      get,
 		ListEndpoint:     list,
 		SimilarEndpoint:  similar,
+		RewriteEndpoint:  rewrite,
 	}
 }
 
@@ -76,4 +78,19 @@ func (c *Client) Similar(ctx context.Context, p *SimilarPayload) (res *ReportSim
 		return
 	}
 	return ires.(*ReportSimilarResult), nil
+}
+
+// Rewrite calls the "rewrite" endpoint of the "reports" service.
+// Rewrite may return the following errors:
+//   - "validation_error" (type *ValidationError)
+//   - "llm_error" (type *LLMError)
+//   - "not_found" (type *NotFoundError)
+//   - error: internal error
+func (c *Client) Rewrite(ctx context.Context, p *RewritePayload) (res *NarrativeContent, err error) {
+	var ires any
+	ires, err = c.RewriteEndpoint(ctx, p)
+	if err != nil {
+		return
+	}
+	return ires.(*NarrativeContent), nil
 }

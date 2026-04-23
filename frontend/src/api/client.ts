@@ -138,6 +138,11 @@ export const api = {
     request<{ items: SimilarReportItem[] }>(`/reports/similar?text=${encodeURIComponent(text)}&limit=${limit}${connectionId ? `&connection_id=${encodeURIComponent(connectionId)}` : ""}`),
 
   getReport: (id: string) => request<Report>(`/reports/${id}`),
+  rewriteReport: (reportId: string, instruction: string) =>
+    request<NarrativeContent>("/reports/rewrite", {
+      method: "POST",
+      body: JSON.stringify({ report_id: reportId, instruction: instruction.trim() }),
+    }),
 
   getSchema: (connectionId?: string) => request<{ schemas: SchemaInfo[] }>(`/schema${connectionId ? `?connection_id=${encodeURIComponent(connectionId)}` : ""}`),
   listConnections: () => request<{ items: ConnectionInfo[] }>("/connections"),
