@@ -7,8 +7,9 @@ receives security fixes; there are no long-term support branches.
 
 | Version | Supported |
 | ------- | --------- |
-| 2.1.x   | Yes |
-| 2.0.x   | No — upgrade to 2.1.x |
+| 2.2.x   | Yes |
+| 2.1.x   | No — upgrade to 2.2.x |
+| 2.0.x   | No |
 | 1.x     | No |
 
 ## Reporting a Vulnerability
