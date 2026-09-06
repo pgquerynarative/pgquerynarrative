@@ -77,9 +77,11 @@ Three ways in, in order of how quickly you get a running instance.
 docker pull ghcr.io/pgquery-narrative/pgquerynarrative:2.1.0
 ```
 
-One image carries the API and the built UI. It needs a PostgreSQL to talk to and
-the migrations applied — see [Deployment](docs/reference/deployment.md) for the
-full compose file, Helm chart and Kubernetes manifests.
+One image carries the API and the built UI. It needs a PostgreSQL to talk to, and
+on a fresh database it needs `DATABASE_MIGRATION_USER` / `DATABASE_MIGRATION_PASSWORD`
+set to a role that may create extensions and alter roles — the runtime query role
+deliberately cannot. See [Deployment](docs/reference/deployment.md) for the full
+compose file, Helm chart and Kubernetes manifests.
 
 Images are published with an SBOM and signed with cosign:
 
@@ -99,8 +101,11 @@ Download the archive for your platform from the
 tar -xzf pgquerynarrative-2.1.0-linux-amd64.tar.gz
 cd pgquerynarrative-2.1.0-linux-amd64
 sha256sum -c ../checksums.txt --ignore-missing   # verify first
-cp config/pgquerynarrative.env.example .env      # then edit DATABASE_URL
-./bin/migrate -path app/db/migrations -database "$DATABASE_URL" up
+cp config/pgquerynarrative.env.example .env      # then edit the DATABASE_* values
+
+# Migrations create extensions and ALTER ROLE, so they need a role that may do
+# both — not the runtime query role, which deliberately cannot.
+./bin/migrate -path app/db/migrations -database "$MIGRATION_DATABASE_URL" up
 ./bin/pgquerynarrative-server
 ```
 
