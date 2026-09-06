@@ -375,6 +375,7 @@ export interface PlanComparisonDiff {
 export interface PlanComparisonMetric {
   after: string;
   before: string;
+  caveat?: string;
   change: string;
   evidence: string;
 }

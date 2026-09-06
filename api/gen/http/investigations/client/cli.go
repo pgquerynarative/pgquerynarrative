@@ -25,7 +25,7 @@ func BuildCreatePayload(investigationsCreateBody string) (*investigations.Create
 	{
 		err = json.Unmarshal([]byte(investigationsCreateBody), &body)
 		if err != nil {
-			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"analyze\": true,\n      \"calls\": 3565509040850355741,\n      \"connection_id\": \"Ratione ex iste.\",\n      \"mean_time_ms\": 0.9512825386789907,\n      \"queryid\": \"Nulla facere beatae.\",\n      \"rows\": 5708643581344300443,\n      \"sql\": \"mr0\",\n      \"title\": \"v1u\",\n      \"total_time_ms\": 0.6669755770928547\n   }'")
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"analyze\": true,\n      \"calls\": 6544119297023173194,\n      \"connection_id\": \"Molestias facere dolores aut perferendis doloremque sit.\",\n      \"mean_time_ms\": 0.5935006929907958,\n      \"queryid\": \"Ratione ex iste.\",\n      \"rows\": 7411238645166853964,\n      \"sql\": \"35\",\n      \"title\": \"38\",\n      \"total_time_ms\": 0.0007688444681518402\n   }'")
 		}
 		if utf8.RuneCountInString(body.Title) < 1 {
 			err = goa.MergeErrors(err, goa.InvalidLengthError("body.title", body.Title, utf8.RuneCountInString(body.Title), 1, true))
@@ -73,7 +73,7 @@ func BuildCreateFromRegressionPayload(investigationsCreateFromRegressionBody str
 	{
 		err = json.Unmarshal([]byte(investigationsCreateFromRegressionBody), &body)
 		if err != nil {
-			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"regression_alert_id\": \"5c94f908-309b-41e6-ba92-a498a595af92\"\n   }'")
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"regression_alert_id\": \"c6338213-566a-4870-8559-fdb89bdca258\"\n   }'")
 		}
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.regression_alert_id", body.RegressionAlertID, goa.FormatUUID))
 		if err != nil {

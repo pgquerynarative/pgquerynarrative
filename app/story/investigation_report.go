@@ -60,6 +60,9 @@ type ComparisonMetricRow struct {
 	Before   string `json:"before"`
 	After    string `json:"after"`
 	Change   string `json:"change"`
+	// Caveat travels with the row into exported reports. A number that needs
+	// qualifying on screen needs it just as much in a PDF handed to a reviewer.
+	Caveat string `json:"caveat,omitempty"`
 }
 
 // EquivalenceValidation documents result equivalence checks.

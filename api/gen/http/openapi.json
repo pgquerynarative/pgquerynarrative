@@ -1432,6 +1432,10 @@
           "description": "Before value",
           "type": "string"
         },
+        "caveat": {
+          "description": "How to read this row when the number is easy to over-read (e.g. planner cost is an estimate in arbitrary units, not a time)",
+          "type": "string"
+        },
         "change": {
           "description": "Change summary (e.g. −96.3%)",
           "type": "string"

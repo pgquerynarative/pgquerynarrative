@@ -2528,6 +2528,9 @@ components:
         before:
           type: string
           description: Before value
+        caveat:
+          type: string
+          description: How to read this row when the number is easy to over-read (e.g. planner cost is an estimate in arbitrary units, not a time)
         change:
           type: string
           description: Change summary (e.g. −96.3%)

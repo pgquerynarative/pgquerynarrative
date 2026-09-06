@@ -320,6 +320,7 @@ var PlanComparisonMetric = Type("PlanComparisonMetric", func() {
 	Attribute("before", String, "Before value")
 	Attribute("after", String, "After value")
 	Attribute("change", String, "Change summary (e.g. −96.3%)")
+	Attribute("caveat", String, "How to read this row when the number is easy to over-read (e.g. planner cost is an estimate in arbitrary units, not a time)")
 	Required("evidence", "before", "after", "change")
 })
 

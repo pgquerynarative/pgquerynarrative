@@ -430,6 +430,9 @@ type PlanComparisonMetricResponseBody struct {
 	After string `form:"after" json:"after" xml:"after"`
 	// Change summary (e.g. −96.3%)
 	Change string `form:"change" json:"change" xml:"change"`
+	// How to read this row when the number is easy to over-read (e.g. planner cost
+	// is an estimate in arbitrary units, not a time)
+	Caveat *string `form:"caveat,omitempty" json:"caveat,omitempty" xml:"caveat,omitempty"`
 }
 
 // PlanComparisonDiffResponseBody is used to define fields on response body
