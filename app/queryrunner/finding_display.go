@@ -7,7 +7,13 @@ import (
 )
 
 var (
-	findingPartitionRelationRe = regexp.MustCompile(`\b\w+\.\w+_\d{4}_\d{2}\b`)
+	// The schema prefix is optional: planFindingMessage falls back to the bare
+	// relation when EXPLAIN reports no schema, and a pattern requiring "schema."
+	// leaves those messages un-normalized so every partition lands in its own
+	// group and the collapse silently never happens. Kept in step with
+	// PARTITION_RELATION in frontend/src/lib/utils.ts, which collapses the same
+	// findings for the UI.
+	findingPartitionRelationRe = regexp.MustCompile(`\b(?:\w+\.)?\w+_\d{4}_\d{2}\b`)
 	findingEstimatedCostRe     = regexp.MustCompile(`\s*\(estimated cost [\d.]+\)\s*`)
 	findingPartitionSuffixRe   = regexp.MustCompile(`\w+_\d{4}_\d{2}`)
 )
