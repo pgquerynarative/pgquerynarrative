@@ -63,6 +63,19 @@ func MetricsFromPlan(plan json.RawMessage) (PlanMetrics, error) {
 	return collectPlanMetrics(root), nil
 }
 
+// ComparePlansWithTimings is ComparePlans plus repeated ANALYZE measurements, so
+// the timing row can report a median and the spread it was drawn from.
+func ComparePlansWithTimings(beforePlan, afterPlan json.RawMessage, bs, as TimingSamples) (*PlanComparison, error) {
+	cmp, err := ComparePlans(beforePlan, afterPlan)
+	if err != nil {
+		return nil, err
+	}
+	if len(cmp.Metrics) > 0 {
+		cmp.Metrics[0] = formatRepeatedTimingMetric(cmp.BeforeMetrics, cmp.AfterMetrics, bs, as)
+	}
+	return cmp, nil
+}
+
 // ComparePlans compares two EXPLAIN JSON plan outputs.
 func ComparePlans(beforePlan, afterPlan json.RawMessage) (*PlanComparison, error) {
 	beforeRoot, err := extractPlanRoot(beforePlan)
@@ -325,6 +338,38 @@ func formatMetric(name string, before, after float64, unit string, lowerIsBetter
 	aStr := formatValue(after, unit)
 	change := formatChange(before, after, lowerIsBetter)
 	return ComparisonMetric{Evidence: name, Before: bStr, After: aStr, Change: change}
+}
+
+// formatRepeatedTimingMetric reports the median of several ANALYZE runs and the
+// spread across them, so a reader can see whether the difference is larger than
+// the measurement noise. Falls back to the single-sample row when fewer than two
+// measurements exist on either side.
+func formatRepeatedTimingMetric(before, after PlanMetrics, bs, as TimingSamples) ComparisonMetric {
+	if bs.Samples() < 2 || as.Samples() < 2 {
+		return formatTimingMetric(before, after)
+	}
+	m := formatMetric("Execution time (median)", bs.MedianMs, as.MedianMs, "ms", true)
+	m.Before = fmt.Sprintf("%s  (%d runs, %s–%s)",
+		formatValue(bs.MedianMs, "ms"), bs.Samples(),
+		formatValue(bs.MinMs, "ms"), formatValue(bs.MaxMs, "ms"))
+	m.After = fmt.Sprintf("%s  (%d runs, %s–%s)",
+		formatValue(as.MedianMs, "ms"), as.Samples(),
+		formatValue(as.MinMs, "ms"), formatValue(as.MaxMs, "ms"))
+
+	// If the spread on either side is comparable to the gap between the medians,
+	// the difference is inside the noise and must not be read as a speedup.
+	gap := math.Abs(bs.MedianMs - as.MedianMs)
+	noise := math.Max(bs.SpreadMs(), as.SpreadMs())
+	if gap <= noise {
+		m.Caveat = fmt.Sprintf(
+			"The run-to-run spread (up to %s) is at least as large as the difference between the medians (%s) — this is inside the measurement noise, not a demonstrated speedup.",
+			formatValue(noise, "ms"), formatValue(gap, "ms"))
+	} else {
+		m.Caveat = fmt.Sprintf(
+			"Median of %d runs each; observed spread up to %s, smaller than the %s difference between medians.",
+			bs.Samples(), formatValue(noise, "ms"), formatValue(gap, "ms"))
+	}
+	return m
 }
 
 func formatTimingMetric(before, after PlanMetrics) ComparisonMetric {

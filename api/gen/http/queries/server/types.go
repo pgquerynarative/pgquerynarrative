@@ -49,6 +49,11 @@ type ComparePlansRequestBody struct {
 	// equivalence. Requires the `query` permission on the connection; off by
 	// default so a compare only plans.
 	VerifyResults *bool `form:"verify_results,omitempty" json:"verify_results,omitempty" xml:"verify_results,omitempty"`
+	// How many times to run each side under ANALYZE before reporting a duration. 1
+	// (the default) reports a single sample; higher values report the median and
+	// the observed range, so a claimed speedup does not rest on one run. Ignored
+	// unless analyze is true, since only ANALYZE measures anything.
+	TimingRuns *int `form:"timing_runs,omitempty" json:"timing_runs,omitempty" xml:"timing_runs,omitempty"`
 	// Optional connection ID
 	ConnectionID *string `form:"connection_id,omitempty" json:"connection_id,omitempty" xml:"connection_id,omitempty"`
 	// Sample bind values for parameterized before/after SQL ($1, $2, ...);
@@ -790,11 +795,17 @@ func NewComparePlansPayload(body *ComparePlansRequestBody) *queries.ComparePlans
 	if body.VerifyResults != nil {
 		v.VerifyResults = *body.VerifyResults
 	}
+	if body.TimingRuns != nil {
+		v.TimingRuns = *body.TimingRuns
+	}
 	if body.Analyze == nil {
 		v.Analyze = false
 	}
 	if body.VerifyResults == nil {
 		v.VerifyResults = false
+	}
+	if body.TimingRuns == nil {
+		v.TimingRuns = 1
 	}
 	if body.Binds != nil {
 		v.Binds = make([]string, len(body.Binds))
@@ -937,6 +948,16 @@ func ValidateComparePlansRequestBody(body *ComparePlansRequestBody) (err error) 
 	if body.AfterSQL != nil {
 		if utf8.RuneCountInString(*body.AfterSQL) > 10000 {
 			err = goa.MergeErrors(err, goa.InvalidLengthError("body.after_sql", *body.AfterSQL, utf8.RuneCountInString(*body.AfterSQL), 10000, false))
+		}
+	}
+	if body.TimingRuns != nil {
+		if *body.TimingRuns < 1 {
+			err = goa.MergeErrors(err, goa.InvalidRangeError("body.timing_runs", *body.TimingRuns, 1, true))
+		}
+	}
+	if body.TimingRuns != nil {
+		if *body.TimingRuns > 5 {
+			err = goa.MergeErrors(err, goa.InvalidRangeError("body.timing_runs", *body.TimingRuns, 5, false))
 		}
 	}
 	return

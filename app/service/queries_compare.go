@@ -53,7 +53,13 @@ func (s *QueriesService) ComparePlans(ctx context.Context, payload *queries.Comp
 		}
 	}
 
-	beforeResult, err := runner.Explain(ctx, beforeSQL, payload.Analyze)
+	// Repeat only when ANALYZE is on: without it nothing is measured, so extra
+	// runs would cost executions and produce no additional evidence.
+	timingRuns := 1
+	if payload.TimingRuns > 0 {
+		timingRuns = payload.TimingRuns
+	}
+	beforeResult, beforeTimings, err := runner.ExplainRepeated(ctx, beforeSQL, payload.Analyze, timingRuns)
 	if err != nil {
 		kind, userMsg := ClassifyRunError(err)
 		if kind == RunErrorTimeout {
@@ -62,7 +68,7 @@ func (s *QueriesService) ComparePlans(ctx context.Context, payload *queries.Comp
 		apilog.ValidationError("compare_plans", "validation_error", err.Error())
 		return nil, &queries.ValidationError{Name: "validation_error", Message: userMsg, Code: strPtr("VALIDATION_ERROR")}
 	}
-	afterResult, err := runner.Explain(ctx, afterSQL, payload.Analyze)
+	afterResult, afterTimings, err := runner.ExplainRepeated(ctx, afterSQL, payload.Analyze, timingRuns)
 	if err != nil {
 		kind, userMsg := ClassifyRunError(err)
 		if kind == RunErrorTimeout {
@@ -72,7 +78,7 @@ func (s *QueriesService) ComparePlans(ctx context.Context, payload *queries.Comp
 		return nil, &queries.ValidationError{Name: "validation_error", Message: userMsg, Code: strPtr("VALIDATION_ERROR")}
 	}
 
-	cmp, err := queryrunner.ComparePlans(beforeResult.Plan, afterResult.Plan)
+	cmp, err := queryrunner.ComparePlansWithTimings(beforeResult.Plan, afterResult.Plan, beforeTimings, afterTimings)
 	if err != nil {
 		apilog.ValidationError("compare_plans", "validation_error", err.Error())
 		return nil, &queries.ValidationError{Name: "validation_error", Message: "failed to compare plans", Code: strPtr("VALIDATION_ERROR")}

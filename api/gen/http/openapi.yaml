@@ -1979,6 +1979,13 @@ definitions:
       connection_id:
         type: string
         description: Optional connection ID
+      timing_runs:
+        type: integer
+        description: How many times to run each side under ANALYZE before reporting a duration. 1 (the default) reports a single sample; higher values report the median and the observed range, so a claimed speedup does not rest on one run. Ignored unless analyze is true, since only ANALYZE measures anything.
+        default: 1
+        format: int64
+        minimum: 1
+        maximum: 5
       verify_results:
         type: boolean
         description: Execute both queries (COUNT(*) + bounded sample) to check result equivalence. Requires the `query` permission on the connection; off by default so a compare only plans.

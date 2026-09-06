@@ -75,7 +75,9 @@ and no rewrite. That is the expected outcome, not a failure.
   left alone
 - **Planner cost is labelled an estimate, never a speed multiple.** Cost is in arbitrary
   units and is not proportional to time; only `EXPLAIN ANALYZE` produces a measured
-  duration, and a single run is reported as the single sample it is
+  duration, and a single run is reported as the single sample it is. Pass
+  `timing_runs` (up to 5) to get a median plus the observed spread — and if the
+  spread is as large as the difference, it says so instead of claiming a speedup
 - Index DDL is **suggested only** (hypopg when installed; labeled heuristic otherwise) — never auto-applied
 - **Equivalence** is reported in five states — `VerifiedEqual` (every row matched),
   `SampleMatch` (a bounded sample matched, for results past the 1000-row cap), `Different`,

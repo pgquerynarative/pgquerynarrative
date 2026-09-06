@@ -309,6 +309,11 @@ var ComparePlansPayload = Type("ComparePlansPayload", func() {
 	Attribute("verify_results", Boolean, "Execute both queries (COUNT(*) + bounded sample) to check result equivalence. Requires the `query` permission on the connection; off by default so a compare only plans.", func() {
 		Default(false)
 	})
+	Attribute("timing_runs", Int, "How many times to run each side under ANALYZE before reporting a duration. 1 (the default) reports a single sample; higher values report the median and the observed range, so a claimed speedup does not rest on one run. Ignored unless analyze is true, since only ANALYZE measures anything.", func() {
+		Minimum(1)
+		Maximum(5)
+		Default(1)
+	})
 	Attribute("connection_id", String, "Optional connection ID")
 	Attribute("binds", ArrayOf(String), "Sample bind values for parameterized before/after SQL ($1, $2, ...); substituted for the compare/equivalence run")
 	Required("before_sql", "after_sql")
