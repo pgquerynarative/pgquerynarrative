@@ -45,9 +45,37 @@ PgQueryNarrative is a **PostgreSQL investigation workbench**. The flagship loop 
 
 Safe read-only SQL and plan analysis are the core. An optional LLM can narrate workbench analytics; it is **not** required for investigation reports (those are evidence templates, not LLM narratives). Start with [Concepts](docs/concepts.md) for vocabulary (evidence, EXPLAIN vs ANALYZE, what compare proves).
 
+**How it compares to what already exists**
+
+`pg_stat_statements` dashboards and regression alerting are well served by
+[pganalyze](https://pganalyze.com/), [Datadog DBM](https://www.datadoghq.com/product/database-monitoring/)
+and others; plan scoring by [pgMustard](https://www.pgmustard.com/); query rewriting by
+[EverSQL](https://www.eversql.com/). Where this differs is narrow and specific:
+
+> **It proposes a rewrite and then proves the rows still match before you ship it.**
+
+The rewriter is a rule engine over PostgreSQL's own parser — about six patterns,
+no model involved — and it **declines more often than it fires**, because it only
+transforms what it can show is equivalent. Verification then runs both queries
+and compares every row with an order-independent checksum. If it cannot prove
+equality it says `Unverified`, which is a different answer from `Different`.
+
+If your slow query is not one of the shapes below, you will get plan findings
+and no rewrite. That is the expected outcome, not a failure.
+
 **How it works (honest):**
 
 - Rewrites are **proposed from the query AST and plan findings** (`Suggest rewrite` / `Rank candidates`) — demo scenarios ship **problem SQL only**, no answer-key rewrite
+- **Coverage is bounded and deliberately conservative.** The patterns are: a function
+  wrapping a filtered column (`DATE_TRUNC` / `EXTRACT` / `to_char` / `::date` / `COALESCE`
+  over a date), numeric and text casts on a compared column, `OR` across columns →
+  `UNION ALL`, `IN` / `NOT IN` → `EXISTS`, and `LEFT JOIN … IS NULL` → `NOT EXISTS`.
+  It refuses when it cannot prove the transform safe — an anti-join whose `IS NULL`
+  column is not the join key, or one whose right-hand table is still selected, is
+  left alone
+- **Planner cost is labelled an estimate, never a speed multiple.** Cost is in arbitrary
+  units and is not proportional to time; only `EXPLAIN ANALYZE` produces a measured
+  duration, and a single run is reported as the single sample it is
 - Index DDL is **suggested only** (hypopg when installed; labeled heuristic otherwise) — never auto-applied
 - **Equivalence** is reported in five states — `VerifiedEqual` (every row matched),
   `SampleMatch` (a bounded sample matched, for results past the 1000-row cap), `Different`,
@@ -158,7 +186,10 @@ Open **http://localhost:8080**:
 5. **Compare plans** with result verification on, and confirm equivalence is **VerifiedEqual**
 6. **Generate report**
 
-For partition-count proof on ~10M rows (50→1 style), run **`make demo-bootstrap`** first (or `make seed-large-docker` on an existing stack), then repeat from step 2.
+The demo seeds ~300k rows across 50 monthly partitions (~55 MB) — enough that the
+before/after difference is real rather than timing noise. For the 10M-row figures
+in the case study, run **`make demo-bootstrap`** first (or `make seed-large-docker`
+on an existing stack), then repeat from step 2.
 
 ```bash
 make demo-bootstrap
@@ -188,7 +219,7 @@ Full write-up: [Trust model](docs/trust-model.md)
 | **Query Investigation** | EXPLAIN findings, system-proposed candidates, compare, equivalence proof, template engineering report |
 | **Rewrite engine** | AST-based `Suggest rewrite` (DATE_TRUNC, EXTRACT, COALESCE, OR→UNION ALL, IN→EXISTS, …) |
 | **Candidate ranking** | `Rank candidates`: dry-EXPLAIN rewrites + optional hypopg index projection (heuristic when hypopg unavailable) |
-| **Equivalence proof** | `COUNT(*)` + order-independent multiset fingerprint → `VerifiedEqual` / `SampleMatch` / `Different` / `Unverified` / `NotRequested`; reports require one of the first two |
+| **Equivalence proof** | One aggregate pass per side (`count` + `sum` + `bit_xor` over a per-row hash) compares **every row**, order-independently, with no sort → `VerifiedEqual` / `SampleMatch` / `Different` / `Unverified` / `NotRequested`; reports require one of the first two |
 | **Secure read-only access** | Readonly pool, statement limits, timeouts, schema allowlist |
 | **Plan analysis** | Seq-scan / cost / partition-pruning findings; optional `EXPLAIN ANALYZE` when enabled; IndexAdvice DDL (suggest-only) |
 | **Workbench** | Plan tree, compare table, regression inbox (real stats or `APP_ENV=demo`), Security & Trust page |

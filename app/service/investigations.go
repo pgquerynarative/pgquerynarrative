@@ -1001,12 +1001,16 @@ func (s *InvestigationsService) GenerateReport(ctx context.Context, payload *inv
 			if m == nil {
 				continue
 			}
-			metrics = append(metrics, story.ComparisonMetricRow{
+			row := story.ComparisonMetricRow{
 				Evidence: m.Evidence,
 				Before:   m.Before,
 				After:    m.After,
 				Change:   m.Change,
-			})
+			}
+			if m.Caveat != nil {
+				row.Caveat = *m.Caveat
+			}
+			metrics = append(metrics, row)
 		}
 		improved := []string{}
 		if inv.Comparison.Diff != nil {

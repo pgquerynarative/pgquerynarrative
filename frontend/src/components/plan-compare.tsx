@@ -108,12 +108,17 @@ function ComparisonRow({ row }: { row: PlanComparisonMetric }) {
   const improved = row.change.startsWith("−") || row.change.includes("→");
   const muted = row.change === "estimate-only" || row.change === "n/a" || row.change === "Same";
   return (
-    <tr className="border-b border-border/30 last:border-0">
+    <tr className="border-b border-border/30 last:border-0 align-top">
       <td className="p-3 font-medium">{row.evidence}</td>
       <td className="p-3 font-mono text-muted-foreground">{row.before}</td>
       <td className="p-3 font-mono">{row.after}</td>
       <td className="p-3">
         <span className={cn("font-medium", improved && "text-success", muted && "text-muted-foreground")}>{row.change}</span>
+        {/* Rendered inline rather than behind a tooltip: a number that is easy to
+            over-read has to carry its qualification where the number is read. */}
+        {row.caveat && (
+          <p className="mt-1 max-w-md text-xs leading-relaxed text-muted-foreground">{row.caveat}</p>
+        )}
       </td>
     </tr>
   );

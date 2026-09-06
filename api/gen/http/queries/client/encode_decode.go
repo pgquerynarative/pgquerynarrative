@@ -962,6 +962,7 @@ func unmarshalPlanComparisonMetricResponseBodyToQueriesPlanComparisonMetric(v *P
 		Before:   *v.Before,
 		After:    *v.After,
 		Change:   *v.Change,
+		Caveat:   v.Caveat,
 	}
 
 	return res

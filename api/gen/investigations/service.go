@@ -271,6 +271,9 @@ type PlanComparisonMetric struct {
 	After string
 	// Change summary (e.g. −96.3%)
 	Change string
+	// How to read this row when the number is easy to over-read (e.g. planner cost
+	// is an estimate in arbitrary units, not a time)
+	Caveat *string
 }
 
 type PlanDiagnosis struct {

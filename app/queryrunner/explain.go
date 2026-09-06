@@ -107,6 +107,13 @@ type IndexAdvice struct {
 type ExplainOptions struct {
 	Analyze bool
 	Buffers bool
+	// Settings emits EXPLAIN (SETTINGS), which lists planner configuration that
+	// differs from the built-in defaults. A plan is only interpretable next to
+	// the settings that produced it: random_page_cost, work_mem or
+	// enable_seqscan set locally will change the plan and the costs, and reading
+	// the plan without them invites wrong conclusions. Free — it costs no extra
+	// execution, and emits nothing when everything is default.
+	Settings bool
 	// GenericPlan emits EXPLAIN (GENERIC_PLAN) so a query carrying positional
 	// parameters ($1, $2, ...) — the shape pg_stat_statements stores — can be
 	// planned without bind values. Incompatible with Analyze (PostgreSQL 16+).
@@ -134,6 +141,13 @@ type ExplainResult struct {
 	// the query is parameterized — costs and structure are real, but row counts
 	// use planner defaults for the unbound params.
 	GenericPlan bool
+	// NonDefaultSettings lists planner configuration that differs from the
+	// built-in defaults on the connection that produced this plan. A plan is only
+	// interpretable next to these: random_page_cost or work_mem set locally
+	// change both the chosen plan and every cost on screen, so a reader
+	// comparing two plans needs to know they were produced under the same
+	// settings. Empty when everything is default.
+	NonDefaultSettings map[string]string
 }
 
 // EvidenceMode values.
@@ -165,7 +179,9 @@ func (r *Runner) Explain(ctx context.Context, sql string, analyze bool) (*Explai
 	}
 
 	// BUFFERS requires ANALYZE; enable it whenever ANALYZE runs so plans carry I/O evidence.
-	explainSQL := buildExplainSQL(innerSQL, ExplainOptions{Analyze: analyze, Buffers: analyze, GenericPlan: genericPlan})
+	explainSQL := buildExplainSQL(innerSQL, ExplainOptions{
+		Analyze: analyze, Buffers: analyze, GenericPlan: genericPlan, Settings: true,
+	})
 
 	queryCtx, cancel := context.WithTimeout(ctx, r.queryLimit)
 	defer cancel()
@@ -227,11 +243,12 @@ func (r *Runner) Explain(ctx context.Context, sql string, analyze bool) (*Explai
 		ServerExecutionTimeMs: parsed.ServerExecutionTimeMs,
 		EvidenceMode:          evidence,
 		GenericPlan:           genericPlan,
+		NonDefaultSettings:    parsed.NonDefaultSettings,
 	}, nil
 }
 
 func buildExplainSQL(innerSQL string, opts ExplainOptions) string {
-	parts := make([]string, 0, 4)
+	parts := make([]string, 0, 5)
 	if opts.Analyze {
 		parts = append(parts, "ANALYZE")
 		if opts.Buffers {
@@ -239,6 +256,9 @@ func buildExplainSQL(innerSQL string, opts ExplainOptions) string {
 		}
 	} else if opts.GenericPlan {
 		parts = append(parts, "GENERIC_PLAN")
+	}
+	if opts.Settings {
+		parts = append(parts, "SETTINGS")
 	}
 	parts = append(parts, "FORMAT JSON")
 	return fmt.Sprintf("EXPLAIN (%s) %s", strings.Join(parts, ", "), innerSQL)
@@ -294,6 +314,9 @@ type explainRoot []struct {
 	// Planning Time is present on every EXPLAIN; Execution Time only under ANALYZE.
 	PlanningTime  *float64 `json:"Planning Time"`
 	ExecutionTime *float64 `json:"Execution Time"`
+	// Settings holds planner configuration that differs from the built-in
+	// defaults, emitted by EXPLAIN (SETTINGS). Absent when everything is default.
+	Settings map[string]string `json:"Settings"`
 }
 
 // explainParse is the structured outcome of parsing EXPLAIN (FORMAT JSON).
@@ -303,6 +326,7 @@ type explainParse struct {
 	ServerExecutionTimeMs float64 // 0 unless ANALYZE ran
 	Findings              []PlanFinding
 	PlanJSON              json.RawMessage
+	NonDefaultSettings    map[string]string
 }
 
 // parseExplainJSON extracts total cost, planning/execution time, raw plan JSON,
@@ -332,6 +356,9 @@ func parseExplainJSON(planBytes []byte) (*explainParse, error) {
 	}
 	if roots[0].ExecutionTime != nil {
 		out.ServerExecutionTimeMs = *roots[0].ExecutionTime
+	}
+	if len(roots[0].Settings) > 0 {
+		out.NonDefaultSettings = roots[0].Settings
 	}
 	return out, nil
 }

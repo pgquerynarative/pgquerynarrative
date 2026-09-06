@@ -33,6 +33,9 @@ type ComparisonMetric struct {
 	Before   string
 	After    string
 	Change   string
+	// Caveat explains how to read a number that is easy to over-read. Empty for
+	// rows that mean what they appear to mean.
+	Caveat string
 }
 
 // PlanDiff summarizes structural plan changes.
@@ -75,7 +78,7 @@ func ComparePlans(beforePlan, afterPlan json.RawMessage) (*PlanComparison, error
 
 	metrics := []ComparisonMetric{
 		formatTimingMetric(bm, am),
-		formatMetric("Total cost", bm.TotalCost, am.TotalCost, "cost", true),
+		formatCostMetric(bm.TotalCost, am.TotalCost),
 		formatMetric("Rows scanned", bm.RowsScanned, am.RowsScanned, "rows", true),
 		formatMetric("Max node rows", bm.MaxNodeRows, am.MaxNodeRows, "rows", true),
 		formatPartitionsMetric(bm, am),
@@ -271,6 +274,52 @@ func containsNodeType(types []string, target string) bool {
 	return false
 }
 
+// formatCostMetric renders the planner's cost estimate.
+//
+// Deliberately never a fold-change. "−26.9×" alongside an execution-time row
+// reads as "26.9 times faster", but cost is an abstract number the planner uses
+// to pick between plans: its unit is "sequential page fetches" scaled by
+// seq_page_cost/random_page_cost/cpu_*_cost, it is not proportional to elapsed
+// time, and it is not reliably comparable across two different plans. A
+// percentage is still useful for direction and magnitude without implying a
+// speedup, and the caveat says so outright.
+func formatCostMetric(before, after float64) ComparisonMetric {
+	return ComparisonMetric{
+		Evidence: "Planner cost (estimate)",
+		Before:   formatValue(before, "cost"),
+		After:    formatValue(after, "cost"),
+		Change:   formatPercentChange(before, after),
+		Caveat:   "Planner estimate in arbitrary units — not a time, and not a speed multiple. Use execution time (with ANALYZE) to claim a speedup.",
+	}
+}
+
+// formatPercentChange is formatChange without the fold-change branch, for
+// quantities where an "N×" reading would be misleading.
+func formatPercentChange(before, after float64) string {
+	if before == 0 && after == 0 {
+		return "equal"
+	}
+	if before == 0 {
+		return "New"
+	}
+	if after == 0 {
+		return "≈ eliminated"
+	}
+	pct := ((after - before) / before) * 100
+	if math.Abs(pct) < 0.5 {
+		return "equal"
+	}
+	sign := "+"
+	if pct < 0 {
+		sign = "−"
+	}
+	absPct := math.Abs(pct)
+	if absPct > 99.9 {
+		absPct = 99.9
+	}
+	return fmt.Sprintf("%s%.1f%%", sign, absPct)
+}
+
 func formatMetric(name string, before, after float64, unit string, lowerIsBetter bool) ComparisonMetric {
 	bStr := formatValue(before, unit)
 	aStr := formatValue(after, unit)
@@ -285,9 +334,15 @@ func formatTimingMetric(before, after PlanMetrics) ComparisonMetric {
 			Before:   "n/a",
 			After:    "n/a",
 			Change:   "estimate-only",
+			Caveat:   "The plans were not executed, so no time was measured. Re-run with ANALYZE to obtain one.",
 		}
 	}
-	return formatMetric("Execution time", before.ExecutionTimeMs, after.ExecutionTimeMs, "ms", true)
+	m := formatMetric("Execution time", before.ExecutionTimeMs, after.ExecutionTimeMs, "ms", true)
+	// A single ANALYZE run is one sample under whatever cache state happened to
+	// exist. On small results the run-to-run spread can exceed the difference
+	// being reported, so the number is evidence, not a benchmark.
+	m.Caveat = "One execution each, on the cache state at the time. Re-run to see the spread before quoting a speedup."
+	return m
 }
 
 func formatPartitionsMetric(before, after PlanMetrics) ComparisonMetric {

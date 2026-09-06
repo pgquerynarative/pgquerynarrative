@@ -83,12 +83,17 @@ func (s *QueriesService) ComparePlans(ctx context.Context, payload *queries.Comp
 
 	metrics := make([]*queries.PlanComparisonMetric, 0, len(cmp.Metrics))
 	for _, m := range cmp.Metrics {
-		metrics = append(metrics, &queries.PlanComparisonMetric{
+		row := &queries.PlanComparisonMetric{
 			Evidence: m.Evidence,
 			Before:   m.Before,
 			After:    m.After,
 			Change:   m.Change,
-		})
+		}
+		if m.Caveat != "" {
+			caveat := m.Caveat
+			row.Caveat = &caveat
+		}
+		metrics = append(metrics, row)
 	}
 
 	equiv := notRequestedEquivalence()
