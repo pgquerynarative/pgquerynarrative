@@ -1,4 +1,8 @@
-FROM node:22.12-alpine AS frontend-build
+# --platform=$BUILDPLATFORM: the SPA is static files with no architecture, so
+# building it once natively is correct and avoids running npm under QEMU for
+# every extra target platform. The Go stage below cannot do the same — it needs
+# CGO (pg_query_go), so it builds natively for each target.
+FROM --platform=$BUILDPLATFORM node:22.12-alpine AS frontend-build
 WORKDIR /frontend
 COPY frontend/package.json frontend/package-lock.json* ./
 RUN npm ci --silent
