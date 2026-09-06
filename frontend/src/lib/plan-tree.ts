@@ -168,3 +168,96 @@ export function flattenPlanTree(root: PlanTreeNode | null): PlanTreeNode[] {
   }
   return out;
 }
+
+// Mirrors PARTITION_SUFFIX in ./utils. Duplicated rather than imported because
+// utils pulls in clsx/tailwind-merge, and the plan model should not depend on
+// presentation helpers.
+const PARTITION_SUFFIX = /_\d{4}_\d{2}$/;
+
+const SEVERITY_ORDER: Record<PlanSeverity, number> = {
+  normal: 0,
+  attention: 1,
+  high: 2,
+  critical: 3,
+};
+
+function sumDefined(values: Array<number | undefined>): number | undefined {
+  const present = values.filter((v): v is number => typeof v === "number");
+  return present.length > 0 ? present.reduce((a, b) => a + b, 0) : undefined;
+}
+
+/**
+ * Collapses sibling scans of monthly partitions into one row.
+ *
+ * A plan over an unpruned partitioned table produces one near-identical child per
+ * partition, which buries the rest of the tree. Siblings are grouped when they
+ * share a node type, schema and parent relation — that is, their relation names
+ * differ only by a trailing `_YYYY_MM`.
+ *
+ * Additive metrics are summed, so the collapsed row reports the work the whole
+ * group did rather than one arbitrary member's share, and severity takes the
+ * worst of the group so a critical partition is never hidden behind a quiet one.
+ *
+ * Two deliberate limits:
+ *  - Only childless nodes are grouped. Concatenating the children of N siblings
+ *    would invent a subtree shape that no plan actually had.
+ *  - A group of one keeps its original label and relation. Rewriting a lone
+ *    `sales_2023_01` to `sales` would discard the month while collapsing nothing.
+ */
+export function collapsePartitionSiblings(nodes: PlanTreeNode[]): PlanTreeNode[] {
+  const groups = new Map<string, PlanTreeNode[]>();
+  const order: string[] = [];
+
+  for (const node of nodes) {
+    const relation = node.relation ?? "";
+    const collapsible =
+      relation !== "" && PARTITION_SUFFIX.test(relation) && node.children.length === 0;
+    // Namespaced apart from pass-through nodes: stripping the suffix from
+    // "sales_2023_01" yields "sales", which is also a real relation — a scan of
+    // the parent table must not be folded in with its children.
+    const key = collapsible
+      ? `P|${node.nodeType}|${node.schema ?? ""}|${relation.replace(PARTITION_SUFFIX, "")}`
+      : `N|${node.id}`;
+
+    const existing = groups.get(key);
+    if (existing) {
+      existing.push(node);
+    } else {
+      groups.set(key, [node]);
+      order.push(key);
+    }
+  }
+
+  return order.map((key) => {
+    const group = groups.get(key)!;
+    const first = group[0];
+    if (group.length === 1) {
+      return first;
+    }
+
+    const base = (first.relation ?? "").replace(PARTITION_SUFFIX, "");
+    const qualified = first.schema ? `${first.schema}.${base}` : base;
+    const worst = group.reduce(
+      (acc, n) => (SEVERITY_ORDER[n.severity] > SEVERITY_ORDER[acc] ? n.severity : acc),
+      first.severity,
+    );
+
+    return {
+      ...first,
+      relation: base,
+      label: `${first.nodeType}: ${qualified} (×${group.length} partitions)`,
+      severity: worst,
+      estimatedRows: sumDefined(group.map((n) => n.estimatedRows)),
+      actualRows: sumDefined(group.map((n) => n.actualRows)),
+      cost: sumDefined(group.map((n) => n.cost)),
+      actualTimeMs: sumDefined(group.map((n) => n.actualTimeMs)),
+      tempReads: sumDefined(group.map((n) => n.tempReads)),
+      tempWrites: sumDefined(group.map((n) => n.tempWrites)),
+      rowsRemovedByFilter: sumDefined(group.map((n) => n.rowsRemovedByFilter)),
+      // estimateError is a ratio; summing it would be meaningless, and the group's
+      // members can disagree. Left off the collapsed row rather than guessed.
+      estimateError: undefined,
+      children: [],
+    };
+  });
+}
