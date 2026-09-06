@@ -1,11 +1,10 @@
 site_name: PgQueryNarrative
 site_description: PostgreSQL query intelligence — safe read-only SQL, plan analysis, and evidence-backed reports.
 
-# site_url is the canonical address of the *published documentation*, used for
-# canonical tags and sitemap.xml. There is no docs host yet, so it stays unset
-# rather than pointing at the repository — a repo URL there emits canonical tags
-# claiming every page lives at github.com, which is worse than having none.
-# Set it when docs are actually hosted somewhere.
+# The canonical address of the published documentation, used for canonical tags
+# and sitemap.xml. Deployed by .github/workflows/docs.yml on every push to main
+# that touches docs/ or mkdocs.yml.
+site_url: https://pgquery-narrative.github.io/pgquerynarrative/
 
 # repo_url / repo_name are top-level MkDocs settings; the theme reads them to
 # render the repository link in the header. They were previously under `extra`,
