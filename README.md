@@ -45,12 +45,12 @@ PgQueryNarrative is a **PostgreSQL investigation workbench**. The flagship loop 
 
 Safe read-only SQL and plan analysis are the core. An optional LLM can narrate workbench analytics; it is **not** required for investigation reports (those are evidence templates, not LLM narratives). Start with [Concepts](docs/concepts.md) for vocabulary (evidence, EXPLAIN vs ANALYZE, what compare proves).
 
-**How it compares to what already exists**
+**Where this fits**
 
-`pg_stat_statements` dashboards and regression alerting are well served by
-[pganalyze](https://pganalyze.com/), [Datadog DBM](https://www.datadoghq.com/product/database-monitoring/)
-and others; plan scoring by [pgMustard](https://www.pgmustard.com/); query rewriting by
-[EverSQL](https://www.eversql.com/). Where this differs is narrow and specific:
+Query-statistics dashboards, regression alerting, plan scoring and automated
+query rewriting all have mature tools already, commercial and open source. If
+that is what you need, reach for one of them. What this adds is narrow and
+specific:
 
 > **It proposes a rewrite and then proves the rows still match before you ship it.**
 
