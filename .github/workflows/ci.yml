@@ -39,6 +39,37 @@ jobs:
             gofmt -s -d .
             exit 1
           fi
+      - name: Check pinned action SHAs resolve
+        # release.yml only runs on a tag push, so a pinned SHA that does not exist
+        # upstream stays invisible until someone cuts a release and the job dies in
+        # "Set up job" before a single step runs. That is exactly how v2.1.0 failed:
+        # actions/download-artifact was pinned to a SHA that was not in the action's
+        # repository at all. Resolve every pin on every PR instead.
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -u
+          rc=0
+          pins="$(grep -ohE 'uses: [A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+@[a-f0-9]{40}' .github/workflows/*.yml \
+                  | sed 's/uses: //' | sort -u)"
+          for pin in $pins; do
+            repo="${pin%@*}"; sha="${pin##*@}"
+            # Test the exit code, not the output: `gh api` prints its error body to
+            # stdout, so a jq field read on a failure yields the string "null" and
+            # a naive non-empty check reports success.
+            if gh api "repos/$repo/commits/$sha" >/dev/null 2>&1; then
+              echo "ok       $repo@${sha:0:10}"
+            else
+              echo "MISSING  $repo@$sha"
+              rc=1
+            fi
+          done
+          if [ "$rc" -ne 0 ]; then
+            echo
+            echo "A pinned action SHA does not exist upstream. Re-pin it to a real commit"
+            echo "for the intended version tag."
+            exit 1
+          fi
 
   # Unit and integration tests
   test:
