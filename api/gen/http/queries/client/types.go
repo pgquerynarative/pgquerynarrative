@@ -47,6 +47,11 @@ type ComparePlansRequestBody struct {
 	// equivalence. Requires the `query` permission on the connection; off by
 	// default so a compare only plans.
 	VerifyResults bool `form:"verify_results" json:"verify_results" xml:"verify_results"`
+	// How many times to run each side under ANALYZE before reporting a duration. 1
+	// (the default) reports a single sample; higher values report the median and
+	// the observed range, so a claimed speedup does not rest on one run. Ignored
+	// unless analyze is true, since only ANALYZE measures anything.
+	TimingRuns int `form:"timing_runs" json:"timing_runs" xml:"timing_runs"`
 	// Optional connection ID
 	ConnectionID *string `form:"connection_id,omitempty" json:"connection_id,omitempty" xml:"connection_id,omitempty"`
 	// Sample bind values for parameterized before/after SQL ($1, $2, ...);
@@ -498,6 +503,7 @@ func NewComparePlansRequestBody(p *queries.ComparePlansPayload) *ComparePlansReq
 		AfterSQL:      p.AfterSQL,
 		Analyze:       p.Analyze,
 		VerifyResults: p.VerifyResults,
+		TimingRuns:    p.TimingRuns,
 		ConnectionID:  p.ConnectionID,
 	}
 	{
@@ -510,6 +516,12 @@ func NewComparePlansRequestBody(p *queries.ComparePlansPayload) *ComparePlansReq
 		var zero bool
 		if body.VerifyResults == zero {
 			body.VerifyResults = false
+		}
+	}
+	{
+		var zero int
+		if body.TimingRuns == zero {
+			body.TimingRuns = 1
 		}
 	}
 	if p.Binds != nil {

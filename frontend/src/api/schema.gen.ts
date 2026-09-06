@@ -99,6 +99,7 @@ export interface ComparePlansPayload {
   before_sql: string;
   binds?: string[];
   connection_id?: string;
+  timing_runs?: number;
   verify_results?: boolean;
 }
 

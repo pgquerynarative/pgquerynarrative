@@ -74,6 +74,11 @@ type ComparePlansPayload struct {
 	// equivalence. Requires the `query` permission on the connection; off by
 	// default so a compare only plans.
 	VerifyResults bool
+	// How many times to run each side under ANALYZE before reporting a duration. 1
+	// (the default) reports a single sample; higher values report the median and
+	// the observed range, so a claimed speedup does not rest on one run. Ignored
+	// unless analyze is true, since only ANALYZE measures anything.
+	TimingRuns int
 	// Optional connection ID
 	ConnectionID *string
 	// Sample bind values for parameterized before/after SQL ($1, $2, ...);
