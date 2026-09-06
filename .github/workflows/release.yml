@@ -242,10 +242,15 @@ jobs:
         env:
           COSIGN_EXPERIMENTAL: "1"
         run: |
+          # cosign now defaults to the Sigstore bundle format, which folds the
+          # signature and the certificate into one file. It deprecates
+          # --output-signature/--output-certificate and then *ignores* them, so
+          # without --bundle it tries to create a bundle at an empty path:
+          #   create bundle file: open : no such file or directory
           for artifact in bin/*.tar.gz bin/checksums.txt bin/sbom.spdx.json; do
-            cosign sign-blob --yes "$artifact" --output-signature "${artifact}.sig" --output-certificate "${artifact}.cert"
+            cosign sign-blob --yes "$artifact" --bundle "${artifact}.cosign.bundle"
           done
-          ls -la bin/*.sig bin/*.cert || true
+          ls -la bin/*.cosign.bundle
       - name: Create Release
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64
         with:

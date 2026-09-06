@@ -121,6 +121,11 @@ actually checked.
 - `make generate` strips goa's seeded OpenAPI examples — roughly 97% of those artifacts. A
   one-field design change went from rewriting 55,441 lines to 14, so the specs are diffable
   again and no longer hidden behind `-diff`.
+- **Release artifacts are signed with Sigstore bundles.** `cosign sign-blob` was still being
+  called with `--output-signature`/`--output-certificate`, which current cosign deprecates and
+  then ignores in favour of `--bundle`; with no bundle path it failed on the first artifact and
+  skipped release creation entirely. Each archive, `checksums.txt` and the SBOM now ship a
+  `.cosign.bundle` alongside them, and the README documents `cosign verify-blob`.
 - **The release pipeline works.** `actions/download-artifact` was pinned to a SHA that does not
   exist upstream, so a tag push built every binary and then died in "Set up job" before
   publishing anything. `Lint` now resolves every pinned action SHA on each pull request —
