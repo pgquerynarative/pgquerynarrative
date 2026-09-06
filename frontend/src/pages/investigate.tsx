@@ -135,7 +135,17 @@ export default function InvestigatePage() {
       const top = items[0];
       if (!top?.sql) {
         setSuggestedCandidates([]);
-        setError("No rewrite suggestions for this query. Supported: DATE_TRUNC / EXTRACT / to_char / ::date unwraps, COALESCE, column::text casts, OR → UNION ALL, and IN/NOT IN → EXISTS.");
+        // Say what is supported, and that declining is a normal outcome: the
+        // rewriter only fires on patterns it can prove equivalent, so "nothing
+        // offered" usually means the query is not one of these shapes — not
+        // that the query is fine.
+        setError(
+          "No rewrite offered. The rewriter only proposes transforms it can prove preserve results, " +
+            "so most queries get nothing back. It looks for: a function wrapping a filtered column " +
+            "(DATE_TRUNC / EXTRACT / to_char / ::date / COALESCE over a date), numeric and text casts on " +
+            "a compared column, OR across columns → UNION ALL, IN / NOT IN → EXISTS, and " +
+            "LEFT JOIN … IS NULL → NOT EXISTS. The plan findings above still apply.",
+        );
         setSuggestRationale("");
         return;
       }
