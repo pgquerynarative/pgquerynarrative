@@ -127,7 +127,9 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - name: Download build artifacts
-        uses: actions/download-artifact@65a9edc588144a91c09efa18addce5f7ff05fc9b
+        # v7.0.0 — must track upload-artifact's major (pinned to v7.0.1 above);
+        # v4+ artifacts are not readable across majors.
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131
         with:
           path: artifacts
           merge-multiple: true
@@ -243,6 +245,10 @@ jobs:
       - name: Create Release
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64
         with:
+          # Without an explicit tag_name this defaults to github.ref, which is a
+          # branch ref on workflow_dispatch — the run would then create a release
+          # named after the branch instead of attaching to the version's tag.
+          tag_name: v${{ env.VERSION }}
           files: bin/*
           generate_release_notes: true
           draft: false
