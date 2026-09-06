@@ -79,6 +79,13 @@ actually checked.
   29, which would have scheduled a retry in the past.
 - **Demo scenarios derive dates from the live dataset** instead of hardcoded literals that aged
   out and returned zero rows.
+- **A fresh deploy of the container image now completes its migrations.** The entrypoint ran
+  them as `DATABASE_USER`, the runtime role — which deliberately cannot create extensions or
+  `ALTER ROLE`, because it also executes user SQL. Every fresh install stopped at migration
+  `000019` with `permission denied to create extension "pg_stat_statements"`, so `docker compose
+  up` on a clean volume, and any first deploy of the published image, could not work. Set
+  `DATABASE_MIGRATION_USER` / `DATABASE_MIGRATION_PASSWORD` (or `DATABASE_MIGRATION_URL`) to a
+  role that may; unset, behaviour is unchanged for an already-migrated database.
 - **Migrations fail loudly on stale or dirty state,** with the recovery command printed.
 - **Partition findings collapse even without a schema prefix.** The normalizer required
   `schema.table_YYYY_MM`, but EXPLAIN reports a bare relation when `search_path` resolves it,

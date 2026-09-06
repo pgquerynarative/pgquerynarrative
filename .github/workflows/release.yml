@@ -195,9 +195,13 @@ jobs:
           echo "Initializing database roles/schemas..."
           PGPASSWORD=postgres psql -h 127.0.0.1 -U postgres -d pgquerynarrative -f infra/postgres-init/00-init.sql
 
+          # Migrations run as a role that may create extensions and alter roles;
+          # the application role deliberately cannot. This mirrors
+          # DATABASE_MIGRATION_USER in the shipped entrypoint — running them as
+          # the app role is what made the first v2.1.0 release attempt fail here.
           echo "Running packaged migrate binary against PostgreSQL service container..."
-          DB_URL="postgres://pgquerynarrative_app:pgquerynarrative_app@127.0.0.1:5432/pgquerynarrative?sslmode=disable"
-          "$PKG_DIR/bin/migrate" -path "$PKG_DIR/app/db/migrations" -database "$DB_URL" up
+          MIGRATE_URL="postgres://postgres:postgres@127.0.0.1:5432/pgquerynarrative?sslmode=disable"
+          "$PKG_DIR/bin/migrate" -path "$PKG_DIR/app/db/migrations" -database "$MIGRATE_URL" up
 
           echo "Starting packaged server..."
           export DATABASE_HOST=127.0.0.1 DATABASE_PORT=5432

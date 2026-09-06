@@ -6,6 +6,29 @@ Build and deploy PgQueryNarrative with Docker, Kubernetes, or Helm. For first-ti
 
 ---
 
+
+## Database roles
+
+Three roles, with deliberately different powers:
+
+| Role | Used for | Needs |
+|------|----------|-------|
+| `DATABASE_MIGRATION_USER` | Schema migrations at startup | Create extensions (`pg_stat_statements`, `pgvector`, `hypopg`) and `ALTER ROLE` |
+| `DATABASE_USER` | Application metadata in the `app` schema | Ordinary DML on `app.*` |
+| `DATABASE_READONLY_USER` | Executing user SQL | `SELECT` on allowed schemas only, no writes, no DDL |
+
+The runtime roles cannot create extensions or alter roles, and that is the point:
+the role that runs user-supplied SQL must not be able to change the database.
+Migrations therefore need their own identity.
+
+On a **fresh** database, set `DATABASE_MIGRATION_USER` and
+`DATABASE_MIGRATION_PASSWORD` (or `DATABASE_MIGRATION_URL`) before first start.
+Without them the entrypoint migrates as `DATABASE_USER` and stops at migration
+`000019` with `permission denied to create extension "pg_stat_statements"`.
+Against an already-migrated database the defaults are harmless, because `up` is
+a no-op.
+
+
 ## Docker
 
 ### Build

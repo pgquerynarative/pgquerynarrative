@@ -84,6 +84,11 @@ services:
       DATABASE_NAME: ${DATABASE_NAME:-pgquerynarrative}
       DATABASE_USER: ${DATABASE_USER:-pgquerynarrative_app}
       DATABASE_PASSWORD: ${DATABASE_PASSWORD:-pgquerynarrative_app}
+      # Migrations create extensions and ALTER ROLE, which the runtime query role
+      # is deliberately not allowed to do. Without this, `docker compose up` on a
+      # clean volume fails at migration 000019.
+      DATABASE_MIGRATION_USER: ${DATABASE_MIGRATION_USER:-postgres}
+      DATABASE_MIGRATION_PASSWORD: ${DATABASE_MIGRATION_PASSWORD:-postgres}
       DATABASE_READONLY_USER: ${DATABASE_READONLY_USER:-pgquerynarrative_readonly}
       DATABASE_READONLY_PASSWORD: ${DATABASE_READONLY_PASSWORD:-pgquerynarrative_readonly}
       DATABASE_SSL_MODE: disable
