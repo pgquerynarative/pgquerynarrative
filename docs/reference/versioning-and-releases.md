@@ -12,6 +12,9 @@ Version control and build/packaging for PgQueryNarrative.
 ## Changelog
 
 - **Unreleased:** Edit `changelog/unreleased.md`. Run `make changelog` to regenerate `CHANGELOG.md`.
+- **`CHANGELOG.md` is generated, never edited.** `make changelog` rebuilds it from
+  `changelog/unreleased.md` plus `changelog/released/*.md` and overwrites whatever was there,
+  so a hand-written section is lost on the next run. Always write the per-version file.
 - **Release:** When cutting a version, move unreleased content into `changelog/released/<version>.md` (e.g. `1.0.0.md`), then run `make changelog`. Commit `CHANGELOG.md` and the new released file before tagging.
 
 ## Local release build

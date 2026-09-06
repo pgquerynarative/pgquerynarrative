@@ -26,10 +26,10 @@ LATEST=${LATEST:-0.1.0}
     cat "$f"
     echo ""
   done
-  echo "[Unreleased]: https://github.com/pgquerynarrative/pgquerynarrative/compare/v${LATEST}...HEAD"
+  echo "[Unreleased]: https://github.com/pgquery-narrative/pgquerynarrative/compare/v${LATEST}...HEAD"
   for f in $(ls -1 "$CHANGELOG_DIR/released/"*.md 2>/dev/null | sort -V); do
     ver=$(basename "$f" .md)
-    echo "[$ver]: https://github.com/pgquerynarrative/pgquerynarrative/releases/tag/v$ver"
+    echo "[$ver]: https://github.com/pgquery-narrative/pgquerynarrative/releases/tag/v$ver"
   done
 } > "$OUTPUT"
 
