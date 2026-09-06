@@ -1,0 +1,54 @@
+name: Docs site
+
+# Publishes the MkDocs site to GitHub Pages. The build itself is already gated on
+# every PR by the `Docs` job in ci.yml (`mkdocs build --strict`); this workflow
+# only handles deployment of what main already proved buildable.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/**'
+      - 'mkdocs.yml'
+      - '.github/workflows/docs.yml'
+  workflow_dispatch:
+
+# Only one deployment at a time; a superseded run is cancelled rather than queued
+# behind a newer commit's site.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build site
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Build with mkdocs --strict
+        # Same image and flags as `make docs-check`, so a site that deploys is a
+        # site that passed the PR gate.
+        run: |
+          docker build -q -t pgquerynarrative-docs ./docs
+          docker run --rm -v "${PWD}:/docs" pgquerynarrative-docs build --strict -d /docs/site
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9
+        with:
+          path: site
+
+  deploy:
+    name: Deploy to Pages
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346
