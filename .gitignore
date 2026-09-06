@@ -47,6 +47,18 @@ coverage.html
 *.log
 *.tmp
 
+# Frontend dependencies and build output. Every consumer — Dockerfile, CI, the
+# release workflow and `make build-frontend` — runs `npm ci`, which deletes
+# node_modules and reinstalls from package-lock.json, then `npm run build` to
+# regenerate dist. Neither was ever read from the repository; 11,147 committed
+# node_modules files were 94% of the tree, and the committed dist was stale
+# output from an older build.
+node_modules/
+frontend/dist/
+
+# npm cache when NPM_CONFIG_CACHE points inside the repo
+.npm-cache/
+
 # Cache
 .gomodcache/
 pgquerynarrative_data/
