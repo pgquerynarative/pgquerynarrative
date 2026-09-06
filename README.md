@@ -104,7 +104,7 @@ Three ways in, in order of how quickly you get a running instance.
 ### Container (recommended)
 
 ```bash
-docker pull ghcr.io/pgquery-narrative/pgquerynarrative:2.1.0
+docker pull ghcr.io/pgquery-narrative/pgquerynarrative:2.2.0
 ```
 
 One image carries the API and the built UI. It needs a PostgreSQL to talk to, and
@@ -116,7 +116,7 @@ compose file, Helm chart and Kubernetes manifests.
 Images are published with an SBOM and signed with cosign:
 
 ```bash
-cosign verify ghcr.io/pgquery-narrative/pgquerynarrative:2.1.0 \
+cosign verify ghcr.io/pgquery-narrative/pgquerynarrative:2.2.0 \
   --certificate-identity-regexp 'https://github.com/pgquery-narrative/pgquerynarrative/.*' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
 ```
@@ -128,8 +128,8 @@ Download the archive for your platform from the
 — `linux-amd64`, `linux-arm64`, `darwin-amd64`, `darwin-arm64` — then:
 
 ```bash
-tar -xzf pgquerynarrative-2.1.0-linux-amd64.tar.gz
-cd pgquerynarrative-2.1.0-linux-amd64
+tar -xzf pgquerynarrative-2.2.0-linux-amd64.tar.gz
+cd pgquerynarrative-2.2.0-linux-amd64
 sha256sum -c ../checksums.txt --ignore-missing   # verify first
 cp config/pgquerynarrative.env.example .env      # then edit the DATABASE_* values
 
@@ -149,8 +149,8 @@ cosign v3 or newer** — these are Sigstore v0.3 bundles, and cosign v2 rejects
 them with `bundle does not contain cert for verification`:
 
 ```bash
-cosign verify-blob pgquerynarrative-2.1.0-linux-amd64.tar.gz \
-  --bundle pgquerynarrative-2.1.0-linux-amd64.tar.gz.cosign.bundle \
+cosign verify-blob pgquerynarrative-2.2.0-linux-amd64.tar.gz \
+  --bundle pgquerynarrative-2.2.0-linux-amd64.tar.gz.cosign.bundle \
   --certificate-identity-regexp 'https://github.com/pgquery-narrative/pgquerynarrative/.*' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
 ```
@@ -285,7 +285,8 @@ Preview: **`make docs`** → http://localhost:8000
 
 | Release | Notes |
 |---------|-------|
-| **[v2.1.0](https://github.com/pgquery-narrative/pgquerynarrative/releases/tag/v2.1.0)** — current | Query Investigation: rewrite proposals, plan-proof compare, result equivalence, regression inbox. Contains one breaking API change — see [CHANGELOG](CHANGELOG.md#210---2026-09-06) |
+| **[v2.2.0](https://github.com/pgquery-narrative/pgquerynarrative/releases/tag/v2.2.0)** — current | Evidence honesty: planner cost no longer reported as a speed multiple, full-result verification at any size, repeated timing with noise detection. One breaking change to the compare cost row — see [CHANGELOG](CHANGELOG.md#220---2026-09-07) |
+| [v2.1.0](https://github.com/pgquery-narrative/pgquerynarrative/releases/tag/v2.1.0) | Query Investigation: rewrite proposals, plan-proof compare, result equivalence, regression inbox |
 | [v2.0.0](https://github.com/pgquery-narrative/pgquerynarrative/releases/tag/v2.0.0) | EXPLAIN analysis, parser-based validation, 10M-row partitioned dataset |
 | [v1.0.0](https://github.com/pgquery-narrative/pgquerynarrative/releases/tag/v1.0.0) | Analytics narratives over a read-only connection |
 
