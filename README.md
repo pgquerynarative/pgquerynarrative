@@ -12,7 +12,7 @@ and ship engineering-ready reports.
 
 <p align="center">
   <a href="https://github.com/pgquery-narrative/pgquerynarrative/actions"><img src="https://img.shields.io/github/actions/workflow/status/pgquery-narrative/pgquerynarrative/ci.yml?branch=main&label=CI" alt="CI"></a>
-  <img src="https://img.shields.io/badge/Go-1.25+-00ADD8?logo=go&logoColor=white" alt="Go 1.25+">
+  <img src="https://img.shields.io/badge/Go-1.26+-00ADD8?logo=go&logoColor=white" alt="Go 1.26+">
   <img src="https://img.shields.io/badge/PostgreSQL-16%2B-336791?logo=postgresql&logoColor=white" alt="PostgreSQL 16+">
   <img src="https://img.shields.io/github/license/pgquery-narrative/pgquerynarrative" alt="License MIT">
   <a href="https://github.com/pgquery-narrative/pgquerynarrative/pkgs/container/pgquerynarrative"><img src="https://img.shields.io/badge/container-ghcr.io-2496ED" alt="Container"></a>
@@ -21,10 +21,11 @@ and ship engineering-ready reports.
 </p>
 
 <p align="center">
-  <a href="#try-it-5-minutes"><strong>Try the demo</strong></a> ·
+  <a href="#install"><strong>Install</strong></a> ·
+  <a href="#try-it-5-minutes">Try the demo</a> ·
   <a href="docs/getting-started/connect-postgres.md">Connect your Postgres</a> ·
   <a href="docs/reference/deployment.md">Deploy</a> ·
-  <a href="docs/index.md">Documentation</a> ·
+  <a href="https://pgquery-narrative.github.io/pgquerynarrative/">Documentation</a> ·
   <a href=".github/SECURITY.md">Security</a>
 </p>
 
@@ -48,17 +49,80 @@ Safe read-only SQL and plan analysis are the core. An optional LLM can narrate w
 
 - Rewrites are **proposed from the query AST and plan findings** (`Suggest rewrite` / `Rank candidates`) — demo scenarios ship **problem SQL only**, no answer-key rewrite
 - Index DDL is **suggested only** (hypopg when installed; labeled heuristic otherwise) — never auto-applied
-- **Equivalence** (`Equal` / `Different` / `Unverified`) gates shippable investigation reports
+- **Equivalence** is reported in five states — `VerifiedEqual` (every row matched),
+  `SampleMatch` (a bounded sample matched, for results past the 1000-row cap), `Different`,
+  `Unverified` (the check could not complete — never reported as a mismatch), and
+  `NotRequested`. Only `VerifiedEqual` or `SampleMatch` gates a shippable investigation report
 - **Regression inbox** is empty on default `make demo` unless real `pg_stat_statements` data exists; set `APP_ENV=demo` for seeded demo alerts and KPIs
 
 ## Choose your path
 
 | You want to… | Start here |
 |--------------|------------|
+| **Install it** | [Install](#install) — container, binary, or source |
 | **Try it in ~5 minutes** | [Try it](#try-it-5-minutes) — `make demo` + guided Investigate |
 | **Connect your PostgreSQL** | [Connect your Postgres](docs/getting-started/connect-postgres.md) — readonly role + schema allowlist |
 | **Deploy** | [Deployment](docs/reference/deployment.md) — Docker / Compose / Kubernetes |
 | **Understand trust & scope** | [Trust model](docs/trust-model.md) — what the app will and will not do |
+
+---
+
+## Install
+
+Three ways in, in order of how quickly you get a running instance.
+
+### Container (recommended)
+
+```bash
+docker pull ghcr.io/pgquery-narrative/pgquerynarrative:2.1.0
+```
+
+One image carries the API and the built UI. It needs a PostgreSQL to talk to and
+the migrations applied — see [Deployment](docs/reference/deployment.md) for the
+full compose file, Helm chart and Kubernetes manifests.
+
+Images are published with an SBOM and signed with cosign:
+
+```bash
+cosign verify ghcr.io/pgquery-narrative/pgquerynarrative:2.1.0 \
+  --certificate-identity-regexp 'https://github.com/pgquery-narrative/pgquerynarrative/.*' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+```
+
+### Binary
+
+Download the archive for your platform from the
+[latest release](https://github.com/pgquery-narrative/pgquerynarrative/releases/latest)
+— `linux-amd64`, `linux-arm64`, `darwin-amd64`, `darwin-arm64` — then:
+
+```bash
+tar -xzf pgquerynarrative-2.1.0-linux-amd64.tar.gz
+cd pgquerynarrative-2.1.0-linux-amd64
+sha256sum -c ../checksums.txt --ignore-missing   # verify first
+cp config/pgquerynarrative.env.example .env      # then edit DATABASE_URL
+./bin/migrate -path app/db/migrations -database "$DATABASE_URL" up
+./bin/pgquerynarrative-server
+```
+
+Each archive ships the server, the MCP server, a `migrate` binary, the migrations
+themselves, the built UI, and an example config — so a release is self-contained
+and does not need this repository.
+
+### From source
+
+Requires Go 1.26+ and CGO (`pg_query_go` is a cgo library), plus Node 22 for the UI.
+
+```bash
+git clone https://github.com/pgquery-narrative/pgquerynarrative.git
+cd pgquerynarrative
+make build            # builds the UI, then the server into bin/
+```
+
+> **Upgrading from 2.0.x?** The schema gate moved to version 56. Run the
+> migrations before starting the new binary — a server whose database is behind
+> that number refuses to boot. `POST /api/v1/queries/explain` also no longer
+> returns `execution_time_ms`; see the [changelog](CHANGELOG.md#210---2026-09-06) for the
+> replacement fields.
 
 ---
 
@@ -76,7 +140,7 @@ Open **http://localhost:8080**:
 2. Choose **Slow dashboard query**
 3. Review the finding (e.g. `DATE_TRUNC` blocking partition pruning)
 4. Click **Suggest rewrite** (or **Rank candidates**) — rewrites are system-proposed, not prefilled
-5. **Compare plans** and confirm equivalence is **Equal**
+5. **Compare plans** with result verification on, and confirm equivalence is **VerifiedEqual**
 6. **Generate report**
 
 For partition-count proof on ~10M rows (50→1 style), run **`make demo-bootstrap`** first (or `make seed-large-docker` on an existing stack), then repeat from step 2.
@@ -109,7 +173,7 @@ Full write-up: [Trust model](docs/trust-model.md)
 | **Query Investigation** | EXPLAIN findings, system-proposed candidates, compare, equivalence proof, template engineering report |
 | **Rewrite engine** | AST-based `Suggest rewrite` (DATE_TRUNC, EXTRACT, COALESCE, OR→UNION ALL, IN→EXISTS, …) |
 | **Candidate ranking** | `Rank candidates`: dry-EXPLAIN rewrites + optional hypopg index projection (heuristic when hypopg unavailable) |
-| **Equivalence proof** | `COUNT(*)` + multiset sample → Equal / Different / Unverified; reports require Equal |
+| **Equivalence proof** | `COUNT(*)` + order-independent multiset fingerprint → `VerifiedEqual` / `SampleMatch` / `Different` / `Unverified` / `NotRequested`; reports require one of the first two |
 | **Secure read-only access** | Readonly pool, statement limits, timeouts, schema allowlist |
 | **Plan analysis** | Seq-scan / cost / partition-pruning findings; optional `EXPLAIN ANALYZE` when enabled; IndexAdvice DDL (suggest-only) |
 | **Workbench** | Plan tree, compare table, regression inbox (real stats or `APP_ENV=demo`), Security & Trust page |
@@ -167,14 +231,18 @@ Preview: **`make docs`** → http://localhost:8000
 
 **Contributing & security:** [.github/CONTRIBUTING.md](.github/CONTRIBUTING.md) · [.github/SECURITY.md](.github/SECURITY.md) · **Changelog:** [CHANGELOG.md](CHANGELOG.md)
 
-## Branches & releases
+## Releases
 
-| Branch / tag | Purpose |
-|--------------|---------|
-| [`main`](https://github.com/pgquery-narrative/pgquerynarrative/tree/main) | Latest development |
-| [`stable-v2.0.0`](https://github.com/pgquery-narrative/pgquerynarrative/tree/stable-v2.0.0) | v2 line — EXPLAIN, benchmark dataset, validation |
-| [`stable-v1.0.0`](https://github.com/pgquery-narrative/pgquerynarrative/tree/stable-v1.0.0) | v1 line — earlier AI-narrative focus |
-| Tag [`v2.0.0`](https://github.com/pgquery-narrative/pgquerynarrative/releases/tag/v2.0.0) | v2.0.0 release |
+| Release | Notes |
+|---------|-------|
+| **[v2.1.0](https://github.com/pgquery-narrative/pgquerynarrative/releases/tag/v2.1.0)** — current | Query Investigation: rewrite proposals, plan-proof compare, result equivalence, regression inbox. Contains one breaking API change — see [CHANGELOG](CHANGELOG.md#210---2026-09-06) |
+| [v2.0.0](https://github.com/pgquery-narrative/pgquerynarrative/releases/tag/v2.0.0) | EXPLAIN analysis, parser-based validation, 10M-row partitioned dataset |
+| [v1.0.0](https://github.com/pgquery-narrative/pgquerynarrative/releases/tag/v1.0.0) | Analytics narratives over a read-only connection |
+
+Versioning follows [SemVer](https://semver.org/), scoped to the embeddable
+`pkg/narrative` client — see the [stability table](docs/reference/versioning-and-releases.md).
+`main` is the development branch; `stable-v2.0.0` and `stable-v1.0.0` preserve the
+earlier lines.
 
 ## License
 

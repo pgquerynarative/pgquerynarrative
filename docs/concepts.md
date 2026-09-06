@@ -18,7 +18,7 @@ An **investigation** is a first-class workflow object. It holds:
 | Plan evidence | Parsed `EXPLAIN` / `EXPLAIN ANALYZE` tree + findings |
 | Candidate SQL | A **system-proposed** rewrite (or index-oriented alternative from Rank candidates) |
 | Comparison | Side-by-side metrics (cost, time, partitions, buffers when available) |
-| Equivalence | Result check: Equal / Different / Unverified |
+| Equivalence | Result check: `VerifiedEqual` (every row matched) / `SampleMatch` (a bounded sample matched) / `Different` / `Unverified` (could not be checked — not a mismatch) / `NotRequested` |
 | Report | A durable engineering artifact (evidence template, not LLM) |
 
 Typical UI path: **Investigate** → guided scenario or paste SQL → review findings → **Suggest rewrite** or **Rank candidates** → **Compare plans** → confirm equivalence → **Generate report**.

@@ -14,7 +14,7 @@ Flagship flow examples: [API examples — Query Investigation](examples.md#query
 | GET | `/investigations/{id}` | Get investigation with evidence, optional candidate + comparison. |
 | POST | `/investigations/{id}/suggest-rewrite` | AST-based rewrite suggestions from source SQL and plan findings. Returns `candidates[]` with `sql`, `rationale`, `category`. |
 | POST | `/investigations/{id}/rank-candidates` | Body: `{"analyze": false}`. Generate rewrite + index-DDL candidates, dry-EXPLAIN, rank by cost/partitions (hypopg when available). |
-| POST | `/investigations/{id}/candidate` | Body: `{"candidate_sql","analyze"}`. Attach rewrite and compare plans + equivalence (Equal / Different / Unverified). |
+| POST | `/investigations/{id}/candidate` | Body: `{"candidate_sql","analyze"}`. Attach rewrite and compare plans + equivalence (`VerifiedEqual` / `SampleMatch` / `Different` / `Unverified` / `NotRequested`). Set `verify_results` to execute both queries; it requires the `query` permission. |
 | POST | `/investigations/{id}/report` | Generate engineering investigation report (evidence template); requires equivalence **Equal**; sets `report_id`. |
 
 ## Workspace
