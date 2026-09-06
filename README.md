@@ -113,6 +113,16 @@ Each archive ships the server, the MCP server, a `migrate` binary, the migration
 themselves, the built UI, and an example config — so a release is self-contained
 and does not need this repository.
 
+Every archive, plus `checksums.txt` and the SBOM, is signed. Each has a
+`.cosign.bundle` beside it holding the signature and certificate:
+
+```bash
+cosign verify-blob pgquerynarrative-2.1.0-linux-amd64.tar.gz \
+  --bundle pgquerynarrative-2.1.0-linux-amd64.tar.gz.cosign.bundle \
+  --certificate-identity-regexp 'https://github.com/pgquery-narrative/pgquerynarrative/.*' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+```
+
 ### From source
 
 Requires Go 1.26+ and CGO (`pg_query_go` is a cgo library), plus Node 22 for the UI.
