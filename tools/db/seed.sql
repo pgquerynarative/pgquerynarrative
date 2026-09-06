@@ -27,6 +27,15 @@ SELECT
     ROUND((10 + random() * 490)::numeric, 2) * (1 + (random() * 20)::int),
     (ARRAY['North','South','East','West','Central'])[1 + (random() * 4)::int],
     (ARRAY['A. Lee','B. Singh','C. Patel','D. Kim','E. Garcia'])[1 + (random() * 4)::int]
-FROM generate_series(1, 8000);
+-- 300k rows across the monthly partitions (~55 MB, ~3s to insert).
+--
+-- 8000 rows was too small to demonstrate anything: at ~160 rows per partition
+-- the whole table sits in shared buffers, partition pruning saves microseconds,
+-- and run-to-run timing noise exceeded the difference being shown — the same
+-- query measured 2ms and 6ms on consecutive runs. At this size the demo
+-- comparison reports 24ms -> 7ms, which is a difference a reader can trust.
+--
+-- For the 10M-row benchmark used in the case study, use `make seed-large-docker`.
+FROM generate_series(1, 300000);
 
 COMMIT;

@@ -186,7 +186,10 @@ Open **http://localhost:8080**:
 5. **Compare plans** with result verification on, and confirm equivalence is **VerifiedEqual**
 6. **Generate report**
 
-For partition-count proof on ~10M rows (50→1 style), run **`make demo-bootstrap`** first (or `make seed-large-docker` on an existing stack), then repeat from step 2.
+The demo seeds ~300k rows across 50 monthly partitions (~55 MB) — enough that the
+before/after difference is real rather than timing noise. For the 10M-row figures
+in the case study, run **`make demo-bootstrap`** first (or `make seed-large-docker`
+on an existing stack), then repeat from step 2.
 
 ```bash
 make demo-bootstrap
