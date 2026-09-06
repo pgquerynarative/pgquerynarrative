@@ -188,7 +188,7 @@ Full write-up: [Trust model](docs/trust-model.md)
 | **Query Investigation** | EXPLAIN findings, system-proposed candidates, compare, equivalence proof, template engineering report |
 | **Rewrite engine** | AST-based `Suggest rewrite` (DATE_TRUNC, EXTRACT, COALESCE, OR→UNION ALL, IN→EXISTS, …) |
 | **Candidate ranking** | `Rank candidates`: dry-EXPLAIN rewrites + optional hypopg index projection (heuristic when hypopg unavailable) |
-| **Equivalence proof** | `COUNT(*)` + order-independent multiset fingerprint → `VerifiedEqual` / `SampleMatch` / `Different` / `Unverified` / `NotRequested`; reports require one of the first two |
+| **Equivalence proof** | One aggregate pass per side (`count` + `sum` + `bit_xor` over a per-row hash) compares **every row**, order-independently, with no sort → `VerifiedEqual` / `SampleMatch` / `Different` / `Unverified` / `NotRequested`; reports require one of the first two |
 | **Secure read-only access** | Readonly pool, statement limits, timeouts, schema allowlist |
 | **Plan analysis** | Seq-scan / cost / partition-pruning findings; optional `EXPLAIN ANALYZE` when enabled; IndexAdvice DDL (suggest-only) |
 | **Workbench** | Plan tree, compare table, regression inbox (real stats or `APP_ENV=demo`), Security & Trust page |

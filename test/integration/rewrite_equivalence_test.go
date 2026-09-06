@@ -385,9 +385,12 @@ func TestComparePlans_HostileTimestampBindIsInert(t *testing.T) {
 	}
 }
 
-// TestComparePlans_LargeResultIsSampleMatchNotVerifiedEqual pins the PR-3 honesty
-// rule: past the sample cap the tool has compared a bounded sample, and must say so.
-func TestComparePlans_LargeResultIsSampleMatchNotVerifiedEqual(t *testing.T) {
+// TestComparePlans_LargeResultIsFullyVerified pins the guarantee that replaced the
+// 1000-row sample cap. Verification now runs one aggregate pass per side —
+// count, sum and bit_xor over a per-row hash — so the entire result is compared
+// regardless of size, with no sort and three scalars on the wire. A result past
+// the old cap is therefore VerifiedEqual, not SampleMatch.
+func TestComparePlans_LargeResultIsFullyVerified(t *testing.T) {
 	env := newEquivalenceEnv(t)
 	// Comfortably past the 1000-row equivalence sample cap.
 	env.exec(t, `
@@ -399,12 +402,28 @@ func TestComparePlans_LargeResultIsSampleMatchNotVerifiedEqual(t *testing.T) {
 
 	const sql = `SELECT id, date, region FROM demo.sales`
 
-	t.Run("identical SQL over a large result is SampleMatch", func(t *testing.T) {
+	t.Run("a result past the old 1000-row cap is fully verified", func(t *testing.T) {
 		res := env.compare(t, &queries.ComparePlansPayload{
 			BeforeSQL: sql, AfterSQL: sql, VerifyResults: true,
 		})
-		if got := equivalenceStatus(res); got != service.EquivalenceSampleMatch {
-			t.Fatalf("status = %q, want SampleMatch for a result past the cap (%v)", got, equivalenceNotes(res))
+		if got := equivalenceStatus(res); got != service.EquivalenceVerifiedEqual {
+			t.Fatalf("status = %q, want VerifiedEqual — every row is compared now (%v)", got, equivalenceNotes(res))
+		}
+		if res.ResultBeforeRowCount == nil || *res.ResultBeforeRowCount <= 1000 {
+			t.Fatalf("expected a result past the old cap, got %v rows", res.ResultBeforeRowCount)
+		}
+	})
+
+	t.Run("a value change with an identical row count is still caught", func(t *testing.T) {
+		// COUNT(*) alone cannot see this: both sides return the same number of
+		// rows, and only the per-row checksum separates them.
+		res := env.compare(t, &queries.ComparePlansPayload{
+			BeforeSQL:     `SELECT id, total_amount FROM demo.sales`,
+			AfterSQL:      `SELECT id, total_amount * 2 FROM demo.sales`,
+			VerifyResults: true,
+		})
+		if got := equivalenceStatus(res); got != service.EquivalenceDifferent {
+			t.Fatalf("status = %q, want Different (%v)", got, equivalenceNotes(res))
 		}
 	})
 
@@ -415,7 +434,7 @@ func TestComparePlans_LargeResultIsSampleMatchNotVerifiedEqual(t *testing.T) {
 			AfterSQL:      sql + ` ORDER BY date DESC`,
 			VerifyResults: true,
 		})
-		if got := equivalenceStatus(res); got != service.EquivalenceSampleMatch && got != service.EquivalenceVerifiedEqual {
+		if got := equivalenceStatus(res); got != service.EquivalenceVerifiedEqual {
 			t.Fatalf("reordering rows must not report a mismatch, got %q (%v)", got, equivalenceNotes(res))
 		}
 	})

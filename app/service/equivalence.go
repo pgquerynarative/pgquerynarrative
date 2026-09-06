@@ -75,6 +75,14 @@ func compareResultEquivalence(ctx context.Context, runner *queryrunner.Runner, b
 		return out
 	}
 
+	// Primary path: one aggregate pass per side compares the *entire* result
+	// with no sort and three scalars on the wire. Two executions instead of the
+	// four the count-plus-sample path needed, and no 1000-row ceiling on what
+	// can be called VerifiedEqual.
+	if res, ok := compareByFingerprint(ctx, runner, beforeSQL, afterSQL); ok {
+		return res
+	}
+
 	beforeCount, errB := countQueryRows(ctx, runner, beforeSQL)
 	afterCount, errA := countQueryRows(ctx, runner, afterSQL)
 	if errB != nil || errA != nil {
@@ -285,4 +293,120 @@ func multisetFingerprint(result *queryrunner.Result) (string, bool) {
 // resultFingerprint kept for unit tests / stable single-result hashing.
 func resultFingerprint(result *queryrunner.Result) (string, bool) {
 	return multisetFingerprint(result)
+}
+
+// aggregateFingerprint is a single-pass, order-independent summary of a result set.
+type aggregateFingerprint struct {
+	Count int64
+	Sum   string // numeric: the running sum can exceed int64
+	Xor   int64
+}
+
+// wrapFingerprintSQL builds an aggregate that summarises the whole result in one
+// pass, with no sort and no row transfer.
+//
+// This replaces "ORDER BY md5(row::text) LIMIT n", which had to compute a hash
+// for every row and then top-N sort the entire result just to look at 1000 rows
+// — work proportional to the result on a query the user already considers too
+// slow, and it could only ever support SampleMatch above the cap.
+//
+// count, sum and bit_xor are all commutative, so row order cannot affect the
+// answer, and together they separate multisets that any one of them would miss:
+// count catches cardinality, sum catches value changes, and xor catches
+// transpositions that happen to preserve the sum.
+func wrapFingerprintSQL(sql string) (string, error) {
+	inner, _, err := queryrunner.ExtractReadOnlySQL(sql)
+	if err != nil {
+		return "", err
+	}
+	inner = strings.TrimSpace(strings.TrimSuffix(strings.TrimSpace(inner), ";"))
+	if inner == "" {
+		return "", fmt.Errorf("empty SQL")
+	}
+	return fmt.Sprintf(`SELECT count(*)::bigint AS pgqn_n,
+       coalesce(sum(hashtextextended(pgqn_eq::text, 0)::numeric), 0)::text AS pgqn_s,
+       coalesce(bit_xor(hashtextextended(pgqn_eq::text, 0)), 0)::bigint AS pgqn_x
+FROM (%s) AS pgqn_eq`, inner), nil
+}
+
+func runResultFingerprint(ctx context.Context, runner *queryrunner.Runner, sql string) (aggregateFingerprint, error) {
+	var fp aggregateFingerprint
+	wrapped, err := wrapFingerprintSQL(sql)
+	if err != nil {
+		return fp, err
+	}
+	res, err := runner.Run(ctx, wrapped, 1)
+	if err != nil {
+		return fp, err
+	}
+	if res == nil || len(res.Rows) == 0 || len(res.Rows[0]) < 3 {
+		return fp, fmt.Errorf("empty fingerprint result")
+	}
+	row := res.Rows[0]
+	if fp.Count, err = asInt64(row[0]); err != nil {
+		return fp, fmt.Errorf("fingerprint count: %w", err)
+	}
+	fp.Sum = fmt.Sprintf("%v", row[1])
+	if fp.Xor, err = asInt64(row[2]); err != nil {
+		return fp, fmt.Errorf("fingerprint xor: %w", err)
+	}
+	return fp, nil
+}
+
+func (f aggregateFingerprint) equal(other aggregateFingerprint) bool {
+	return f.Count == other.Count && f.Sum == other.Sum && f.Xor == other.Xor
+}
+
+// compareByFingerprint compares two results with one aggregate pass each.
+// Returns ok=false when either side cannot be fingerprinted — a result column
+// whose type has no text output, for instance — so the caller can fall back to
+// the count-plus-sample path rather than reporting a false Unverified.
+func compareByFingerprint(ctx context.Context, runner *queryrunner.Runner, beforeSQL, afterSQL string) (EquivalenceResult, bool) {
+	var out EquivalenceResult
+
+	beforeFP, errB := runResultFingerprint(ctx, runner, beforeSQL)
+	if errB != nil {
+		return out, false
+	}
+	afterFP, errA := runResultFingerprint(ctx, runner, afterSQL)
+	if errA != nil {
+		return out, false
+	}
+
+	out.CountsComputed = true
+	out.BeforeCount = beforeFP.Count
+	out.AfterCount = afterFP.Count
+	out.FullCompare = true
+
+	if beforeFP.Count != afterFP.Count {
+		eq := false
+		out.Equal = &eq
+		out.Status = EquivalenceDifferent
+		out.Notes = fmt.Sprintf(
+			"Row counts differ: before=%d after=%d — do not deploy the candidate without review.",
+			beforeFP.Count, afterFP.Count,
+		)
+		return out, true
+	}
+
+	if !beforeFP.equal(afterFP) {
+		eq := false
+		out.Equal = &eq
+		out.Status = EquivalenceDifferent
+		out.Notes = fmt.Sprintf(
+			"Both queries return %d rows, but the values differ (full-result order-independent checksum). Do not deploy without review.",
+			beforeFP.Count,
+		)
+		return out, true
+	}
+
+	eq := true
+	out.Equal = &eq
+	out.Status = EquivalenceVerifiedEqual
+	out.SampleRows = int(beforeFP.Count)
+	out.Notes = fmt.Sprintf(
+		"Full result compared: %d rows, matched by an order-independent checksum over every row (one aggregate pass per side, no sort).",
+		beforeFP.Count,
+	)
+	return out, true
 }
