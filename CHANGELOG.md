@@ -9,20 +9,95 @@ Entries: edit `changelog/unreleased.md` then run `make changelog`.
 
 ## [Unreleased]
 
+Nothing yet. Add entries here as work lands; `make changelog` folds them into `CHANGELOG.md`.
+When cutting a release, move them into `changelog/released/<version>.md` and run it again.
+
+## [2.1.0] - 2026-09-06
+
+Query Investigation: propose a rewrite, prove it with the planner, and verify the rows still
+match — plus a remediation pass over every place the tool previously overstated what it had
+actually checked.
+
+### Breaking
+
+- **`POST /api/v1/queries/explain` no longer returns `execution_time_ms`.** The field reported
+  the server's wall-clock time for the EXPLAIN round trip — network, planning, and parsing —
+  even when the query was never executed, so it read as an execution time that nothing had
+  measured. It is replaced by four honest fields: `request_wall_time_ms` (the round trip),
+  `planning_time_ms` and `server_execution_time_ms` (PostgreSQL's own numbers, the latter
+  non-zero only under ANALYZE), and `evidence_mode` (`estimated` or `observed`). Clients
+  generated from the v2.0.0 OpenAPI spec must regenerate. This is the only field removed
+  anywhere in the API in this release.
+
 ### Added
 
-- **Logging (zerolog):** `LOG_LEVEL` (debug, info, warn, error) and `LOG_PRETTY` (colorful console output for local dev). When set, app uses zerolog for leveled, structured logs; request logging uses one message per request (`http request`) with level by status (4xx/5xx → error, /health, /ready, /version → debug, else info). Documented in Configuration – Logging.
-- **Migration 000011:** Set `default_transaction_read_only = on` for the readonly role so the database enforces read-only at session level.
-- **Configurable windows:** `METRICS_MAX_TIMESERIES_PERIODS` (default 24, range 2–120) controls the maximum number of periods included in time-series output ("last N" for charts and period history). Configuration doc now has a "Configurable windows" subsection listing all window-related vars (trend periods, moving avg, max time-series periods, seasonal lag, min periods for seasonality). Settings UI shows max time-series periods when present.
-- **Multiple database connections:** New `GET /api/v1/connections` endpoint plus optional `connection_id` support across run/save/list/report/schema/ask flows. Saved queries and reports now persist `connection_id`.
+- **Query Investigation workflow:** open an investigation from SQL or a `pg_stat_statements`
+  regression, get a verdict-first plan diagnosis, propose rewrite candidates, rank them with a
+  dry EXPLAIN, and compare before/after plans.
+- **Rewrite patterns:** `DATE_TRUNC` equality → sargable range, `LEFT JOIN … IS NULL` anti-join
+  → `NOT EXISTS`, `OR` → `UNION`, and parameterized-query rewrites with `EXPLAIN (GENERIC_PLAN)`.
+- **Result equivalence:** a compare can execute both queries and report a five-state status —
+  `VerifiedEqual`, `SampleMatch`, `Different`, `Unverified`, `NotRequested` — using `COUNT(*)`
+  plus an order-independent multiset fingerprint.
+- **Index advice with hypopg:** planner-backed cost projection for a candidate index, labelled
+  `hypopg` when real and `heuristic` when not, so a guess is never presented as a measurement.
+- **Regression poller:** rolling baseline, self-observation filter, and an applied-fix lifecycle,
+  polling every authorized connection with advisory-lock leader election.
+- **Report export:** Markdown, JSON, and SQL, alongside HTML and PDF. PDF embeds a Unicode font.
+- **Candidate history:** every tested candidate is kept, not just the winner.
+- **Sample bind values** for comparing parameterized queries.
+- **Security & Trust page** reports live per-connection posture: real TLS mode, real allowed
+  schemas, real timeout and row cap, a live read-only probe, and the caller's actual permissions.
 
 ### Changed
 
-- **Documentation refresh:** Updated configuration, API reference/examples, UI overview, quick start, CLI usage notes, and troubleshooting to reflect multi-connection behavior and current request/response fields.
+- **Investigations use estimate-only EXPLAIN by default.** ANALYZE executes the query, so it is
+  now opt-in per request rather than implied by opening an investigation.
+- **Candidate ranking is honest about "no improvement."** A candidate that beats nothing gets no
+  rank, and the list carries an explicit `recommendation` when nothing improves.
+- **Regression detection compares poll-to-poll interval deltas**, not cumulative
+  `pg_stat_statements` counters, whose percent changes grew with uptime until they always fired.
+- **"Rows scanned" counts actual rows across loops** instead of the maximum at any single node.
+- **Investigations are org-wide by design**; deletion is gated on `created_by`.
+- **One deployment model:** the root `Dockerfile` is the blessed single image (API plus built
+  SPA). The divergent `deploy/docker/` variant is removed.
 
-### Planned (Release 2)
+### Fixed
 
-Additional analytics: further cohort metrics and seasonal adjustments.
+- **`DATE_TRUNC('month', col) = '2025-01-15'` is no longer rewritten.** The predicate is
+  unsatisfiable; widening it to the whole month changed the result set.
+- **`OR` → `UNION` no longer drops NULL rows.** The generated branch negated the previous
+  predicate with a plain `NOT`, which discards rows where it evaluates to NULL; it now uses
+  `IS NOT TRUE`.
+- **Bind substitution is hardened against injection.** The timestamp pattern was unanchored and
+  quotes were not escaped, so a value beginning like a timestamp could inject a predicate.
+- **Result verification requires the `query` permission,** not just `explain` — it executes rows.
+- **Regression alerts cannot duplicate:** a partial unique index permits one open alert per
+  (organization, connection, queryid).
+- **Cross-organization integrity** for investigation children, via composite foreign keys.
+- **Webhook retry backoff no longer overflows.** `base * 2^attempt` wrapped negative past attempt
+  29, which would have scheduled a retry in the past.
+- **Demo scenarios derive dates from the live dataset** instead of hardcoded literals that aged
+  out and returned zero rows.
+- **Migrations fail loudly on stale or dirty state,** with the recovery command printed.
+
+### Security
+
+- Read-only boundary is verified with hypopg's read-only lift in play: writes and DDL must still
+  fail on privilege, not merely on the `transaction_read_only` flag.
+- `golang.org/x/crypto` and the CI/Docker Go toolchain bumped to clear `govulncheck`.
+
+### Internal
+
+- Coverage floors raised to sit just under measured values (`app/service` 12 → 25,
+  `app/queryrunner` 40 → 65, `app/security` 40 → 50, `app/audit` 20 → 45, core total 18 → 35).
+- `make test-unit` now runs `app/service`, `app/security`, `app/llm`, `app/audit` and `app/story`,
+  which previously executed only inside the CI coverage step.
+- Documentation is gated on `mkdocs build --strict`. Enabling `attr_list` fixed twelve dead
+  cross-page anchors whose explicit heading ids had been rendering as literal text.
+- `make generate` strips goa's seeded OpenAPI examples — roughly 97% of those artifacts. A
+  one-field design change went from rewriting 55,441 lines to 14, so the specs are diffable
+  again and no longer hidden behind `-diff`.
 
 ## [2.0.0] - 2026-06-28
 
@@ -39,11 +114,15 @@ Postgres-first repositioning: secure read-only SQL, plan analysis, and analytics
 - **SQL period comparison:** `LAG` window functions in `app/queryrunner/period_comparison.go`; Go metrics path is fallback.
 - **Case study:** 1.1s → 145ms covering index optimization on 10M rows ([docs/case-studies/01-query-optimization.md](docs/case-studies/01-query-optimization.md)).
 - **Production ops docs:** Backup, migrations, monitoring (see deployment/operations reference docs).
+- **Multiple database connections:** `GET /api/v1/connections`, plus optional `connection_id` across run/save/list/report/schema/ask flows. Saved queries and reports persist `connection_id`.
+- **Structured logging (zerolog):** `LOG_LEVEL` (debug, info, warn, error) and `LOG_PRETTY` for local dev. One message per request (`http request`), with level by status: 4xx/5xx → error; `/health`, `/ready`, `/version` → debug; else info.
+- **Configurable metrics windows:** `METRICS_MAX_TIMESERIES_PERIODS` (default 24, range 2–120) caps the periods included in time-series output.
 
 ### Changed
 
 - README and public positioning lead with Postgres query intelligence; AI narrative layer is optional.
-- `default_transaction_read_only` enforced on the read-only database role.
+- `default_transaction_read_only` enforced on the read-only database role (migration 000011).
+- Documentation refreshed across configuration, API reference and examples, UI overview, quick start, CLI usage, and troubleshooting to match multi-connection behaviour and current request/response fields.
 
 ## [1.0.0]
 
@@ -110,5 +189,7 @@ Additional analytics: further cohort metrics, configurable windows, and seasonal
 - Secret scanning, dependency vulnerability scanning, CodeQL, gosec
 - Optional API authentication (Bearer token), per-IP rate limiting, and audit logging to `app.audit_logs`
 
-[Unreleased]: https://github.com/pgquerynarrative/pgquerynarrative/compare/v1.0.0...HEAD
-[1.0.0]: https://github.com/pgquerynarrative/pgquerynarrative/releases/tag/v1.0.0
+[Unreleased]: https://github.com/pgquery-narrative/pgquerynarrative/compare/v2.1.0...HEAD
+[1.0.0]: https://github.com/pgquery-narrative/pgquerynarrative/releases/tag/v1.0.0
+[2.0.0]: https://github.com/pgquery-narrative/pgquerynarrative/releases/tag/v2.0.0
+[2.1.0]: https://github.com/pgquery-narrative/pgquerynarrative/releases/tag/v2.1.0

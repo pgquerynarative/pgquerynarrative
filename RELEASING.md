@@ -28,11 +28,14 @@ Items map to the 12-PR remediation plan. Update this table as PRs land.
 | 7 | Per-connection polling, leader election, unique alert | #10, #11, #12 | Merged (#152) |
 | 8 | Cross-org integrity, org-wide visibility | #15, #16 | Merged (#153) |
 | 9 | Security & Trust reports real per-connection state | #17 | Merged (#155) |
-| 10 | Service coverage floor, hero-path tests, HypoPG gate | #19, #20, #24 | **Open** |
-| 11 | Docs-strict CI, mkdocs config, codegen stabilization | #21, #22 | **Open** |
-| 12 | Single deployment model, branch protection, this file | #23, #18, #25 | In review |
+| 10 | Service coverage floor, hero-path tests, HypoPG gate | #19, #20, #24 | Merged (#161) |
+| 11 | Docs-strict CI, mkdocs config, codegen stabilization | #21, #22 | Merged (#163) |
+| 12 | Single deployment model, branch protection, this file | #23, #18, #25 | Merged (#157) |
 
-**A tag requires every row above to read "Merged".**
+**A tag requires every row above to read "Merged".** As of 2026-09-06 every row does, so the
+gate is satisfied for `v2.1.0`. Leave this table in place: it is the record of which review
+items a given version actually contains, and the next review will add rows rather than
+replace them.
 
 ## Pre-tag checklist
 
@@ -101,6 +104,44 @@ Run from a clean tree on an up-to-date `main`.
 
 10. **Changelog** — move `changelog/unreleased.md` entries into
     `changelog/released/<version>.md`, run `make changelog`, commit.
+
+    `CHANGELOG.md` is **generated**: `tools/changelog/build.sh` concatenates
+    `changelog/unreleased.md` and `changelog/released/*.md` and overwrites the file. Anything
+    hand-written directly into `CHANGELOG.md` is destroyed by the next `make changelog`. The
+    `v2.0.0` section was added by hand and had no `changelog/released/2.0.0.md` behind it, so
+    it survived only until someone ran the target; it has since been backfilled. Write the
+    per-version file, never the output.
+
+## Choosing the number
+
+SemVer here is scoped by [the stability table](docs/reference/versioning-and-releases.md#pkgnarrative-api-stability):
+`pkg/narrative` is the stable surface, and Goa types under `api/gen/` are explicitly unstable.
+Decide the bump against that table, not against the raw diff.
+
+Check what actually changed before picking a number:
+
+```bash
+# Public surface of the embeddable client
+git diff v<previous>..main -- pkg/narrative/
+
+# Fields removed from any API type — the usual source of an unplanned break
+git show v<previous>:api/gen/queries/service.go > /tmp/old.go
+diff <(awk '/^type [A-Za-z]+ struct/{t=$2} /^\t[A-Z]/{print t"."$1}' /tmp/old.go | sort -u) \
+     <(awk '/^type [A-Za-z]+ struct/{t=$2} /^\t[A-Z]/{print t"."$1}' api/gen/queries/service.go | sort -u)
+```
+
+A field removed from a REST response is a break for anyone generating clients from the
+published OpenAPI spec even when `pkg/narrative` is untouched. That does not by itself force a
+major bump under the table above, but it **must** appear under a `### Breaking` heading in the
+changelog and in the release notes. `v2.1.0` removed `ExplainQueryResult.execution_time_ms` on
+exactly these terms.
+
+## Upgrade notes belong in the release
+
+`RequiredMigrationVersion` in `app/db/migrations_check.go` is a startup gate: a server whose
+database is behind that number refuses to boot. Whenever it moves, the release notes must say
+so and name the range, or operators discover it as a failed rollout. `v2.1.0` requires schema
+version 56, up from 19 at `v2.0.0`.
 
 ## Tag and publish
 
