@@ -144,7 +144,9 @@ themselves, the built UI, and an example config — so a release is self-contain
 and does not need this repository.
 
 Every archive, plus `checksums.txt` and the SBOM, is signed. Each has a
-`.cosign.bundle` beside it holding the signature and certificate:
+`.cosign.bundle` beside it holding the signature and certificate. **Requires
+cosign v3 or newer** — these are Sigstore v0.3 bundles, and cosign v2 rejects
+them with `bundle does not contain cert for verification`:
 
 ```bash
 cosign verify-blob pgquerynarrative-2.1.0-linux-amd64.tar.gz \
