@@ -99,9 +99,16 @@ someone cuts a release, at which point the job fails in "Set up job" before a si
 and the tag produces no artifacts. This happened to `v2.1.0`:
 `actions/download-artifact` was pinned to a SHA that was not in the action's repository.
 
-The `Lint` job now resolves every pinned SHA in `.github/workflows/*.yml` on every PR. Keep
-that step required, and when Dependabot is told to ignore an action, re-pin it by hand to a
-real commit for the version tag you intend — not to a SHA copied from elsewhere.
+The `Lint` job resolves every pinned SHA in `.github/workflows/*.yml` on every PR, including
+multi-segment action paths such as `github/codeql-action/init@<sha>`. Keep that step required,
+and when Dependabot is told to ignore an action, re-pin it by hand to a real commit for the
+version tag you intend — not to a SHA copied from elsewhere.
+
+The check fails only on HTTP 404/422, which mean the commit genuinely is not in the action's
+repository. A rate limit, a GitHub API incident or a network failure is retried and then
+reported as `UNKNOWN` without failing: this step is a required check, and a check that treats
+every API hiccup as a bad pin would block every open PR for the duration of an upstream
+outage.
 
 ## When CI gains a job
 

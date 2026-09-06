@@ -50,20 +50,45 @@ jobs:
         run: |
           set -u
           rc=0
-          pins="$(grep -ohE 'uses: [A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+@[a-f0-9]{40}' .github/workflows/*.yml \
-                  | sed 's/uses: //' | sort -u)"
+          # The repo component must allow "/" so multi-segment action paths are
+          # covered too (github/codeql-action/init@SHA); the API lookup uses the
+          # first two segments either way. A pattern that stops at owner/repo
+          # silently skips every codeql-action pin in security.yml.
+          pins="$(grep -ohE 'uses: [A-Za-z0-9_.-]+(/[A-Za-z0-9_.-]+)+@[a-f0-9]{40}' \
+                  .github/workflows/*.yml | sed 's/uses: //' | sort -u)"
+          if [ -z "$pins" ]; then
+            echo "No pinned action SHAs matched — the extraction pattern is wrong."
+            exit 1
+          fi
+
           for pin in $pins; do
-            repo="${pin%@*}"; sha="${pin##*@}"
-            # Test the exit code, not the output: `gh api` prints its error body to
-            # stdout, so a jq field read on a failure yields the string "null" and
-            # a naive non-empty check reports success.
-            if gh api "repos/$repo/commits/$sha" >/dev/null 2>&1; then
-              echo "ok       $repo@${sha:0:10}"
-            else
-              echo "MISSING  $repo@$sha"
-              rc=1
-            fi
+            path="${pin%@*}"; sha="${pin##*@}"
+            owner="${path%%/*}"; rest="${path#*/}"; repo="${rest%%/*}"
+
+            # Only 404/422 mean the SHA is genuinely absent. Every other failure
+            # (403/429 rate limit, 5xx incident, network) is transient, and failing
+            # the build on those would wedge every open PR behind GitHub's uptime
+            # for a check that is required by branch protection. Retry, then report
+            # the pin as unverified without failing.
+            status=""
+            for attempt in 1 2 3; do
+              out="$(gh api "repos/$owner/$repo/commits/$sha" 2>&1)" && { status=200; break; }
+              status="$(printf '%s' "$out" \
+                | sed -n -e 's/.*(HTTP \([0-9]\{3\}\)).*/\1/p' \
+                         -e 's/.*"status":"\([0-9]\{3\}\)".*/\1/p' | head -1)"
+              case "$status" in
+                404|422) break ;;
+                *) sleep $(( attempt * 3 )) ;;
+              esac
+            done
+
+            case "$status" in
+              200)     echo "ok        $path@${sha:0:10}" ;;
+              404|422) echo "MISSING   $path@$sha"; rc=1 ;;
+              *)       echo "UNKNOWN   $path@${sha:0:10} (could not verify: ${status:-network})" ;;
+            esac
           done
+
           if [ "$rc" -ne 0 ]; then
             echo
             echo "A pinned action SHA does not exist upstream. Re-pin it to a real commit"
