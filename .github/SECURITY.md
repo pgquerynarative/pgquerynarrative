@@ -1,13 +1,15 @@
 # Security Policy
 
-## Supported Versions
+## Supported versions
 
-We actively support the following versions with security updates:
+Fixes land on `main` and ship in the next release. Only the latest minor release
+receives security fixes; there are no long-term support branches.
 
 | Version | Supported |
 | ------- | --------- |
-| 1.x.x   | Yes       |
-| < 1.0   | No        |
+| 2.1.x   | Yes |
+| 2.0.x   | No — upgrade to 2.1.x |
+| 1.x     | No |
 
 ## Reporting a Vulnerability
 
@@ -17,7 +19,8 @@ We take security vulnerabilities seriously. If you discover a security vulnerabi
 Security vulnerabilities should be reported privately to protect users.
 
 ### 2. Report Privately
-Create a [private security advisory](https://docs.github.com/en/code-security/security-advisories/working-with-repository-security-advisories/creating-a-repository-security-advisory) on GitHub (recommended), or contact the project maintainers through the repository.
+Use [**Report a vulnerability**](https://github.com/pgquery-narrative/pgquerynarrative/security/advisories/new),
+which opens an advisory visible only to maintainers.
 
 Include:
 - Description of the vulnerability
@@ -26,9 +29,12 @@ Include:
 - Suggested fix (if any)
 
 ### 3. Response Timeline
-- **Initial Response**: Within 48 hours
-- **Status Update**: Within 7 days
-- **Fix Timeline**: Depends on severity (typically 30-90 days)
+- **Acknowledgement**: within 3 working days
+- **Initial assessment**: within 10 working days
+- **Fix or documented mitigation**: tracked in the advisory until closed
+
+This is a small project, not a vendor with a 24/7 rota. If something is being
+actively exploited, say so in the first line and it will be prioritised.
 
 ### 4. Disclosure Policy
 - We will acknowledge receipt of your report
@@ -36,23 +42,47 @@ Include:
 - We will credit you in the security advisory (if you wish)
 - We will coordinate public disclosure after a fix is available
 
-## Security Best Practices
+## What the boundary guarantees
 
-### For Users
-- Always use the latest stable version
-- Keep dependencies up to date
-- Use strong database passwords
-- Enable SSL/TLS for database connections in production
-- Review and restrict database user permissions
-- Monitor logs for suspicious activity
+These are the properties the project intends to hold. A reproducible break in any
+of them is a vulnerability, and worth reporting.
 
-### For Developers
-- Never commit secrets or credentials
-- Use environment variables for sensitive configuration
-- Review all pull requests for security issues
-- Run security scans before merging
-- Keep dependencies updated
-- Follow secure coding practices
+- **Analytical queries are read-only, enforced by database privilege** — not by an
+  application flag. The querying role cannot `INSERT`, `UPDATE`, `DELETE` or run
+  DDL, and that holds even when `transaction_read_only` is lifted, which index
+  cost projection requires for hypopg. `tools/db/verify_security.sh` asserts this
+  and CI runs it on every pull request.
+- **Only `SELECT`/`WITH` reaches the database**, validated by walking the
+  `pg_query` parse tree rather than matching strings.
+- **Bind values are never spliced into SQL as syntax.** A value that merely looks
+  like a timestamp is quoted and escaped into an inert literal, or refused.
+- **Tenant isolation is enforced by row-level security**, scoped per connection.
+- **Query results are not sent to an external LLM unless explicitly configured.**
+  The investigation loop runs with no model at all.
+- **Nothing is created or altered without a human action.** Index DDL and rewrites
+  are proposed, never applied.
+
+## Known limits — not vulnerabilities
+
+- **`APP_ENV=demo` fabricates workspace KPIs** so the demo has something to show
+  against an empty database. It is off by default and gated in one place
+  (`app/service/workspace.go`). Never enable it where the numbers will be acted on.
+- **Reports may contain query results** — whatever your SQL selected. Treat a
+  generated report, and especially a share link, as being as sensitive as the data
+  behind it.
+- **The `app` schema stores SQL text.** With a data encryption key configured it is
+  sealed at rest; without one it is stored in plaintext.
+- **Anything under `app/*` is internal** and outside the `pkg/narrative` SemVer
+  guarantee. A breaking change there is not a security issue.
+
+## Scope
+
+In scope: this repository, the published container image, and the Helm and
+Kubernetes manifests under `deploy/`.
+
+Out of scope: vulnerabilities in PostgreSQL itself, in a model provider you
+configure, or issues that require an attacker to already hold database superuser
+or host root.
 
 ## Security Features
 
@@ -97,9 +127,3 @@ Security updates are released as:
 ## Acknowledgments
 
 We thank all security researchers who responsibly disclose vulnerabilities. Contributors will be credited in security advisories (with permission).
-
-## Resources
-
-- [OWASP Top 10](https://owasp.org/www-project-top-ten/)
-- [Go Security Best Practices](https://go.dev/doc/security/best-practices)
-- [GitHub Security Best Practices](https://docs.github.com/en/code-security)
